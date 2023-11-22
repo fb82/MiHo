@@ -143,7 +143,7 @@ if __name__ == '__main__':
 
             gt_file = os.path.join(bpath, 'gt.mat')
             if os.path.exists(gt_file):
-                gt = loadmat(gt_file)['gt']
+                gt = sio.loadmat(gt_file)['gt']
             else:
                 gt = np.loadtxt(os.path.join(bpath, 'gt.txt'))
                 sio.savemat(gt_file, {'gt': gt})
@@ -167,6 +167,7 @@ if __name__ == '__main__':
             mm1 = np.linalg.norm(matches[:, :2] - gt_scaled[:, :2], axis=1)
             mm2 = np.linalg.norm(matches[:, 2:] - gt_scaled[:, 2:], axis=1)
 
+            # remove matches within 2r (th_cf*th_sac) of GT matches before including the noisy matches
             to_remove_matches = np.any((mm1 < th_sac * th_cf) | (mm2 < th_sac * th_cf), axis=0)
             hom_matches = matches[~to_remove_matches]
 
