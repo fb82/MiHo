@@ -421,25 +421,23 @@ def kpt_improver(im1, im2, matches, what, wr, s, ref, hom, hom_data):
         didx = np.ones((1, matches.shape[0]))
         Hdata = [np.eye(3), np.eye(3)]
 
-    img1 = torch.tensor(rgb2gray(im1)).to(device).double()
-    img2 = torch.tensor(rgb2gray(im2)).to(device).double()
+    img1 = cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY).astype(np.double)
+    img2 = cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY).astype(np.double)
 
-    matches_new = torch.tensor(matches).to(device).double()
+    matches_new = matches.copy()
 
     method = {
         'lsm': lsm,
         'norm_corr': ncorr
     }
 
-    T = [torch.eye(3) for _ in range(matches.shape[0])]
-
     stime = torch.cuda.Event(enable_timing=True)
     etime = torch.cuda.Event(enable_timing=True)
-
     stime.record()
 
+    T = [np.eye(3) for _ in range(matches.shape[0])]
     for k in range(len(what)):
-        widx = [idx for idx, val in enumerate(method.keys()) if val == what[k]]
+        widx = np.where(np.array(list(method.keys())) == what[k])[0][0]
         wr_ = wr[k]
 
         def process_matches(i):
@@ -449,44 +447,46 @@ def kpt_improver(im1, im2, matches, what, wr, s, ref, hom, hom_data):
 
             if not ref or ref == 1:
                 p2_new, p2_status, p2_err, p2_err_base, T2 = method[what[k]](
-                    img1, img2, aux_match[0:2], aux_match[2:4], wr_, Hdata[int(didx[i]) - 1][0:2], s[k], T_)
+                    img1, img2, aux_match[:2], aux_match[2:], wr_, Hdata[int(didx[i]) - 1][:2], s[k], T_)
 
             if not ref or ref == 2:
                 p1_new, p1_status, p1_err, p1_err_base, T1 = method[what[k]](
-                    img2, img1, aux_match[2:4], aux_match[0:2], wr_, Hdata[int(didx[i]) - 1][1::-1], s[k], T_)
+                    img2, img1, aux_match[2:], aux_match[:2], wr_, Hdata[int(didx[i]) - 1][1::-1], s[k], T_)
 
             if ref == 0:
                 if not p2_status and p2_err < p1_err:
                     if p2_err < p2_err_base:
-                        tmp_match[2:4] = p2_new
-                        T_ = torch.matmul(torch.inverse(T2), T_)
+                        tmp_match[2:] = p2_new
+                        T_ = np.linalg.inv(T2) @ T_
 
                 if not p1_status and p1_err < p2_err:
                     if p1_err < p1_err_base:
-                        tmp_match[0:2] = p1_new
-                        T_ = torch.matmul(T1, T_)
-
+                        tmp_match[:2] = p1_new
+                        T_ = T1 @ T_
             elif ref == 1:
                 if not p2_status:
                     if p2_err < p2_err_base:
                         tmp_match[2:4] = p2_new
-                        T_ = torch.matmul(torch.inverse(T2), T_)
-
+                        T_ = T_ = np.linalg.inv(T2) @ T_
             elif ref == 2:
                 if not p1_status:
                     if p1_err < p1_err_base:
                         tmp_match[0:2] = p1_new
-                        T_ = torch.matmul(T1, T_)
+                        T_ = T1 @ T_
 
             matches_new[i, :] = tmp_match
-            return T_
+            T[i] = T_
 
         with multiprocessing.Pool(processes=nthreads) as pool:
             T = pool.map(process_matches, range(matches.shape[0]))
 
         matches = matches_new
 
-    return matches, ttime
+    etime.record()
+    torch.cuda.synchronize()
+    ttime = stime.elapsed_time(etime)
+
+    return matches_new, ttime
 
 
 def pdist2(X, Y):
