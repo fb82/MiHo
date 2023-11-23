@@ -8,20 +8,77 @@ import math
 import torch
 
 
-# 随机生成一个假的 compute_homography 函数的实现
-def compute_homography(pt1, pt2):
-    # 假设此处生成一个随机的 3x3 变换矩阵来模拟计算
-    return np.random.rand(3, 3)
+def data_normalize(pts):
+    c = np.mean(pts, axis=1)
+    s = np.sqrt(2) / np.mean(np.sqrt((pts[0, :] - c[0])**2 + (pts[1, :] - c[1])**2))
 
-# 随机生成一个假的 get_hom_inliers 函数的实现
+    T = np.array([
+        [s, 0, -c[0] * s],
+        [0, s, -c[1] * s],
+        [0, 0, 1]
+    ])
+
+    return T
+
+
+def compute_homography(pts1, pts2):
+    T1 = data_normalize(pts1)
+    T2 = data_normalize(pts2)
+
+    npts1 = np.dot(T1, pts1)
+    npts2 = np.dot(T2, pts2)
+
+    l = npts1.shape[1]
+    A = np.vstack((
+        np.hstack((np.zeros((l, 3)), -np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T), np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T))),
+        np.hstack((np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T), np.zeros((l, 3)), -np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T))),
+        np.hstack((-np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T), np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T), np.zeros((l, 3))))
+    ))
+
+    _, D, V = np.linalg.svd(A, full_matrices=True)
+    # print(f"@@@@@@@ D: {D.shape}")
+    # print(f"@@@@@@@ V: {V.shape}")
+    # D = np.diag(D)
+    H = V[-1, :].reshape(3, 3).T
+    H = np.linalg.inv(T2) @ H @ T1
+
+    return H, D
+
+
 def get_hom_inliers(pt1, pt2, H, th, sidx):
-    # 假设此处返回一个随机的布尔数组来模拟内点检测
-    return np.random.choice([True, False], size=pt1.shape[1])
+    pt2_ = np.dot(H, pt1)
+    s2_ = np.sign(pt2_[2, :])
+    tmp2_ = pt2_[:2, :] / pt2_[2, :] - pt2[:2, :]
+    err2 = np.sum(tmp2_**2, axis=0)
+    s2 = s2_[sidx[0]]
+    
+    if not np.all(s2_[sidx] == s2):
+        nidx = np.zeros(pt1.shape[1], dtype=bool)
+        err = np.inf
+        return nidx#, err
+
+    pt1_ = np.dot(np.linalg.inv(H), pt2)
+    s1_ = np.sign(pt1_[2, :])
+    tmp1_ = pt1_[:2, :] / pt1_[2, :] - pt1[:2, :]
+    err1 = np.sum(tmp1_**2, axis=0)
+    s1 = s1_[sidx[0]]
+    
+    if not np.all(s1_[sidx] == s1):
+        nidx = np.zeros(pt1.shape[1], dtype=bool)
+        err = np.inf
+        return nidx#, err
+
+    err = np.maximum(err1, err2)
+    err[~np.isfinite(err)] = np.inf
+    nidx = (err < th) & (s2_ == s2) & (s1_ == s1)
+    
+    return nidx#, err
+
 
 def ransac_middle(pt1, pt2, th, th_out):
-    np.random.seed(42)  # 设置随机种子以保持结果的可重复性
+    # np.random.seed(42)  # 设置随机种子以保持结果的可重复性
 
-    max_iter = 10000
+    max_iter = 100#10000
     min_iter = 100
     p = 0.9
     c = 0
@@ -49,11 +106,11 @@ def ransac_middle(pt1, pt2, th, th_out):
     while c < max_iter:
         sidx = np.random.choice(n, size=4, replace=False)
         ptm = (pt1 + pt2) / 2
-        H1 = compute_homography(pt1[:, sidx], ptm[:, sidx])
-        if np.any(H1[-1] < 0.05):
+        H1, eD = compute_homography(pt1[:, sidx], ptm[:, sidx])
+        if eD[-2] < 0.05:
             continue
-        H2 = compute_homography(pt2[:, sidx], ptm[:, sidx])
-        if np.any(H2[-1] < 0.05):
+        H2, eD = compute_homography(pt2[:, sidx], ptm[:, sidx])
+        if eD[-2] < 0.05:
             continue
 
         nidx = get_hom_inliers(pt1, ptm, H1, th, sidx) & get_hom_inliers(pt2, ptm, H2, th, sidx)
@@ -66,8 +123,8 @@ def ransac_middle(pt1, pt2, th, th_out):
         c += 1
 
     if np.any(midx):
-        H1 = compute_homography(pt1[:, midx], ptm[:, midx])
-        H2 = compute_homography(pt2[:, midx], ptm[:, midx])
+        H1, _ = compute_homography(pt1[:, midx], ptm[:, midx])
+        H2, _ = compute_homography(pt2[:, midx], ptm[:, midx])
         midx = get_hom_inliers(pt1, ptm, H1, th, sidx_) & get_hom_inliers(pt2, ptm, H2, th, sidx_)
         oidx = get_hom_inliers(pt1, ptm, H1, th_out, sidx_) & get_hom_inliers(pt2, ptm, H2, th_out, sidx_)
     else:
@@ -91,8 +148,6 @@ def get_avg_hom(pt1, pt2, th, th_out):
     while True:
         pt1_ = pt1[~midx, :]
         pt1_ = np.hstack((pt1_, np.ones((pt1_.shape[0], 1))))
-        # print(f"************************pt1_: {pt1_}")
-        # print(f"************************pt1_: {pt1_.shape}")
         pt1_ = np.dot(H1, pt1_.T)
         pt1_ = pt1_[:2, :] / pt1_[2, :]
 
@@ -127,8 +182,8 @@ def get_avg_hom(pt1, pt2, th, th_out):
             pt2_ = pt2_ / pt2_[2, :]
 
             ptm = (pt1_ + pt2_) / 2
-            H1_ = compute_homography(pt1_.T, ptm)
-            H2_ = compute_homography(pt2_.T, ptm)
+            H1_, _ = compute_homography(pt1_, ptm)
+            H2_, _ = compute_homography(pt2_, ptm)
 
             H1_new = np.dot(H1_, H1_new)
             H2_new = np.dot(H2_, H2_new)
@@ -143,6 +198,8 @@ def middle_homo(im1_path, im2_path, matches, th, th_out):
     pt2 = matches[:, 2:]
 
     Hdata = get_avg_hom(pt1, pt2, th, th_out)
+
+    print(f'**************************Hdata: {Hdata}')
 
     midx = np.stack([Hdata[i][2] for i in range(len(Hdata))], axis=0)
 
@@ -248,7 +305,7 @@ if __name__ == '__main__':
 
             gt_scaled = gt * s
 
-            matches = matches[:20,:]
+            # matches = matches[:20,:]
 
             mm1 = pdist2(matches[:, :2], gt_scaled[:, :2])
             mm2 = pdist2(matches[:, 2:], gt_scaled[:, 2:])
