@@ -31,6 +31,7 @@ def compute_homography(pts1, pts2):
     npts2 = np.dot(T2, pts2)
 
     l = npts1.shape[1]
+    # TO DO: last line in the matrix A can be removed for speeding the computation
     A = np.vstack((
         np.hstack((np.zeros((l, 3)), -np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T), np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T))),
         np.hstack((np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T), np.zeros((l, 3)), -np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T))),
@@ -409,6 +410,43 @@ def ncorr(im1, im2, p1, p2, wr, Hs, s, T_):
     return p2_new, p2_status, p2_err, p2_err_base, T
 
 
+def process_matches(i, matches, matches_new, img1, img2, what, wr, s, T, ref, method, didx, Hdata):
+    aux_match = matches[i, :]
+    tmp_match = matches_new[i, :]
+
+    if not ref or ref == 1:
+        p2_new, p2_status, p2_err, p2_err_base, T2 = method[what](
+            img1, img2, aux_match[:2], aux_match[2:], wr, Hdata[int(didx[:, i]) - 1][:2], s[k], T)
+
+    if not ref or ref == 2:
+        p1_new, p1_status, p1_err, p1_err_base, T1 = method[what](
+            img2, img1, aux_match[2:], aux_match[:2], wr, Hdata[int(didx[:, i]) - 1][1::-1], s[k], T)
+
+    if ref == 0:
+        if not p2_status and p2_err < p1_err:
+            if p2_err < p2_err_base:
+                tmp_match[2:] = p2_new
+                T = np.linalg.inv(T2) @ T
+
+        if not p1_status and p1_err < p2_err:
+            if p1_err < p1_err_base:
+                tmp_match[:2] = p1_new
+                T = T1 @ T
+    elif ref == 1:
+        if not p2_status:
+            if p2_err < p2_err_base:
+                tmp_match[2:4] = p2_new
+                T  = np.linalg.inv(T2) @ T
+    elif ref == 2:
+        if not p1_status:
+            if p1_err < p1_err_base:
+                tmp_match[0:2] = p1_new
+                T = T1 @ T
+
+    matches_new[i, :] = tmp_match
+    return T
+
+
 def kpt_improver(im1, im2, matches, what, wr, s, ref, hom, hom_data):
     nthreads = 10  # Number of threads
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -437,48 +475,19 @@ def kpt_improver(im1, im2, matches, what, wr, s, ref, hom, hom_data):
 
     T = [np.eye(3) for _ in range(matches.shape[0])]
     for k in range(len(what)):
-        widx = np.where(np.array(list(method.keys())) == what[k])[0][0]
-        wr_ = wr[k]
+        print(f"^^^^^^^matches.shape: {matches.shape}")
+        print(f"^^^^^^^method[what]: {method[what]}")
+        print(f"^^^^^^^didx: {didx}")
+        print(f"^^^^^^^wr[k]: {wr[k]}")
+        print(f"^^^^^^^s[k]: {s[k]}")
+        print(f"^^^^^^^len(T): {len(T)}")
+        widx = np.where(np.array(list(method.keys())) == what)[0][0]
 
-        def process_matches(i):
-            aux_match = matches[i, :]
-            tmp_match = matches_new[i, :]
-            T_ = T[i]
-
-            if not ref or ref == 1:
-                p2_new, p2_status, p2_err, p2_err_base, T2 = method[what[k]](
-                    img1, img2, aux_match[:2], aux_match[2:], wr_, Hdata[int(didx[i]) - 1][:2], s[k], T_)
-
-            if not ref or ref == 2:
-                p1_new, p1_status, p1_err, p1_err_base, T1 = method[what[k]](
-                    img2, img1, aux_match[2:], aux_match[:2], wr_, Hdata[int(didx[i]) - 1][1::-1], s[k], T_)
-
-            if ref == 0:
-                if not p2_status and p2_err < p1_err:
-                    if p2_err < p2_err_base:
-                        tmp_match[2:] = p2_new
-                        T_ = np.linalg.inv(T2) @ T_
-
-                if not p1_status and p1_err < p2_err:
-                    if p1_err < p1_err_base:
-                        tmp_match[:2] = p1_new
-                        T_ = T1 @ T_
-            elif ref == 1:
-                if not p2_status:
-                    if p2_err < p2_err_base:
-                        tmp_match[2:4] = p2_new
-                        T_ = T_ = np.linalg.inv(T2) @ T_
-            elif ref == 2:
-                if not p1_status:
-                    if p1_err < p1_err_base:
-                        tmp_match[0:2] = p1_new
-                        T_ = T1 @ T_
-
-            matches_new[i, :] = tmp_match
-            T[i] = T_
+        def process_matches_wrapper(i):
+            return process_matches(i, matches, matches_new, img1, img2, what, wr[k], s[k], T[i], ref, method[what], didx, Hdata)
 
         with multiprocessing.Pool(processes=nthreads) as pool:
-            T = pool.map(process_matches, range(matches.shape[0]))
+            T = pool.map(process_matches_wrapper, range(matches.shape[0]))
 
         matches = matches_new
 
@@ -521,7 +530,7 @@ if __name__ == '__main__':
     ]
 
     # noise offsets
-    err = 1#11
+    err = 1 #11, set 1 for test
     e = np.empty((0, 2))
 
     for k in range(1, err + 1):
@@ -620,18 +629,19 @@ if __name__ == '__main__':
                     for hom in range(2):
                         middle_homo_file = os.path.join(ppath, f'matches_scale_{s}_{method[widx]}_sac_{th_sac}_err_{e[k,0]}_{e[k,1]}_{corr_method[j]}_hom_{hom}.mat')
 
-                        if not os.path.exists(middle_homo_file):
-                            data_mm1, ttime1 = kpt_improver(im1, im2, to_check_matches, corr_method[j][1], th_sac, 1, 1, hom, hom_data)
-                            data_mm2, ttime2 = kpt_improver(im1, im2, to_check_matches, corr_method[j][1], [int(np.fix(th_sac / 2)), th_sac], [0.5, 1], 1, hom, hom_data)
+                        # if not os.path.exists(middle_homo_file):
+                        #     # print(f"^^^^^^^corr_method： {corr_method}")
+                        #     data_mm1, ttime1 = kpt_improver(im1, im2, to_check_matches, corr_method[j], [th_sac], [1], 1, hom, hom_data)
+                        #     data_mm2, ttime2 = kpt_improver(im1, im2, to_check_matches, corr_method[j], [int(np.fix(th_sac / 2)), th_sac], [0.5, 1], 1, hom, hom_data)
 
-                            data = {
-                                'mm1': data_mm1,
-                                'mm2': data_mm2,
-                                'time1': ttime1,
-                                'time2': ttime2,
-                                'err1': np.sqrt(np.sum((data_mm1[:, 2:] - gt_scaled[:, 2:]) ** 2, axis=1)),
-                                'err2': np.sqrt(np.sum((data_mm2[:, 2:] - gt_scaled[:, 2:]) ** 2, axis=1))
-                            }
+                        #     data = {
+                        #         'mm1': data_mm1,
+                        #         'mm2': data_mm2,
+                        #         'time1': ttime1,
+                        #         'time2': ttime2,
+                        #         'err1': np.sqrt(np.sum((data_mm1[:, 2:] - gt_scaled[:, 2:]) ** 2, axis=1)),
+                        #         'err2': np.sqrt(np.sum((data_mm2[:, 2:] - gt_scaled[:, 2:]) ** 2, axis=1))
+                        #     }
 
 #                             sio.savemat(middle_homo_file, {'data': data})
 #                         else:
