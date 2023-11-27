@@ -47,7 +47,7 @@ def compute_homography(pts1, pts2):
     return H, D
 
 
-def get_hom_inliers(pt1, pt2, H, th, sidx):
+def get_hom_inliers(pt1, pt2, H, ths, sidx):
     l = pt1.shape[1]
 
     pt2_ = np.dot(H, pt1)
@@ -68,12 +68,11 @@ def get_hom_inliers(pt1, pt2, H, th, sidx):
 
     if not np.all(s1_[sidx] == s1):
         nidx = np.zeros(pt1.shape[1], dtype=bool)
-        err = np.inf
         return nidx
 
     err = np.maximum(err1, err2)
     err[~np.isfinite(err)] = np.inf
-    nidx = (err < th) & (s2_ == s2) & (s1_ == s1)
+    nidx = [np.all(np.vstack((err < th,s2_ == s2,s1_ == s1)), axis=0) for th in ths]
 
     return nidx
 
@@ -82,6 +81,8 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
     n = pt1.shape[1]
     th_in = th_in ** 2
     th_out = th_out ** 2
+
+    ptm = (pt1 + pt2) / 2
 
     if n < 4:
         H1 = np.array([])
@@ -99,15 +100,20 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
 
     for c in range(1, max_iter):
         sidx = np.random.choice(n, size=4, replace=False)
-        ptm = (pt1 + pt2) / 2
-        H1, eD = compute_homography(pt1[:, sidx], ptm[:, sidx])
+        try:
+            H1, eD = compute_homography(pt1[:, sidx], ptm[:, sidx])
+        except:
+            continue
         if eD[-2] < svd_th:
             continue
-        H2, eD = compute_homography(pt2[:, sidx], ptm[:, sidx])
+        try:
+            H2, eD = compute_homography(pt2[:, sidx], ptm[:, sidx])
+        except:
+            continue
         if eD[-2] < svd_th:
             continue
 
-        nidx = get_hom_inliers(pt1, ptm, H1, th_out, sidx) & get_hom_inliers(pt2, ptm, H2, th_out, sidx)
+        nidx = get_hom_inliers(pt1, ptm, H1, [th_out], sidx)[0] * get_hom_inliers(pt2, ptm, H2, [th_out], sidx)[0]
         sum_nidx = np.sum(nidx)
         if sum_nidx > sum_midx:
             midx = nidx
@@ -120,8 +126,10 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
     if (sum_midx > 0):
         H1, _ = compute_homography(pt1[:, midx], ptm[:, midx])
         H2, _ = compute_homography(pt2[:, midx], ptm[:, midx])
-        iidx = get_hom_inliers(pt1, ptm, H1, th_in, sidx_) & get_hom_inliers(pt2, ptm, H2, th_in, sidx_)
-        oidx = get_hom_inliers(pt1, ptm, H1, th_out, sidx_) & get_hom_inliers(pt2, ptm, H2, th_out, sidx_)
+        inl1 = get_hom_inliers(pt1, ptm, H1, [th_in, th_out], sidx_)
+        inl2 = get_hom_inliers(pt2, ptm, H2, [th_in, th_out], sidx_)
+        iidx = inl1[0] & inl2[0]
+        oidx = inl1[1] & inl2[1]
     else:
         H1 = np.array([])
         H2 = np.array([])
@@ -163,6 +171,7 @@ def get_avg_hom(pt1, pt2, th_in=7, th_out=15, min_plane_pts=4, max_ref_iter=5):
         idx[~midx] = oidx
 
         midx[~midx] = iidx
+        print(f"{np.sum(iidx)} {np.sum(oidx)} {np.sum(midx)}")
 
         H1_new = np.dot(H1_, H1)
         H2_new = np.dot(H2_, H2)
@@ -202,8 +211,10 @@ def get_avg_hom(pt1, pt2, th_in=7, th_out=15, min_plane_pts=4, max_ref_iter=5):
 def cluster_assign(Hdata, l):
     midx = np.stack([Hdata[i][2] for i in range(len(Hdata))], axis=0)
     sidx = np.sum(midx, axis=1)
+    qidx = np.sum(midx, axis=0)==0
     vidx = np.argmax(np.tile(sidx, (l, 1)).T * midx, axis=0)
-    vidx[np.sum(midx, axis=0)==0] = -1
+    vidx[qidx] = -1
+    print(f"{midx.shape} {np.sum(qidx)}")
     return vidx
 
 
@@ -224,7 +235,7 @@ def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho.pdf', fig_dpi=300):
     mn = len(marker)
 
     plot_opt = {'markersize': 2, 'markerfacecolor': "None", 'alpha': 0.5}    
-    for i in np.arange(np.max(Hidx)):
+    for i in range(np.max(Hidx)+1):
         mask = Hidx == i
         x = np.vstack((pt1[mask, 0], pt2[mask, 0]+im1.width))
         y = np.vstack((pt1[mask, 1], pt2[mask, 1]))
