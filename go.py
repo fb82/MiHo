@@ -23,6 +23,12 @@ def data_normalize(pts):
     return T
 
 
+def steps(pps, inl, p):
+    e = 1 - inl
+    r = np.log(1 - p) / np.log(1 - (1 - e)**pps)
+    return r
+
+
 def compute_homography(pts1, pts2):
     T1 = data_normalize(pts1)
     T2 = data_normalize(pts2)
@@ -55,7 +61,7 @@ def get_hom_inliers(pt1, pt2, H, th, sidx):
     if not np.all(s2_[sidx] == s2):
         nidx = np.zeros(pt1.shape[1], dtype=bool)
         err = np.inf
-        return nidx#, err
+        return nidx
 
     pt1_ = np.dot(np.linalg.inv(H), pt2)
     s1_ = np.sign(pt1_[2, :])
@@ -66,21 +72,20 @@ def get_hom_inliers(pt1, pt2, H, th, sidx):
     if not np.all(s1_[sidx] == s1):
         nidx = np.zeros(pt1.shape[1], dtype=bool)
         err = np.inf
-        return nidx#, err
+        return nidx
 
     err = np.maximum(err1, err2)
     err[~np.isfinite(err)] = np.inf
     nidx = (err < th) & (s2_ == s2) & (s1_ == s1)
     
-    return nidx#, err
+    return nidx
 
 
 def ransac_middle(pt1, pt2, th, th_out):
     max_iter = 10000
     min_iter = 100
     p = 0.9
-    c = 0
-
+    
     n = pt1.shape[0]
     th = th ** 2
     th_out = th_out ** 2
@@ -101,7 +106,7 @@ def ransac_middle(pt1, pt2, th, th_out):
     oidx = np.zeros(n, dtype=bool)
     Nc = float('inf')
 
-    while c < max_iter:
+    for c in range(1, max_iter + 1):
         sidx = np.random.choice(n, size=4, replace=False)
         ptm = (pt1 + pt2) / 2
         H1, eD = compute_homography(pt1[:, sidx], ptm[:, sidx])
@@ -115,10 +120,9 @@ def ransac_middle(pt1, pt2, th, th_out):
         if np.sum(nidx) > np.sum(midx):
             midx = nidx
             sidx_ = sidx
-            Nc = 4 * np.sum(midx) / n
+            Nc = steps(4, np.sum(midx) / np.size(midx), p)
             if c > Nc and c > min_iter:
                 break
-        c += 1
 
     if np.any(midx):
         H1, _ = compute_homography(pt1[:, midx], ptm[:, midx])
@@ -132,6 +136,7 @@ def ransac_middle(pt1, pt2, th, th_out):
         oidx = np.zeros(n, dtype=bool)
 
     return H1, H2, midx, oidx, c
+
 
 def get_avg_hom(pt1, pt2, th, th_out):
     H1 = np.eye(3)
@@ -191,28 +196,17 @@ def get_avg_hom(pt1, pt2, th, th_out):
 
     return Hdata
 
-def middle_homo(im1_path, im2_path, matches, th, th_out):
+
+def middle_homo(matches, th, th_out):
     pt1 = matches[:, :2]
     pt2 = matches[:, 2:]
 
     Hdata = get_avg_hom(pt1, pt2, th, th_out)
 
-    # print(f'**************************Hdata: {Hdata}')
-
     midx = np.stack([Hdata[i][2] for i in range(len(Hdata))], axis=0)
-
-    # print(f'**************************midx: {midx.shape}')
     sidx = np.sum(midx, axis=1)
-    # print(f'**************************sidx: {sidx}')
-    # print(f"##########################")
-    # print(f"{(np.tile(sidx, (midx.shape[1], 1)).T * midx)}")
-    # print(f"###########################")
     didx = np.argmax(np.tile(sidx, (midx.shape[1], 1)).T * midx, axis=0)
-    print(f'**************************didx.shape: {didx[0]}')
-
-    # print(f'*before*************************len(Hdata): {(Hdata)}')
     Hdata = [entry[:2] for entry in Hdata]
-    print(f'*after*************************len(Hdata): {len(Hdata)}')
 
     return didx, Hdata
 
@@ -220,8 +214,6 @@ def middle_homo(im1_path, im2_path, matches, th, th_out):
 def apply_H(p, H, HH, wr, im):
     p_status = 0
 
-    # print(f'**************************H: {H}')
-    # print(f'**************************H.shape: {H.shape}')
     Hp = np.dot(H, np.append(p, 1))
     Hp = Hp[:2] / Hp[2]
 
@@ -293,9 +285,6 @@ def lsm(im1, im2, p1, p2, wr, Hs, s, T_):
     T = np.array([[v[0], v[1], v[2]], [v[3], v[4], v[5]], [0, 0, 1]])
     r = v[6:8]
 
-    print(f'**************************Hs[0].shape: {Hs[0].shape}')
-    print(f'**************************Hs[1].shape: {Hs[1].shape}')
-
     sH = np.array([[s, 0, 0], [0, s, 0], [0, 0, 1]])
     Hs[0] = np.dot(sH, Hs[0])
     Hs[1] = np.dot(sH, np.dot(T_, Hs[1]))
@@ -341,15 +330,6 @@ def lsm(im1, im2, p1, p2, wr, Hs, s, T_):
         else:
             pass
 
-        print(f'**************************np.reshape(tmp_im1.flatten(), (-1, 1)).shape: {(np.reshape(tmp_im1.flatten(), (-1, 1))).shape}')
-        print(f'**************************r[0] * tmp_im2.shape: {(r[0] * tmp_im2).shape}')
-        print(f"^^^^^^^r[1].shape: {r[1].shape}")
-        print(f"^^^^^^^r: {r}")
-
-        tmp_tmp1 = np.reshape(tmp_im1.flatten(), (-1, 1))
-        print(f"^^^^^^^tmp_tmp1.shape: {tmp_tmp1.shape}")
-        tmp_tmp2 = r[0] * tmp_im2
-        print(f"^^^^^^^tmp_tmp2.shape: {tmp_tmp2.shape}")
         b = np.reshape(tmp_im1.flatten(), (-1, 1)) - r[0] * tmp_im2 - r[1]
         A = np.column_stack([
             r[0] * tmp_gx * tmp_x2,
@@ -360,7 +340,6 @@ def lsm(im1, im2, p1, p2, wr, Hs, s, T_):
             r[0] * tmp_gy,
             tmp_more
         ])
-
         v = np.linalg.pinv(A) @ b
         v = v.flatten()
 
@@ -409,19 +388,15 @@ def lsm(im1, im2, p1, p2, wr, Hs, s, T_):
 
 
 def normxcorr2(template, image):
-    # 计算模板的均值和标准差
     template_mean = np.mean(template)
     template_std = np.std(template)
 
-    # 计算图像的均值和标准差
     image_mean = np.mean(image)
     image_std = np.std(image)
 
-    # 模板和图像去均值
     template_demean = template - template_mean
     image_demean = image - image_mean
 
-    # 归一化互相关
     normalized_corr = correlate2d(image_demean, template_demean, mode='same', boundary='fill', fillvalue=0)
     normalized_corr /= (template_std * image_std * template.size)
 
@@ -448,18 +423,11 @@ def ncorr(im1, im2, p1, p2, wr, Hs, s, T_):
 
     # m = np.correlate(tmp1.ravel(), tmp2.ravel(), mode='full')
     # m = normxcorr2(tmp1, tmp2)
-    # print(f"ncorr^^^^^^^before@@@@@@@@@@@@@@@@@@m.shape: {m.shape}")
     # m = m[2 * wr + 1:-2 * wr + 1, 2 * wr + 1:-2 * wr + 1]
-    # print(f"ncorr^^^^^^^@@@@@@@@@@@@@@@@@@wr: {wr}")
-    # print(f"ncorr^^^^^^^after@@@@@@@@@@@@@@@@@@m.shape: {m.shape}")
     # p2_err = np.max(m)
 
-    print(f"ncorr^^^^^^^before before@@@@@@@@@@@@@@@@@@tmp1.shape: {tmp1.shape}")
-    print(f"ncorr^^^^^^^before before@@@@@@@@@@@@@@@@@@tmp2.shape: {tmp2.shape}")
     m = correlate2d(tmp2, tmp1, mode='full')
-    print(f"ncorr^^^^^^^before@@@@@@@@@@@@@@@@@@m.shape: {m.shape}")
     m = m[2 * wr + 1:-2 * wr + 1, 2 * wr + 1:-2 * wr + 1]
-    print(f"ncorr^^^^^^^after@@@@@@@@@@@@@@@@@@m.shape: {m.shape}")
     p2_err = np.max(m)
 
     i, j = np.where(m == p2_err)
@@ -483,10 +451,6 @@ def ncorr(im1, im2, p1, p2, wr, Hs, s, T_):
 def process_matches(i, matches, matches_new, img1, img2, wr, s, T, ref, method, didx, Hdata):
     aux_match = matches[i, :]
     tmp_match = matches_new[i, :]
-
-    print(f"process_matches^^^^^^^didx: {didx}")
-    print(f"process_matches^^^^^^^didx.shape: {didx.shape}")
-    print(f"process_matches^^^^^^^didx[i]: {didx[i]}")
 
     if not ref or ref == 1:
         p2_new, p2_status, p2_err, p2_err_base, T2 = method(
@@ -523,14 +487,14 @@ def process_matches(i, matches, matches_new, img1, img2, wr, s, T, ref, method, 
 
 def kpt_improver(im1, im2, matches, what, wr, s, ref, hom, hom_data):
     nthreads = 10  # Number of threads
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.set_num_threads(nthreads)
 
     if hom != 0:
         didx = hom_data['didx']
         Hdata = hom_data['Hdata']
     else:
-        didx = np.zeros(matches.shape[0], dtype=int) #np.zeros((1, matches.shape[0]), dtype=int)
+        didx = np.zeros(matches.shape[0], dtype=int)
         Hdata = [[np.eye(3), np.eye(3)]]
 
     img1 = cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY).astype(np.double)
@@ -548,25 +512,11 @@ def kpt_improver(im1, im2, matches, what, wr, s, ref, hom, hom_data):
     stime.record()
 
     T = [np.eye(3) for _ in range(matches.shape[0])]
-    for k in range(len(what)):
-        print(f"^^^^^^^len(what): {len(what)}")
-        print(f"^^^^^^^what: {what}")
-        print(f"^^^^^^^k: {k}")
-        print(f"^^^^^^^matches.shape: {matches.shape}")
-        print(f"^^^^^^^method[what[k]]: {method[what[k]]}")
-        # print(f"^^^^^^^didx: {didx}")
-        print(f"^^^^^^^wr[k]: {wr[k]}")
-        print(f"^^^^^^^s[k]: {s[k]}")
-        print(f"^^^^^^^len(T): {T[4]}")
-        widx = np.where(np.array(list(method.keys())) == what[k])[0][0]
-        print(f"^^^^^^^list(method.keys())[widx]: {list(method.keys())[widx]}")
-        print(f"^^^^^^^widx: {widx}")
-        print(f"^^^^^^………………………………………………………………………………………………………………………………………………………………^matches.shape[0]: {matches.shape[0]}")
-        print(f"^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^Hdata: {Hdata[0]}")
 
+    for k in range(len(what)):
+        widx = np.where(np.array(list(method.keys())) == what[k])[0][0]
 
         with multiprocessing.Pool(processes=nthreads) as pool:
-            # T = pool.map(process_matches_wrapper, range(matches.shape[0]))
             results = pool.starmap(
                 process_matches,
                 [(i, matches, matches_new, img1, img2, wr[k], s[k], T[i], ref, method[list(method.keys())[widx]], didx, Hdata) for i in range(matches.shape[0])]
@@ -670,25 +620,17 @@ if __name__ == '__main__':
 
             gt_scaled = gt * s
 
-            # matches = matches[:100,:]
-
             mm1 = pdist2(matches[:, :2], gt_scaled[:, :2])
             mm2 = pdist2(matches[:, 2:], gt_scaled[:, 2:])
 
-            # print(f"*********mm1: {mm1.shape}")
-            # print(f"*********mm2: {mm2}")
-
             # remove matches within 2r (th_cf*th_sac) of GT matches before including the noisy matches
             to_remove_matches = np.any((mm1 < th_sac * th_cf) | (mm2 < th_sac * th_cf), axis=1)
-            print(f"*********to_remove_matches: {np.sum(to_remove_matches!=0)}")
             hom_matches = matches[~to_remove_matches]
-            print(f"*********hom_matches: {hom_matches.shape}")
 
             for k in range(len(e)):
                 aux = np.copy(gt_scaled)
                 aux[:, 2:] += np.tile(e[k], (gt_scaled.shape[0], 1))
                 all_matches = np.vstack((aux, hom_matches))
-                print(f"*********all_matches: {all_matches.shape}")
 
                 middle_homo_file = os.path.join(ppath, f'matches_scale_{s}_{method[widx]}_sac_{th_sac}_err_{e[k,0]}_{e[k,1]}_middle_homo.mat')
                 th_out = np.ceil(th_sac / 2)
@@ -698,33 +640,22 @@ if __name__ == '__main__':
                     Hdata = data['Hdata']
                     didx = data['didx']
                 else:
-                    didx, Hdata = middle_homo(im1l_name, im2l_name, all_matches, th_sac, th_out)
+                    didx, Hdata = middle_homo(all_matches, th_sac, th_out)
                     # sio.savemat(middle_homo_file, {'Hdata': Hdata, 'didx': didx})
 
                 im1 = cv2.imread(im1l_name)
                 im2 = cv2.imread(im2l_name)
-
-                print(f"*********&&&&&&&gt_scaled.shape[0]: {gt_scaled.shape[0]}")
-                print(f"*********&&&&&&&didx: {didx[:gt_scaled.shape[0]]}")
                 
-
                 to_check_matches = all_matches[:gt_scaled.shape[0], :]
                 hom_data = {'Hdata': Hdata, 'didx': didx[:gt_scaled.shape[0]]}
-
-                print(f"*********to_check_matches: {to_check_matches.shape}")
-                print(f"*********len(hom_data.Hdata): {len(hom_data['Hdata'])}")
-                print(f"*********hom_data.didx.shape {hom_data['didx'].shape}")
-                print(f"*********len(hom_data['Hdata'][0]): {len(hom_data['Hdata'][0])}")
 
                 for j in range(len(corr_method)):
                     print([corr_method[j]])
                     print([corr_method[j],corr_method[j]])
                     for hom in range(2):
-                        print(f"*****************************************************************************hom: {hom}")
                         middle_homo_file = os.path.join(ppath, f'matches_scale_{s}_{method[widx]}_sac_{th_sac}_err_{e[k,0]}_{e[k,1]}_{corr_method[j]}_hom_{hom}.mat')
 
                         if not os.path.exists(middle_homo_file):
-                            print(f"^^^^^^^corr_method: {corr_method}")
                             data_mm1, ttime1 = kpt_improver(im1, im2, to_check_matches, [corr_method[j]], [th_sac], [1], 1, hom, hom_data)
                             data_mm2, ttime2 = kpt_improver(im1, im2, to_check_matches, [corr_method[j],corr_method[j]], [int(np.fix(th_sac / 2)), th_sac], [0.5, 1], 1, hom, hom_data)
 
