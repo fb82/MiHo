@@ -1,6 +1,6 @@
 import os
 import scipy.io as sio
-from scipy import ndimage
+from scipy.signal import correlate2d
 import cv2
 from PIL import Image
 import numpy as np
@@ -208,9 +208,11 @@ def middle_homo(im1_path, im2_path, matches, th, th_out):
     # print(f"{(np.tile(sidx, (midx.shape[1], 1)).T * midx)}")
     # print(f"###########################")
     didx = np.argmax(np.tile(sidx, (midx.shape[1], 1)).T * midx, axis=0)
-    # print(f'**************************didx: {didx}')
+    print(f'**************************didx.shape: {didx[0]}')
 
+    # print(f'*before*************************len(Hdata): {(Hdata)}')
     Hdata = [entry[:2] for entry in Hdata]
+    print(f'*after*************************len(Hdata): {len(Hdata)}')
 
     return didx, Hdata
 
@@ -218,6 +220,8 @@ def middle_homo(im1_path, im2_path, matches, th, th_out):
 def apply_H(p, H, HH, wr, im):
     p_status = 0
 
+    # print(f'**************************H: {H}')
+    # print(f'**************************H.shape: {H.shape}')
     Hp = np.dot(H, np.append(p, 1))
     Hp = Hp[:2] / Hp[2]
 
@@ -241,12 +245,32 @@ def apply_H(p, H, HH, wr, im):
         return im_, p_status
 
     im_ = np.zeros((sy, sx))
-    for i in range(sy):
-        for j in range(sx):
-            im_[i, j] = im[yf[i, j] - 1, xf[i, j] - 1] * (xc[i, j] - x_[i, j]) * (yc[i, j] - y_[i, j]) + \
-                         im[yc[i, j] - 1, xc[i, j] - 1] * (x_[i, j] - xf[i, j]) * (y_[i, j] - yf[i, j]) + \
-                         im[yf[i, j] - 1, xc[i, j] - 1] * (x_[i, j] - xf[i, j]) * (yc[i, j] - y_[i, j]) + \
-                         im[yc[i, j] - 1, xf[i, j] - 1] * (xc[i, j] - x_[i, j]) * (y_[i, j] - yf[i, j])
+    # for i in range(sy):
+    #     for j in range(sx):
+    #         im_[i, j] = im[yf[i, j] - 1, xf[i, j] - 1] * (xc[i, j] - x_[i, j]) * (yc[i, j] - y_[i, j]) + \
+    #                      im[yc[i, j] - 1, xc[i, j] - 1] * (x_[i, j] - xf[i, j]) * (y_[i, j] - yf[i, j]) + \
+    #                      im[yf[i, j] - 1, xc[i, j] - 1] * (x_[i, j] - xf[i, j]) * (yc[i, j] - y_[i, j]) + \
+    #                      im[yc[i, j] - 1, xf[i, j] - 1] * (xc[i, j] - x_[i, j]) * (y_[i, j] - yf[i, j])
+
+    # im_[...] = (
+    #     im[yf.astype(int), xf.astype(int)] * (xc - x_) * (yc - y_) +
+    #     im[yc.astype(int), xc.astype(int)] * (x_ - xf) * (y_ - yf) +
+    #     im[yf.astype(int), xc.astype(int)] * (x_ - xf) * (yc - y_) +
+    #     im[yc.astype(int), xf.astype(int)] * (xc - x_) * (y_ - yf)
+    # )
+
+    linear_indices = np.array([yf * im.shape[1] + xf,
+                           yc * im.shape[1] + xc,
+                           yf * im.shape[1] + xc,
+                           yc * im.shape[1] + xf])
+    
+    pixel_values = im.flatten()[linear_indices]
+
+    im_ = np.sum([pixel_values[0] * (xc - x_) * (yc - y_),
+                  pixel_values[1] * (x_ - xf) * (y_ - yf),
+                  pixel_values[2] * (x_ - xf) * (yc - y_),
+                  pixel_values[3] * (xc - x_) * (y_ - yf)
+                ], axis=0).reshape((sy, sx))
 
     return im_, p_status
 
@@ -268,6 +292,9 @@ def lsm(im1, im2, p1, p2, wr, Hs, s, T_):
 
     T = np.array([[v[0], v[1], v[2]], [v[3], v[4], v[5]], [0, 0, 1]])
     r = v[6:8]
+
+    print(f'**************************Hs[0].shape: {Hs[0].shape}')
+    print(f'**************************Hs[1].shape: {Hs[1].shape}')
 
     sH = np.array([[s, 0, 0], [0, s, 0], [0, 0, 1]])
     Hs[0] = np.dot(sH, Hs[0])
@@ -314,7 +341,16 @@ def lsm(im1, im2, p1, p2, wr, Hs, s, T_):
         else:
             pass
 
-        b = tmp_im1.flatten() - r[0] * tmp_im2 - r[1]
+        print(f'**************************np.reshape(tmp_im1.flatten(), (-1, 1)).shape: {(np.reshape(tmp_im1.flatten(), (-1, 1))).shape}')
+        print(f'**************************r[0] * tmp_im2.shape: {(r[0] * tmp_im2).shape}')
+        print(f"^^^^^^^r[1].shape: {r[1].shape}")
+        print(f"^^^^^^^r: {r}")
+
+        tmp_tmp1 = np.reshape(tmp_im1.flatten(), (-1, 1))
+        print(f"^^^^^^^tmp_tmp1.shape: {tmp_tmp1.shape}")
+        tmp_tmp2 = r[0] * tmp_im2
+        print(f"^^^^^^^tmp_tmp2.shape: {tmp_tmp2.shape}")
+        b = np.reshape(tmp_im1.flatten(), (-1, 1)) - r[0] * tmp_im2 - r[1]
         A = np.column_stack([
             r[0] * tmp_gx * tmp_x2,
             r[0] * tmp_gx * tmp_y2,
@@ -339,6 +375,8 @@ def lsm(im1, im2, p1, p2, wr, Hs, s, T_):
             p2_status = 0
             break
 
+        T = T.astype(np.float64)
+        r = r.astype(np.float64)
         T_old = T.copy()
         T[0] += alpha * v[0:3]
         T[1] += alpha * v[3:6]
@@ -358,7 +396,7 @@ def lsm(im1, im2, p1, p2, wr, Hs, s, T_):
         p2_err = curr_err
         p2_new_old = p2_new
 
-        tmp_p2_new = np.dot(np.linalg.inv(Hs[2]) @ T @ np.linalg.inv(Hs[2]), np.hstack((p2, 1)))
+        tmp_p2_new = np.dot(np.linalg.inv(Hs[1]) @ T @ np.linalg.inv(Hs[1]), np.hstack((p2, 1)))
         p2_new = tmp_p2_new[:2] / tmp_p2_new[2]
 
         if np.linalg.norm(p2_new - p2) > wr / s:
@@ -368,6 +406,26 @@ def lsm(im1, im2, p1, p2, wr, Hs, s, T_):
             T = T_old.copy()
         
     return p2_new, p2_status, p2_err, p2_err_base, T
+
+
+def normxcorr2(template, image):
+    # 计算模板的均值和标准差
+    template_mean = np.mean(template)
+    template_std = np.std(template)
+
+    # 计算图像的均值和标准差
+    image_mean = np.mean(image)
+    image_std = np.std(image)
+
+    # 模板和图像去均值
+    template_demean = template - template_mean
+    image_demean = image - image_mean
+
+    # 归一化互相关
+    normalized_corr = correlate2d(image_demean, template_demean, mode='same', boundary='fill', fillvalue=0)
+    normalized_corr /= (template_std * image_std * template.size)
+
+    return normalized_corr
 
 
 def ncorr(im1, im2, p1, p2, wr, Hs, s, T_):
@@ -388,8 +446,20 @@ def ncorr(im1, im2, p1, p2, wr, Hs, s, T_):
     if p2_status == 1:
         return p2_new, p2_status, p2_err, p2_err_base, T
 
-    m = np.correlate(tmp1.ravel(), tmp2.ravel(), mode='full')
-    m = m[2 * wr + 1:-2 * wr, 2 * wr + 1:-2 * wr]
+    # m = np.correlate(tmp1.ravel(), tmp2.ravel(), mode='full')
+    # m = normxcorr2(tmp1, tmp2)
+    # print(f"ncorr^^^^^^^before@@@@@@@@@@@@@@@@@@m.shape: {m.shape}")
+    # m = m[2 * wr + 1:-2 * wr + 1, 2 * wr + 1:-2 * wr + 1]
+    # print(f"ncorr^^^^^^^@@@@@@@@@@@@@@@@@@wr: {wr}")
+    # print(f"ncorr^^^^^^^after@@@@@@@@@@@@@@@@@@m.shape: {m.shape}")
+    # p2_err = np.max(m)
+
+    print(f"ncorr^^^^^^^before before@@@@@@@@@@@@@@@@@@tmp1.shape: {tmp1.shape}")
+    print(f"ncorr^^^^^^^before before@@@@@@@@@@@@@@@@@@tmp2.shape: {tmp2.shape}")
+    m = correlate2d(tmp2, tmp1, mode='full')
+    print(f"ncorr^^^^^^^before@@@@@@@@@@@@@@@@@@m.shape: {m.shape}")
+    m = m[2 * wr + 1:-2 * wr + 1, 2 * wr + 1:-2 * wr + 1]
+    print(f"ncorr^^^^^^^after@@@@@@@@@@@@@@@@@@m.shape: {m.shape}")
     p2_err = np.max(m)
 
     i, j = np.where(m == p2_err)
@@ -410,17 +480,21 @@ def ncorr(im1, im2, p1, p2, wr, Hs, s, T_):
     return p2_new, p2_status, p2_err, p2_err_base, T
 
 
-def process_matches(i, matches, matches_new, img1, img2, what, wr, s, T, ref, method, didx, Hdata):
+def process_matches(i, matches, matches_new, img1, img2, wr, s, T, ref, method, didx, Hdata):
     aux_match = matches[i, :]
     tmp_match = matches_new[i, :]
 
+    print(f"process_matches^^^^^^^didx: {didx}")
+    print(f"process_matches^^^^^^^didx.shape: {didx.shape}")
+    print(f"process_matches^^^^^^^didx[i]: {didx[i]}")
+
     if not ref or ref == 1:
-        p2_new, p2_status, p2_err, p2_err_base, T2 = method[what](
-            img1, img2, aux_match[:2], aux_match[2:], wr, Hdata[int(didx[:, i]) - 1][:2], s[k], T)
+        p2_new, p2_status, p2_err, p2_err_base, T2 = method(
+            img1, img2, aux_match[:2], aux_match[2:], wr, Hdata[didx[i]], s, T)
 
     if not ref or ref == 2:
-        p1_new, p1_status, p1_err, p1_err_base, T1 = method[what](
-            img2, img1, aux_match[2:], aux_match[:2], wr, Hdata[int(didx[:, i]) - 1][1::-1], s[k], T)
+        p1_new, p1_status, p1_err, p1_err_base, T1 = method(
+            img2, img1, aux_match[2:], aux_match[:2], wr, Hdata[didx[i]][::-1], s, T)
 
     if ref == 0:
         if not p2_status and p2_err < p1_err:
@@ -456,8 +530,8 @@ def kpt_improver(im1, im2, matches, what, wr, s, ref, hom, hom_data):
         didx = hom_data['didx']
         Hdata = hom_data['Hdata']
     else:
-        didx = np.ones((1, matches.shape[0]))
-        Hdata = [np.eye(3), np.eye(3)]
+        didx = np.zeros(matches.shape[0], dtype=int) #np.zeros((1, matches.shape[0]), dtype=int)
+        Hdata = [[np.eye(3), np.eye(3)]]
 
     img1 = cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY).astype(np.double)
     img2 = cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY).astype(np.double)
@@ -475,19 +549,29 @@ def kpt_improver(im1, im2, matches, what, wr, s, ref, hom, hom_data):
 
     T = [np.eye(3) for _ in range(matches.shape[0])]
     for k in range(len(what)):
+        print(f"^^^^^^^len(what): {len(what)}")
+        print(f"^^^^^^^what: {what}")
+        print(f"^^^^^^^k: {k}")
         print(f"^^^^^^^matches.shape: {matches.shape}")
-        print(f"^^^^^^^method[what]: {method[what]}")
-        print(f"^^^^^^^didx: {didx}")
+        print(f"^^^^^^^method[what[k]]: {method[what[k]]}")
+        # print(f"^^^^^^^didx: {didx}")
         print(f"^^^^^^^wr[k]: {wr[k]}")
         print(f"^^^^^^^s[k]: {s[k]}")
-        print(f"^^^^^^^len(T): {len(T)}")
-        widx = np.where(np.array(list(method.keys())) == what)[0][0]
+        print(f"^^^^^^^len(T): {T[4]}")
+        widx = np.where(np.array(list(method.keys())) == what[k])[0][0]
+        print(f"^^^^^^^list(method.keys())[widx]: {list(method.keys())[widx]}")
+        print(f"^^^^^^^widx: {widx}")
+        print(f"^^^^^^………………………………………………………………………………………………………………………………………………………………^matches.shape[0]: {matches.shape[0]}")
+        print(f"^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^Hdata: {Hdata[0]}")
 
-        def process_matches_wrapper(i):
-            return process_matches(i, matches, matches_new, img1, img2, what, wr[k], s[k], T[i], ref, method[what], didx, Hdata)
 
         with multiprocessing.Pool(processes=nthreads) as pool:
-            T = pool.map(process_matches_wrapper, range(matches.shape[0]))
+            # T = pool.map(process_matches_wrapper, range(matches.shape[0]))
+            results = pool.starmap(
+                process_matches,
+                [(i, matches, matches_new, img1, img2, wr[k], s[k], T[i], ref, method[list(method.keys())[widx]], didx, Hdata) for i in range(matches.shape[0])]
+            )
+            T = [result for result in results]
 
         matches = matches_new
 
@@ -526,7 +610,7 @@ if __name__ == '__main__':
     corr_method = [
         'lsm',
         'norm_corr',
-        'fast_match'
+        # 'fast_match'
     ]
 
     # noise offsets
@@ -614,34 +698,44 @@ if __name__ == '__main__':
                     Hdata = data['Hdata']
                     didx = data['didx']
                 else:
-                    Hdata, didx = middle_homo(im1l_name, im2l_name, all_matches, th_sac, th_out)
-                    sio.savemat(middle_homo_file, {'Hdata': Hdata, 'didx': didx})
+                    didx, Hdata = middle_homo(im1l_name, im2l_name, all_matches, th_sac, th_out)
+                    # sio.savemat(middle_homo_file, {'Hdata': Hdata, 'didx': didx})
 
                 im1 = cv2.imread(im1l_name)
                 im2 = cv2.imread(im2l_name)
+
+                print(f"*********&&&&&&&gt_scaled.shape[0]: {gt_scaled.shape[0]}")
+                print(f"*********&&&&&&&didx: {didx[:gt_scaled.shape[0]]}")
+                
 
                 to_check_matches = all_matches[:gt_scaled.shape[0], :]
                 hom_data = {'Hdata': Hdata, 'didx': didx[:gt_scaled.shape[0]]}
 
                 print(f"*********to_check_matches: {to_check_matches.shape}")
+                print(f"*********len(hom_data.Hdata): {len(hom_data['Hdata'])}")
+                print(f"*********hom_data.didx.shape {hom_data['didx'].shape}")
+                print(f"*********len(hom_data['Hdata'][0]): {len(hom_data['Hdata'][0])}")
 
                 for j in range(len(corr_method)):
+                    print([corr_method[j]])
+                    print([corr_method[j],corr_method[j]])
                     for hom in range(2):
+                        print(f"*****************************************************************************hom: {hom}")
                         middle_homo_file = os.path.join(ppath, f'matches_scale_{s}_{method[widx]}_sac_{th_sac}_err_{e[k,0]}_{e[k,1]}_{corr_method[j]}_hom_{hom}.mat')
 
-                        # if not os.path.exists(middle_homo_file):
-                        #     # print(f"^^^^^^^corr_method： {corr_method}")
-                        #     data_mm1, ttime1 = kpt_improver(im1, im2, to_check_matches, corr_method[j], [th_sac], [1], 1, hom, hom_data)
-                        #     data_mm2, ttime2 = kpt_improver(im1, im2, to_check_matches, corr_method[j], [int(np.fix(th_sac / 2)), th_sac], [0.5, 1], 1, hom, hom_data)
+                        if not os.path.exists(middle_homo_file):
+                            print(f"^^^^^^^corr_method: {corr_method}")
+                            data_mm1, ttime1 = kpt_improver(im1, im2, to_check_matches, [corr_method[j]], [th_sac], [1], 1, hom, hom_data)
+                            data_mm2, ttime2 = kpt_improver(im1, im2, to_check_matches, [corr_method[j],corr_method[j]], [int(np.fix(th_sac / 2)), th_sac], [0.5, 1], 1, hom, hom_data)
 
-                        #     data = {
-                        #         'mm1': data_mm1,
-                        #         'mm2': data_mm2,
-                        #         'time1': ttime1,
-                        #         'time2': ttime2,
-                        #         'err1': np.sqrt(np.sum((data_mm1[:, 2:] - gt_scaled[:, 2:]) ** 2, axis=1)),
-                        #         'err2': np.sqrt(np.sum((data_mm2[:, 2:] - gt_scaled[:, 2:]) ** 2, axis=1))
-                        #     }
+                            data = {
+                                'mm1': data_mm1,
+                                'mm2': data_mm2,
+                                'time1': ttime1,
+                                'time2': ttime2,
+                                'err1': np.sqrt(np.sum((data_mm1[:, 2:] - gt_scaled[:, 2:]) ** 2, axis=1)),
+                                'err2': np.sqrt(np.sum((data_mm2[:, 2:] - gt_scaled[:, 2:]) ** 2, axis=1))
+                            }
 
 #                             sio.savemat(middle_homo_file, {'data': data})
 #                         else:
