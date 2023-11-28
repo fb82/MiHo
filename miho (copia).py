@@ -223,12 +223,12 @@ def get_avg_hom(pt1, pt2, th_in=7, th_out=15, min_plane_pts=4, min_pt_gap=4, max
 
 def cluster_assign_base(Hdata):
     l = len(Hdata)
-    inl_mask = np.hstack([Hdata[i][2][:, np.newaxis] for i in range(l)])
-    alone_idx = np.sum(inl_mask, axis=1)==0
-    set_size = np.sum(inl_mask, axis=0)
-    max_size_idx = np.argmax(np.repeat(set_size[np.newaxis, :], inl_mask.shape[0], axis=0) * inl_mask, axis=1)
-    max_size_idx[alone_idx] = -1
-    return max_size_idx
+    midx = np.hstack([Hdata[i][2][:, np.newaxis] for i in range(l)])
+    qidx = np.sum(midx, axis=1)==0
+    sidx = np.sum(midx, axis=0)
+    vidx = np.argmax(np.repeat(sidx[np.newaxis, :], midx.shape[0], axis=0) * midx, axis=1)
+    vidx[qidx] = -1
+    return vidx
 
 
 def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5):
@@ -238,7 +238,7 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5):
     pt1 = np.vstack((pt1.T, np.ones((1, n))))
     pt2 = np.vstack((pt2.T, np.ones((1, n))))
 
-    err = np.zeros((n,l))
+    eidx = np.zeros((n,l))
 
     for i in range(l):
         H1 = Hdata[i][0]
@@ -250,28 +250,26 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5):
         pt2_ = np.dot(H2, pt2)
         pt2_ = pt2_ / pt2_[2, :]
 
-        err[:, i] = np.sqrt(np.sum((pt1_ - pt2_)**2, axis=0)).T
+        err = np.sqrt(np.sum((pt1_ - pt2_)**2, axis=0)).T
+        eidx[:, i] = err
 
-    inl_mask = np.hstack([Hdata[i][2][:, np.newaxis] for i in range(l)])
-    set_size = np.sum(inl_mask, axis=0)
-    size_mask = np.repeat(set_size[np.newaxis, :], inl_mask.shape[0], axis=0) * inl_mask
+    inl_mak = np.hstack([Hdata[i][2][:, np.newaxis] for i in range(l)])
+    sidx = np.sum(inl_mask, axis=0)
+    vidx = np.repeat(sidx[np.newaxis, :], inl_mask.shape[0], axis=0) * inl_mask
  
     # take a cluster if its cardinality is more than the median of the top median_th ones
-    ssize_mask = -np.sort(-size_mask, axis=1)
-    median_idx = np.sum(ssize_mask[:, :median_th]>0, axis=1) / 2
-    median_idx[median_idx==1] = 1.5
-    median_idx = np.maximum(np.ceil(median_idx).astype(int)-1, 0)    
-    top_median = ssize_mask.flatten()[np.ravel_multi_index([np.arange(n), median_idx], ssize_mask.shape)]        
-    
+    zidx = -np.sort(-vidx, axis=1)
+    pidx = np.sum(zidx[:,:median_th]>0, axis=1) / 2
+    pidx[pidx==1] = 1.5
+    pidx = np.maximum(np.ceil(pidx).astype(int)-1,0)    
+    tidx = zidx.flatten()[np.ravel_multi_index([np.arange(n),pidx],zidx.shape)]        
     # take among the selected the one which gives less error
-    discarded_mask = size_mask < top_median[:, np.newaxis]
-    err[discarded_mask] = np.Inf
-    err_min_idx = np.argmin(err,axis=1)    
-
-    # remove match with no cluster
-    alone_idx = np.sum(inl_mask, axis=1)==0    
-    err_min_idx[alone_idx] = -1
-    return err_min_idx
+    xidx = vidx < tidx[:, np.newaxis]
+    eidx[xidx] = np.Inf
+    lidx = np.argmin(eidx,axis=1)    
+    qidx = np.sum(inl_mask, axis=1)==0    
+    lidx[qidx] = -1
+    return lidx
 
 
 def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho.pdf', fig_dpi=300):
