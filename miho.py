@@ -161,7 +161,9 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
     return H1, H2, iidx, oidx
 
 
-def get_avg_hom(pt1, pt2, th_in=7, th_out=15, min_plane_pts=4, min_pt_gap=4, max_ref_iter=5, max_fail_count=2, random_seed_init=123):
+def get_avg_hom(pt1, pt2,                 
+                ransac_middle_args= {'th_in': 7, 'th_out': 15, 'max_iter': 10000, 'min_iter': 100, 'p' :0.9, 'svd_th': 0.05},
+                min_plane_pts=4, min_pt_gap=4, max_ref_iter=0, max_fail_count=2, random_seed_init=123):
 
     # set to 123 for debugging and profiling
     if random_seed_init is not None:
@@ -190,7 +192,7 @@ def get_avg_hom(pt1, pt2, th_in=7, th_out=15, min_plane_pts=4, min_pt_gap=4, max
         pt2_ = np.dot(H2, pt2_)
         pt2_ = pt2_ / pt2_[2, :]
 
-        H1_, H2_, iidx, oidx = ransac_middle(pt1_, pt2_, th_in, th_out)
+        H1_, H2_, iidx, oidx = ransac_middle(pt1_, pt2_, **ransac_middle_args)
                         
         idx = np.zeros(l, dtype=bool)
         idx[~midx] = oidx
@@ -218,41 +220,43 @@ def get_avg_hom(pt1, pt2, th_in=7, th_out=15, min_plane_pts=4, min_pt_gap=4, max
 
         # this loop decreases the average but increase max error
 
-        # H1_ = np.eye(3)
-        # H2_ = np.eye(3)
+        H1_ = np.eye(3)
+        H2_ = np.eye(3)
 
-        # ptm_err_old = np.Inf
+        ptm_err_old = np.Inf
 
-        # for i in range(max_ref_iter):
+        # max_ref_iter = 5
+        if max_ref_iter>0: max_ref_iter+=1
+        for i in range(max_ref_iter):
 
-        #     H1_new_ = np.dot(H1_, H1_new)
-        #     H2_new_ = np.dot(H2_, H2_new)
+            H1_new_ = np.dot(H1_, H1_new)
+            H2_new_ = np.dot(H2_, H2_new)
 
-        #     pt1_ = pt1[:, idx]
-        #     pt1_ = np.dot(H1_new_, pt1_)
-        #     pt1_ = pt1_ / pt1_[2, :]
+            pt1_ = pt1[:, idx]
+            pt1_ = np.dot(H1_new_, pt1_)
+            pt1_ = pt1_ / pt1_[2, :]
 
-        #     pt2_ = pt2[:, idx]
-        #     pt2_ = np.dot(H2_new_, pt2_)
-        #     pt2_ = pt2_ / pt2_[2, :]
+            pt2_ = pt2[:, idx]
+            pt2_ = np.dot(H2_new_, pt2_)
+            pt2_ = pt2_ / pt2_[2, :]
 
-        #     ptm_err = np.max(np.sqrt(np.sum((pt1_ - pt2_)**2, axis=0)))
-        #     if (ptm_err_old < ptm_err): break
-        #     ptm_err_old = ptm_err
+            ptm_err = np.max(np.sqrt(np.sum((pt1_ - pt2_)**2, axis=0)))
+            if (ptm_err_old < ptm_err): break
+            ptm_err_old = ptm_err
 
-        #     H1_new = H1_new_
-        #     H2_new = H2_new_
+            H1_new = H1_new_
+            H2_new = H2_new_
             
-        #     ptm = (pt1_ + pt2_) / 2
-        #     H1_, _ = compute_homography(pt1_, ptm)
-        #     H2_, _ = compute_homography(pt2_, ptm)
+            ptm = (pt1_ + pt2_) / 2
+            H1_, _ = compute_homography(pt1_, ptm)
+            H2_, _ = compute_homography(pt2_, ptm)
 
         Hdata.append([H1_new, H2_new, idx])
 
     return Hdata
 
 
-def cluster_assign_base(Hdata):
+def cluster_assign_base(Hdata, pt1=None, pt2=None):
     l = len(Hdata)
     n = Hdata[0][2].shape[0]
 
@@ -268,7 +272,7 @@ def cluster_assign_base(Hdata):
     return max_size_idx
 
 
-def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5):
+def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15):
     l = len(Hdata)
     n = pt1.shape[0]
 
@@ -288,6 +292,10 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5):
         pt2_ = pt2_ / pt2_[2, :]
 
         err[:, i] = np.sqrt(np.sum((pt1_ - pt2_)**2, axis=0)).T
+
+    # min error
+    abs_err_min_val = np.min(err, axis=1)    
+    abs_err_min_idx = np.argmin(err, axis=1)    
 
     inl_mask = np.zeros((n, l), dtype=bool)    
     for i in range(l): inl_mask[:, i] = Hdata[i][2]
@@ -310,12 +318,15 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5):
     err_min_idx = np.argmin(err, axis=1)    
 
     # remove match with no cluster
-    alone_idx = np.sum(inl_mask, axis=1)==0    
-    err_min_idx[alone_idx] = -1
+    alone_idx = np.sum(inl_mask, axis=1)==0        
+    really_alone_idx = alone_idx & (abs_err_min_val > err_th)
+
+    err_min_idx[alone_idx] = abs_err_min_idx[alone_idx]   
+    err_min_idx[really_alone_idx] = -1
 
     return err_min_idx
 
-def cluster_assign_other(Hdata, pt1=None, pt2=None, th=25):
+def cluster_assign_other(Hdata, pt1=None, pt2=None, err_th=25):
     l = len(Hdata)
     n = pt1.shape[0]
 
@@ -339,12 +350,16 @@ def cluster_assign_other(Hdata, pt1=None, pt2=None, th=25):
     err_min_idx = np.argmin(err, axis=1)    
     err_min_val = err.flatten()[np.ravel_multi_index([np.arange(n), err_min_idx], err.shape)]
  
-    err_min_idx[(err_min_val > th) | np.isnan(err_min_val)] = -1        
+    err_min_idx[(err_min_val > err_th) | np.isnan(err_min_val)] = -1        
 
     return err_min_idx
 
 
-def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho.pdf', fig_dpi=300):
+def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho.pdf', fig_dpi=300,
+             colors = ['#FF1F5B', '#00CD6C', '#009ADE', '#AF58BA', '#FFC61E', '#F28522'],
+             markers = ['o','x','8','p','h'], bad_marker = 'd', bad_color = '#000000',
+             plot_opt = {'markersize': 2, 'markeredgewidth': 0.5, 'markerfacecolor': "None", 'alpha': 0.5}):
+
     im12 = Image.new('RGB', (im1.width + im2.width, max(im1.height, im2.height)))
     im12.paste(im1, (0, 0))
     im12.paste(im2, (im1.width, 0))
@@ -353,14 +368,9 @@ def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho.pdf', fig_dpi=300):
     plt.axis('off')            
     plt.imshow(im12)
     
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#bcbd22', '#17becf']
-    markers = ['o','x','8','p','h']
-    bad_marker = 'd'
-    bad_color = '#000000'
     cn = len(colors)
     mn = len(markers)
 
-    plot_opt = {'markersize': 2, 'markeredgewidth': 0.5, 'markerfacecolor': "None", 'alpha': 0.5}    
     for i, idx in enumerate(np.ndarray.tolist(np.unique(Hidx))):
         mask = Hidx == idx
         x = np.vstack((pt1[mask, 0], pt2[mask, 0]+im1.width))
@@ -376,35 +386,120 @@ def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho.pdf', fig_dpi=300):
     plt.savefig(tosave, dpi = fig_dpi, bbox_inches='tight')
 
 
+def cross_check(dict1, dict2):
+
+    if type(dict1) != type(dict2):
+        return None
+
+    if not(isinstance(dict2, dict) or isinstance(dict2, list)):
+        if dict1 == dict2:
+            return None
+        else:
+            return dict2
+        
+    elif isinstance(dict2, dict):
+
+        keys1 = list(dict1.keys())
+        keys2 = list(dict2.keys())
+    
+        for i in keys2:
+            if i not in keys1:
+                dict2.pop(i, None)
+            else:
+                aux = cross_check(dict1[i], dict2[i])
+                if not aux:
+                    dict2.pop(i, None)
+                else:
+                    dict2[i] = aux
+                    
+        return dict2
+
+    elif isinstance(dict2, list):
+
+        if len(dict1) != len(dict2):
+            return dict2
+        
+        for i in range(len(dict2)):
+            aux = cross_check(dict1[i], dict2[i])
+            if aux:
+               return dict2
+                    
+        return None
+
+
 class miho:
-    def __init__(self, th_in=7, th_out=15, cluster_assign=cluster_assign, assign_args={}):
+    def __init__(self, params=None):
         """initiate MiHo"""
-        self.th_in = th_in
-        self.th_out = th_out
+        self.set_default()
+        if params is not None:
+            self.update_params(params)
+
+
+    def set_default(self):
+        self.params = { 'get_avg_hom': {}, 'cluster_method': {}, 'show_clustering': {}}
         self.assign = cluster_assign
-        self.assign_args = assign_args
+        self.assign_args = {}
+
+
+    def update_params(self, params):
+        default_params = self.all_params()
+        clear_params = cross_check(default_params, params)
+ 
+        if 'get_avg_hom' in clear_params:
+           self.params['get_avg_hom'] = clear_params['get_avg_hom']
+
+        if 'show_clustering' in clear_params:
+           self.params['show_clustering'] = clear_params['show_clustering']
+     
+        if 'cluster_assign' in clear_params:
+            if 'method' in clear_params['cluster_assign']:
+                self.assign = clear_params['cluster_assign']['method']
+                self.assign_args = {}
+            if 'method_args' in clear_params['cluster_assign']:
+                self.assign_args = clear_params['cluster_assign']['method_args']
+
+
+    def all_params(self):
+        ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 10000, 'min_iter': 100, 'p' :0.9, 'svd_th': 0.05}
+        get_avg_hom_params = {'ransac_middle_args': ransac_middle_params, 'min_plane_pts': 4, 'min_pt_gap': 4, 'max_ref_iter': 0, 'max_fail_count': 2, 'random_seed_init': 123}
+
+        idx = 1
+        cluster_method = [cluster_assign_base, cluster_assign, cluster_assign_other]
+        cluster_method_params = [ {}, {'median_th': 5, 'err_th': 15}, {'err_th': 25}]
+        cluster_assign_params = {'method': cluster_method[idx],
+                                'method_args': cluster_method_params[idx]}   
+        
+        show_clustering_params = {
+            'tosave': 'miho.pdf', 'fig_dpi': 300,
+             'colors': ['#FF1F5B', '#00CD6C', '#009ADE', '#AF58BA', '#FFC61E', '#F28522'],
+             'markers': ['o','x','8','p','h'], 'bad_marker': 'd', 'bad_color': '#000000',
+             'plot_opt': {'markersize': 2, 'markeredgewidth': 0.5, 'markerfacecolor': "None", 'alpha': 0.5}}
+
+        return {'get_avg_hom': get_avg_hom_params,
+                'cluster_assign': cluster_assign_params,
+                'show_clustering': show_clustering_params}
 
 
     def planar_clustering(self, pt1, pt2):
         """run MiHo"""
         self.pt1 = pt1
         self.pt2 = pt2
-        Hdata = get_avg_hom(pt1, pt2, self.th_in, self.th_out)
         
+        Hdata = get_avg_hom(pt1, pt2, **self.params['get_avg_hom'])       
         self.Hs = Hdata
-        if self.assign != cluster_assign_base:
-            self.assign_args = {'pt1': self.pt1, 'pt2': self.pt2}
-        self.Hidx = self.assign(Hdata, **self.assign_args)
+ 
+        self.Hidx = self.assign(Hdata, pt1, pt2, **self.assign_args)
+
         return self.Hs, self.Hidx
 
 
-    def show_clustering(self, im1, im2, saveto=None):
+    def show_clustering(self, im1, im2):
         """ todo: show MiHo clutering as in the paper"""
         if hasattr(self, 'Hs'):
             self.im1 = im1
             self.im2 = im2
 
-            show_fig(im1, im2, self.pt1, self.pt2, self.Hs, self.Hidx)
+            show_fig(im1, im2, self.pt1, self.pt2, self.Hs, self.Hidx, **self.params['show_clustering'])
             
             
 if __name__ == '__main__':
@@ -420,7 +515,13 @@ if __name__ == '__main__':
     m12 = m12['matches'][m12['midx'] > 0, :]
 
     start = time.time()
-    mihoo = miho(cluster_assign=cluster_assign)
+    mihoo = miho()
+
+    # params = mihoo.all_params()
+    # params['cluster_assign']['method'] = cluster_assign_base    
+    # params['cluster_assign']['method_args'] = {}    
+    # mihoo.update_params(params)
+
     mihoo.planar_clustering(m12[:, :2], m12[:, 2:])
     end = time.time()
     print("Elapsed = %s" % (end - start))
