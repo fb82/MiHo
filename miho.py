@@ -1,11 +1,13 @@
-import scipy.io as sio
 from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
+import time
+import scipy.io as sio
 
 
 def data_normalize(pts):
+
     c = np.mean(pts, axis=1)
     s = np.sqrt(2) / (np.mean(np.sqrt((pts[0, :] - c[0])**2 + (pts[1, :] - c[1])**2)) + np.finfo(float).eps)
 
@@ -19,12 +21,15 @@ def data_normalize(pts):
 
 
 def steps(pps, inl, p):
+
     e = 1 - inl
     r = np.log(1 - p) / np.log(1 - (1 - e)**pps)
+
     return r
 
 
 def compute_homography(pts1, pts2):
+
     T1 = data_normalize(pts1)
     T2 = data_normalize(pts2)
 
@@ -32,12 +37,20 @@ def compute_homography(pts1, pts2):
     npts2 = np.dot(T2, pts2)
 
     l = npts1.shape[1]
-    # TODO: last line in the matrix A can be removed for speeding the computation
-    A = np.vstack((
-        np.hstack((np.zeros((l, 3)), -np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T), np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T))),
-        np.hstack((np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T), np.zeros((l, 3)), -np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T))),
-        np.hstack((-np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T), np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T), np.zeros((l, 3))))
-    ))
+    A = np.zeros((l*3,9))
+    A[:l,3:6] = -np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T)
+    A[:l,6:] = np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T)
+    A[l:2*l,:3] = np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T)
+    A[l:2*l,6:] = -np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T)
+    # TODO: last block in the matrix A can be removed for speeding the computation
+    A[2*l:,:3] = -np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T)
+    A[2*l:,3:6] = np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T)
+
+    # A = np.vstack((
+    #     np.hstack((np.zeros((l, 3)), -np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T), np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T))),
+    #     np.hstack((np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T), np.zeros((l, 3)), -np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T))),
+    #     np.hstack((-np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T), np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T), np.zeros((l, 3))))
+    # ))
 
     try:
         _, D, V = np.linalg.svd(A, full_matrices=True)        
@@ -77,13 +90,19 @@ def get_inliers(pt1, pt2, H, ths, sidx):
     err[~np.isfinite(err)] = np.inf
     
     ths_ = [ths] if not isinstance(ths, list) else ths
-    nidx = [np.all(np.vstack((err < th,s2_ == s2,s1_ == s1)), axis=0) for th in ths_]
+    
+    m = len(ths_)
+    nidx = np.zeros((m, l), dtype=bool)
+    for i in np.arange(m):
+        nidx[i, :] = np.all(np.vstack((err < ths_[i], s2_ == s2,s1_ == s1)), axis=0)
+        
     if not isinstance(ths, list): nidx = nidx[0]
 
     return nidx
 
 
 def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=0.9, svd_th=0.05):
+
     n = pt1.shape[1]
     th_in = th_in ** 2
     th_out = th_out ** 2
@@ -97,7 +116,7 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
         oidx = np.zeros(n, dtype=bool)
         return H1, H2, iidx, oidx
 
-    min_iter = min(min_iter, int(np.math.comb(n, 2)))
+    min_iter = min(min_iter, n*(n-1)*(n-2)*(n-3) / 12)
 
     midx = np.zeros(n, dtype=bool)
     oidx = np.zeros(n, dtype=bool)
@@ -106,14 +125,15 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
 
     for c in range(1, max_iter):
         sidx = np.random.choice(n, size=4, replace=False)
+        
         H1, eD = compute_homography(pt1[:, sidx], ptm[:, sidx])
-        if eD[-2] < svd_th:
-            continue
+        if eD[-2] < svd_th: continue
+
         H2, eD = compute_homography(pt2[:, sidx], ptm[:, sidx])
-        if eD[-2] < svd_th:
-            continue
+        if eD[-2] < svd_th:  continue
 
         nidx = get_inliers(pt1, ptm, H1, th_out, sidx) * get_inliers(pt2, ptm, H2, th_out, sidx)
+
         sum_nidx = np.sum(nidx)
         if sum_nidx > sum_midx:
             midx = nidx
@@ -126,6 +146,7 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
     if (sum_midx > 0):
         H1, _ = compute_homography(pt1[:, midx], ptm[:, midx])
         H2, _ = compute_homography(pt2[:, midx], ptm[:, midx])
+
         inl1 = get_inliers(pt1, ptm, H1, [th_in, th_out], sidx_)
         inl2 = get_inliers(pt2, ptm, H2, [th_in, th_out], sidx_)
         iidx = inl1[0] & inl2[0]
@@ -133,13 +154,19 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
     else:
         H1 = np.array([])
         H2 = np.array([])
+
         iidx = np.zeros(n, dtype=bool)
         oidx = np.zeros(n, dtype=bool)
 
     return H1, H2, iidx, oidx
 
 
-def get_avg_hom(pt1, pt2, th_in=7, th_out=15, min_plane_pts=4, min_pt_gap=4, max_ref_iter=5, max_fail_count=2):
+def get_avg_hom(pt1, pt2, th_in=7, th_out=15, min_plane_pts=4, min_pt_gap=4, max_ref_iter=5, max_fail_count=2, random_seed_init=123):
+
+    # set to 123 for debugging and profiling
+    if random_seed_init is not None:
+        np.random.seed(random_seed_init)
+
     H1 = np.eye(3)
     H2 = np.eye(3)
 
@@ -151,8 +178,6 @@ def get_avg_hom(pt1, pt2, th_in=7, th_out=15, min_plane_pts=4, min_pt_gap=4, max
 
     pt1 = np.vstack((pt1.T, np.ones((1, l))))
     pt2 = np.vstack((pt2.T, np.ones((1, l))))
-
-    Hdata = []
 
     fail_count = 0
     midx_sum = 0
@@ -176,11 +201,13 @@ def get_avg_hom(pt1, pt2, th_in=7, th_out=15, min_plane_pts=4, min_pt_gap=4, max
         midx_sum_old = midx_sum
         midx_sum = np.sum(midx)
         
-        if (np.sum(oidx) <= min_plane_pts) or (midx_sum - midx_sum_old <= min_pt_gap):
+        H_failed = np.sum(oidx) <= min_plane_pts
+        inl_failed = midx_sum - midx_sum_old <= min_pt_gap
+        if H_failed or inl_failed:
             fail_count+=1
             if fail_count > max_fail_count: break
-            if midx_sum - midx_sum_old <= min_pt_gap: midx = tidx        
-            if np.sum(oidx) <= min_plane_pts: continue
+            if inl_failed: midx = tidx        
+            if H_failed: continue
         else:
             fail_count = 0
        
@@ -208,8 +235,7 @@ def get_avg_hom(pt1, pt2, th_in=7, th_out=15, min_plane_pts=4, min_pt_gap=4, max
             pt2_ = pt2_ / pt2_[2, :]
 
             ptm_err = np.mean(np.sqrt(np.sum((pt1_ - pt2_)**2, axis=0)))
-            if (ptm_err_old < ptm_err):
-                break
+            if (ptm_err_old < ptm_err): break
             ptm_err_old = ptm_err
 
             ptm = (pt1_ + pt2_) / 2
@@ -223,11 +249,17 @@ def get_avg_hom(pt1, pt2, th_in=7, th_out=15, min_plane_pts=4, min_pt_gap=4, max
 
 def cluster_assign_base(Hdata):
     l = len(Hdata)
-    inl_mask = np.hstack([Hdata[i][2][:, np.newaxis] for i in range(l)])
+    n = Hdata[0][2].shape[0]
+
+    inl_mask = np.zeros((n, l), dtype=bool)    
+    for i in np.arange(l): inl_mask[:, i] = Hdata[i][2]
+
     alone_idx = np.sum(inl_mask, axis=1)==0
     set_size = np.sum(inl_mask, axis=0)
+
     max_size_idx = np.argmax(np.repeat(set_size[np.newaxis, :], inl_mask.shape[0], axis=0) * inl_mask, axis=1)
     max_size_idx[alone_idx] = -1
+
     return max_size_idx
 
 
@@ -252,15 +284,19 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5):
 
         err[:, i] = np.sqrt(np.sum((pt1_ - pt2_)**2, axis=0)).T
 
-    inl_mask = np.hstack([Hdata[i][2][:, np.newaxis] for i in range(l)])
+    inl_mask = np.zeros((n, l), dtype=bool)    
+    for i in np.arange(l): inl_mask[:, i] = Hdata[i][2]
+
     set_size = np.sum(inl_mask, axis=0)
     size_mask = np.repeat(set_size[np.newaxis, :], inl_mask.shape[0], axis=0) * inl_mask
  
     # take a cluster if its cardinality is more than the median of the top median_th ones
     ssize_mask = -np.sort(-size_mask, axis=1)
+
     median_idx = np.sum(ssize_mask[:, :median_th]>0, axis=1) / 2
     median_idx[median_idx==1] = 1.5
     median_idx = np.maximum(np.ceil(median_idx).astype(int)-1, 0)    
+
     top_median = ssize_mask.flatten()[np.ravel_multi_index([np.arange(n), median_idx], ssize_mask.shape)]        
     
     # take among the selected the one which gives less error
@@ -271,6 +307,7 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5):
     # remove match with no cluster
     alone_idx = np.sum(inl_mask, axis=1)==0    
     err_min_idx[alone_idx] = -1
+
     return err_min_idx
 
 
@@ -349,8 +386,11 @@ if __name__ == '__main__':
     m12 = sio.loadmat(match_file, squeeze_me=True)
     m12 = m12['matches'][m12['midx'] > 0, :]
 
+    start = time.time()
     mihoo = miho()
     mihoo.planar_clustering(m12[:, :2], m12[:, 2:])
+    end = time.time()
+    print("Elapsed = %s" % (end - start))
 
     # with open('miho.pkl', 'wb') as file:      
     #     pickle.dump(mihoo, file) 
