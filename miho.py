@@ -93,7 +93,7 @@ def get_inliers(pt1, pt2, H, ths, sidx):
     
     m = len(ths_)
     nidx = np.zeros((m, l), dtype=bool)
-    for i in np.arange(m):
+    for i in range(m):
         nidx[i, :] = np.all(np.vstack((err < ths_[i], s2_ == s2,s1_ == s1)), axis=0)
         
     if not isinstance(ths, list): nidx = nidx[0]
@@ -216,31 +216,36 @@ def get_avg_hom(pt1, pt2, th_in=7, th_out=15, min_plane_pts=4, min_pt_gap=4, max
         H1_new = np.dot(H1_, H1)
         H2_new = np.dot(H2_, H2)
 
-        H1_ = np.eye(3)
-        H2_ = np.eye(3)
+        # this loop decreases the average but increase max error
 
-        ptm_err_old = np.Inf
+        # H1_ = np.eye(3)
+        # H2_ = np.eye(3)
 
-        for i in range(max_ref_iter):
+        # ptm_err_old = np.Inf
 
-            H1_new = np.dot(H1_, H1_new)
-            H2_new = np.dot(H2_, H2_new)
+        # for i in range(max_ref_iter):
 
-            pt1_ = pt1[:, idx]
-            pt1_ = np.dot(H1_new, pt1_)
-            pt1_ = pt1_ / pt1_[2, :]
+        #     H1_new_ = np.dot(H1_, H1_new)
+        #     H2_new_ = np.dot(H2_, H2_new)
 
-            pt2_ = pt2[:, idx]
-            pt2_ = np.dot(H2_new, pt2_)
-            pt2_ = pt2_ / pt2_[2, :]
+        #     pt1_ = pt1[:, idx]
+        #     pt1_ = np.dot(H1_new_, pt1_)
+        #     pt1_ = pt1_ / pt1_[2, :]
 
-            ptm_err = np.mean(np.sqrt(np.sum((pt1_ - pt2_)**2, axis=0)))
-            if (ptm_err_old < ptm_err): break
-            ptm_err_old = ptm_err
+        #     pt2_ = pt2[:, idx]
+        #     pt2_ = np.dot(H2_new_, pt2_)
+        #     pt2_ = pt2_ / pt2_[2, :]
 
-            ptm = (pt1_ + pt2_) / 2
-            H1_, _ = compute_homography(pt1_, ptm)
-            H2_, _ = compute_homography(pt2_, ptm)
+        #     ptm_err = np.max(np.sqrt(np.sum((pt1_ - pt2_)**2, axis=0)))
+        #     if (ptm_err_old < ptm_err): break
+        #     ptm_err_old = ptm_err
+
+        #     H1_new = H1_new_
+        #     H2_new = H2_new_
+            
+        #     ptm = (pt1_ + pt2_) / 2
+        #     H1_, _ = compute_homography(pt1_, ptm)
+        #     H2_, _ = compute_homography(pt2_, ptm)
 
         Hdata.append([H1_new, H2_new, idx])
 
@@ -252,7 +257,7 @@ def cluster_assign_base(Hdata):
     n = Hdata[0][2].shape[0]
 
     inl_mask = np.zeros((n, l), dtype=bool)    
-    for i in np.arange(l): inl_mask[:, i] = Hdata[i][2]
+    for i in range(l): inl_mask[:, i] = Hdata[i][2]
 
     alone_idx = np.sum(inl_mask, axis=1)==0
     set_size = np.sum(inl_mask, axis=0)
@@ -285,7 +290,7 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5):
         err[:, i] = np.sqrt(np.sum((pt1_ - pt2_)**2, axis=0)).T
 
     inl_mask = np.zeros((n, l), dtype=bool)    
-    for i in np.arange(l): inl_mask[:, i] = Hdata[i][2]
+    for i in range(l): inl_mask[:, i] = Hdata[i][2]
 
     set_size = np.sum(inl_mask, axis=0)
     size_mask = np.repeat(set_size[np.newaxis, :], inl_mask.shape[0], axis=0) * inl_mask
@@ -302,11 +307,39 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5):
     # take among the selected the one which gives less error
     discarded_mask = size_mask < top_median[:, np.newaxis]
     err[discarded_mask] = np.Inf
-    err_min_idx = np.argmin(err,axis=1)    
+    err_min_idx = np.argmin(err, axis=1)    
 
     # remove match with no cluster
     alone_idx = np.sum(inl_mask, axis=1)==0    
     err_min_idx[alone_idx] = -1
+
+    return err_min_idx
+
+def cluster_assign_other(Hdata, pt1=None, pt2=None, th=25):
+    l = len(Hdata)
+    n = pt1.shape[0]
+
+    pt1 = np.vstack((pt1.T, np.ones((1, n))))
+    pt2 = np.vstack((pt2.T, np.ones((1, n))))
+
+    err = np.zeros((n,l))
+
+    for i in range(l):
+        H1 = Hdata[i][0]
+        H2 = Hdata[i][1]
+
+        pt1_ = np.dot(H1, pt1)
+        pt1_ = pt1_ / pt1_[2, :]
+
+        pt2_ = np.dot(H2, pt2)
+        pt2_ = pt2_ / pt2_[2, :]
+
+        err[:, i] = np.sqrt(np.sum((pt1_ - pt2_)**2, axis=0)).T
+
+    err_min_idx = np.argmin(err, axis=1)    
+    err_min_val = err.flatten()[np.ravel_multi_index([np.arange(n), err_min_idx], err.shape)]
+ 
+    err_min_idx[(err_min_val > th) | np.isnan(err_min_val)] = -1        
 
     return err_min_idx
 
@@ -359,7 +392,7 @@ class miho:
         Hdata = get_avg_hom(pt1, pt2, self.th_in, self.th_out)
         
         self.Hs = Hdata
-        if self.assign == cluster_assign:
+        if self.assign != cluster_assign_base:
             self.assign_args = {'pt1': self.pt1, 'pt2': self.pt2}
         self.Hidx = self.assign(Hdata, **self.assign_args)
         return self.Hs, self.Hidx
@@ -387,7 +420,7 @@ if __name__ == '__main__':
     m12 = m12['matches'][m12['midx'] > 0, :]
 
     start = time.time()
-    mihoo = miho()
+    mihoo = miho(cluster_assign=cluster_assign)
     mihoo.planar_clustering(m12[:, :2], m12[:, 2:])
     end = time.time()
     print("Elapsed = %s" % (end - start))
