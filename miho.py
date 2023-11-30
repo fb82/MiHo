@@ -258,7 +258,7 @@ def get_avg_hom(pt1, pt2, ransac_middle_args= {'th_in': 7, 'th_out': 15,
     return Hdata
 
 
-def cluster_assign_base(Hdata, pt1=None, pt2=None):
+def cluster_assign_base(Hdata, pt1=None, pt2=None, **dummy_args):
     l = len(Hdata)
     n = Hdata[0][2].shape[0]
 
@@ -275,7 +275,7 @@ def cluster_assign_base(Hdata, pt1=None, pt2=None):
     return max_size_idx
 
 
-def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15):
+def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15, **dummy_args):
     l = len(Hdata)
     n = pt1.shape[0]
 
@@ -330,7 +330,8 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15):
 
     return err_min_idx
 
-def cluster_assign_other(Hdata, pt1=None, pt2=None, err_th=25):
+
+def cluster_assign_other(Hdata, pt1=None, pt2=None, err_th_only=25, **dummy_args):
     l = len(Hdata)
     n = pt1.shape[0]
 
@@ -354,7 +355,7 @@ def cluster_assign_other(Hdata, pt1=None, pt2=None, err_th=25):
     err_min_idx = np.argmin(err, axis=1)    
     err_min_val = err.flatten()[np.ravel_multi_index([np.arange(n), err_min_idx], err.shape)]
  
-    err_min_idx[(err_min_val > err_th) | np.isnan(err_min_val)] = -1        
+    err_min_idx[(err_min_val > err_th_only) | np.isnan(err_min_val)] = -1        
 
     return err_min_idx
 
@@ -394,12 +395,13 @@ def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho.pdf', fig_dpi=300,
 def go_assign(Hdata, pt1=None, pt2=None, method=cluster_assign, method_args={}):
     return method(Hdata, pt1, pt2, **method_args)
 
-def cross_check(dict1, dict2):
+
+def purge_default(dict1, dict2):
 
     if type(dict1) != type(dict2):
         return None
 
-    if not(isinstance(dict2, dict) or isinstance(dict2, list)):
+    if not (isinstance(dict2, dict) or isinstance(dict2, list)):
         if dict1 == dict2:
             return None
         else:
@@ -414,7 +416,7 @@ def cross_check(dict1, dict2):
             if i not in keys1:
                 dict2.pop(i, None)
             else:
-                aux = cross_check(dict1[i], dict2[i])
+                aux = purge_default(dict1[i], dict2[i])
                 if not aux:
                     dict2.pop(i, None)
                 else:
@@ -428,7 +430,7 @@ def cross_check(dict1, dict2):
             return dict2
         
         for i in range(len(dict2)):
-            aux = cross_check(dict1[i], dict2[i])
+            aux = purge_default(dict1[i], dict2[i])
             if aux:
                return dict2
                     
@@ -448,9 +450,9 @@ class miho:
 
 
     def update_params(self, params):
-        default_params = self.all_params()
-        clear_params = cross_check(default_params, params)
- 
+        all_default_params = self.all_params()
+        clear_params = purge_default(all_default_params, params)
+        
         for i in ['get_avg_hom', 'show_clustering', 'go_assign']:
             if i in clear_params:
                 self.params[i] = clear_params[i]
@@ -464,11 +466,9 @@ class miho:
                               'max_ref_iter': 0, 'max_fail_count': 2,
                               'random_seed_init': 123}
 
-        idx = 1
-        method = [cluster_assign_base, cluster_assign, cluster_assign_other]
-        method_params = [ {}, {'median_th': 5, 'err_th': 15}, {'err_th': 25}]
-        go_assign_params = {'method': method[idx],
-                                'method_args': method_params[idx]}   
+        method_args_params = {'median_th': 5, 'err_th': 15, 'err_th_only': 24}
+        go_assign_params = {'method': cluster_assign,
+                            'method_args': method_args_params}
         
         show_clustering_params = {'tosave': 'miho.pdf', 'fig_dpi': 300,
              'colors': ['#FF1F5B', '#00CD6C', '#009ADE', '#AF58BA', '#FFC61E', '#F28522'],
@@ -521,7 +521,7 @@ if __name__ == '__main__':
 
     # params = mihoo.all_params()
     # params['go_assign']['method'] = cluster_assign_base    
-    # params['go_assign']['method_args'] = {}    
+    # params['go_assign']['method_args']['err_th'] = 16
     # mihoo.update_params(params)
 
     mihoo.planar_clustering(m12[:, :2], m12[:, 2:])
