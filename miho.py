@@ -9,7 +9,8 @@ import scipy.io as sio
 def data_normalize(pts):
 
     c = np.mean(pts, axis=1)
-    s = np.sqrt(2) / (np.mean(np.sqrt((pts[0, :] - c[0])**2 + (pts[1, :] - c[1])**2)) + np.finfo(float).eps)
+    s = np.sqrt(2) / (np.mean(np.sqrt((pts[0, :] - c[0])**2 + (pts[1, :] - c[1])**2)) +
+                      np.finfo(float).eps)
 
     T = np.array([
         [s, 0, -c[0] * s],
@@ -161,9 +162,10 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
     return H1, H2, iidx, oidx
 
 
-def get_avg_hom(pt1, pt2,                 
-                ransac_middle_args= {'th_in': 7, 'th_out': 15, 'max_iter': 10000, 'min_iter': 100, 'p' :0.9, 'svd_th': 0.05},
-                min_plane_pts=4, min_pt_gap=4, max_ref_iter=0, max_fail_count=2, random_seed_init=123):
+def get_avg_hom(pt1, pt2, ransac_middle_args= {'th_in': 7, 'th_out': 15,
+               'max_iter': 10000, 'min_iter': 100, 'p' :0.9, 'svd_th': 0.05},
+                min_plane_pts=4, min_pt_gap=4, max_ref_iter=0,
+                max_fail_count=2, random_seed_init=123):
 
     # set to 123 for debugging and profiling
     if random_seed_init is not None:
@@ -266,7 +268,8 @@ def cluster_assign_base(Hdata, pt1=None, pt2=None):
     alone_idx = np.sum(inl_mask, axis=1)==0
     set_size = np.sum(inl_mask, axis=0)
 
-    max_size_idx = np.argmax(np.repeat(set_size[np.newaxis, :], inl_mask.shape[0], axis=0) * inl_mask, axis=1)
+    max_size_idx = np.argmax(
+        np.repeat(set_size[np.newaxis, :], inl_mask.shape[0], axis=0) * inl_mask, axis=1)
     max_size_idx[alone_idx] = -1
 
     return max_size_idx
@@ -310,7 +313,8 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15):
     median_idx[median_idx==1] = 1.5
     median_idx = np.maximum(np.ceil(median_idx).astype(int)-1, 0)    
 
-    top_median = ssize_mask.flatten()[np.ravel_multi_index([np.arange(n), median_idx], ssize_mask.shape)]        
+    top_median = ssize_mask.flatten(
+        )[np.ravel_multi_index([np.arange(n), median_idx], ssize_mask.shape)]        
     
     # take among the selected the one which gives less error
     discarded_mask = size_mask < top_median[:, np.newaxis]
@@ -358,7 +362,8 @@ def cluster_assign_other(Hdata, pt1=None, pt2=None, err_th=25):
 def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho.pdf', fig_dpi=300,
              colors = ['#FF1F5B', '#00CD6C', '#009ADE', '#AF58BA', '#FFC61E', '#F28522'],
              markers = ['o','x','8','p','h'], bad_marker = 'd', bad_color = '#000000',
-             plot_opt = {'markersize': 2, 'markeredgewidth': 0.5, 'markerfacecolor': "None", 'alpha': 0.5}):
+             plot_opt = {'markersize': 2, 'markeredgewidth': 0.5,
+                         'markerfacecolor': "None", 'alpha': 0.5}):
 
     im12 = Image.new('RGB', (im1.width + im2.width, max(im1.height, im2.height)))
     im12.paste(im1, (0, 0))
@@ -385,6 +390,9 @@ def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho.pdf', fig_dpi=300,
 
     plt.savefig(tosave, dpi = fig_dpi, bbox_inches='tight')
 
+
+def go_assign(Hdata, pt1=None, pt2=None, method=cluster_assign, method_args={}):
+    return method(Hdata, pt1, pt2, **method_args)
 
 def cross_check(dict1, dict2):
 
@@ -436,47 +444,40 @@ class miho:
 
 
     def set_default(self):
-        self.params = { 'get_avg_hom': {}, 'cluster_method': {}, 'show_clustering': {}}
-        self.assign = cluster_assign
-        self.assign_args = {}
+        self.params = { 'get_avg_hom': {}, 'go_assign': {}, 'show_clustering': {}}
 
 
     def update_params(self, params):
         default_params = self.all_params()
         clear_params = cross_check(default_params, params)
  
-        if 'get_avg_hom' in clear_params:
-           self.params['get_avg_hom'] = clear_params['get_avg_hom']
-
-        if 'show_clustering' in clear_params:
-           self.params['show_clustering'] = clear_params['show_clustering']
-     
-        if 'cluster_assign' in clear_params:
-            if 'method' in clear_params['cluster_assign']:
-                self.assign = clear_params['cluster_assign']['method']
-                self.assign_args = {}
-            if 'method_args' in clear_params['cluster_assign']:
-                self.assign_args = clear_params['cluster_assign']['method_args']
+        for i in ['get_avg_hom', 'show_clustering', 'go_assign']:
+            if i in clear_params:
+                self.params[i] = clear_params[i]
 
 
     def all_params(self):
-        ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 10000, 'min_iter': 100, 'p' :0.9, 'svd_th': 0.05}
-        get_avg_hom_params = {'ransac_middle_args': ransac_middle_params, 'min_plane_pts': 4, 'min_pt_gap': 4, 'max_ref_iter': 0, 'max_fail_count': 2, 'random_seed_init': 123}
+        ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 10000,
+                                'min_iter': 100, 'p' :0.9, 'svd_th': 0.05}
+        get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
+                              'min_plane_pts': 4, 'min_pt_gap': 4,
+                              'max_ref_iter': 0, 'max_fail_count': 2,
+                              'random_seed_init': 123}
 
         idx = 1
-        cluster_method = [cluster_assign_base, cluster_assign, cluster_assign_other]
-        cluster_method_params = [ {}, {'median_th': 5, 'err_th': 15}, {'err_th': 25}]
-        cluster_assign_params = {'method': cluster_method[idx],
-                                'method_args': cluster_method_params[idx]}   
+        method = [cluster_assign_base, cluster_assign, cluster_assign_other]
+        method_params = [ {}, {'median_th': 5, 'err_th': 15}, {'err_th': 25}]
+        go_assign_params = {'method': method[idx],
+                                'method_args': method_params[idx]}   
         
-        show_clustering_params = {
-            'tosave': 'miho.pdf', 'fig_dpi': 300,
+        show_clustering_params = {'tosave': 'miho.pdf', 'fig_dpi': 300,
              'colors': ['#FF1F5B', '#00CD6C', '#009ADE', '#AF58BA', '#FFC61E', '#F28522'],
              'markers': ['o','x','8','p','h'], 'bad_marker': 'd', 'bad_color': '#000000',
-             'plot_opt': {'markersize': 2, 'markeredgewidth': 0.5, 'markerfacecolor': "None", 'alpha': 0.5}}
+             'plot_opt': {'markersize': 2, 'markeredgewidth': 0.5,
+                          'markerfacecolor': "None", 'alpha': 0.5}}
 
         return {'get_avg_hom': get_avg_hom_params,
-                'cluster_assign': cluster_assign_params,
+                'go_assign': go_assign_params,
                 'show_clustering': show_clustering_params}
 
 
@@ -488,7 +489,7 @@ class miho:
         Hdata = get_avg_hom(pt1, pt2, **self.params['get_avg_hom'])       
         self.Hs = Hdata
  
-        self.Hidx = self.assign(Hdata, pt1, pt2, **self.assign_args)
+        self.Hidx = go_assign(Hdata, pt1, pt2, **self.params['go_assign'])
 
         return self.Hs, self.Hidx
 
@@ -499,7 +500,8 @@ class miho:
             self.im1 = im1
             self.im2 = im2
 
-            show_fig(im1, im2, self.pt1, self.pt2, self.Hs, self.Hidx, **self.params['show_clustering'])
+            show_fig(im1, im2, self.pt1, self.pt2, self.Hs, self.Hidx,
+                     **self.params['show_clustering'])
             
             
 if __name__ == '__main__':
@@ -518,8 +520,8 @@ if __name__ == '__main__':
     mihoo = miho()
 
     # params = mihoo.all_params()
-    # params['cluster_assign']['method'] = cluster_assign_base    
-    # params['cluster_assign']['method_args'] = {}    
+    # params['go_assign']['method'] = cluster_assign_base    
+    # params['go_assign']['method_args'] = {}    
     # mihoo.update_params(params)
 
     mihoo.planar_clustering(m12[:, :2], m12[:, 2:])
