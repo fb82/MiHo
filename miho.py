@@ -1,7 +1,6 @@
 from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
-import pickle
 import time
 import scipy.io as sio
 
@@ -128,10 +127,18 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
         sidx = np.random.choice(n, size=4, replace=False)
         
         H1, eD = compute_homography(pt1[:, sidx], ptm[:, sidx])
-        if eD[-2] < svd_th: continue
+        if eD[-2] < svd_th:
+            if (c > Nc) and (c > min_iter):
+                break
+            else:
+                continue
 
         H2, eD = compute_homography(pt2[:, sidx], ptm[:, sidx])
-        if eD[-2] < svd_th:  continue
+        if eD[-2] < svd_th:
+            if (c > Nc) and (c > min_iter):
+                break
+            else:
+                continue
 
         nidx = get_inliers(pt1, ptm, H1, th_out, sidx) * get_inliers(pt2, ptm, H2, th_out, sidx)
 
@@ -163,10 +170,8 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
     return H1, H2, iidx, oidx
 
 
-def get_avg_hom(pt1, pt2, ransac_middle_args= {'th_in': 7, 'th_out': 15,
-               'max_iter': 10000, 'min_iter': 200, 'p' :0.9, 'svd_th': 0.05},
-                min_plane_pts=4, min_pt_gap=4, max_ref_iter=0,
-                max_fail_count=2, random_seed_init=123):
+def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
+                max_ref_iter=0, max_fail_count=2, random_seed_init=123):
 
     # set to 123 for debugging and profiling
     if random_seed_init is not None:
@@ -492,7 +497,7 @@ class miho:
     def all_params():
         """all MiHo parameters with default values"""
         ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 10000,
-                                'min_iter': 200, 'p' :0.9, 'svd_th': 0.05}
+                                'min_iter': 100, 'p' :0.9, 'svd_th': 0.05}
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
                               'min_plane_pts': 4, 'min_pt_gap': 4,
                               'max_ref_iter': 0, 'max_fail_count': 2,
@@ -564,9 +569,11 @@ if __name__ == '__main__':
     end = time.time()
     print("Elapsed = %s" % (end - start))
 
+    # import pickle
+    #
     # with open('miho.pkl', 'wb') as file:      
     #     pickle.dump(mihoo, file) 
-
+    #
     # with open('miho.pkl', 'rb') as miho_pkl:       
     #     mihoo = pickle.load(miho_pkl) 
 
