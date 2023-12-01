@@ -437,28 +437,59 @@ def purge_default(dict1, dict2):
         return None
 
 
+def merge_params(dict1, dict2):
+
+    keys1 = dict1.keys()    
+    keys2 = dict2.keys()    
+
+    for i in keys1:
+        if (i in keys2):
+            if (not isinstance(dict1[i], dict)): 
+                dict1[i] = dict2[i]
+            else:
+                dict1[i] = merge_params(dict1[i], dict2[i])
+    
+    return dict1
+        
+
 class miho:
     def __init__(self, params=None):
-        """initiate MiHo"""
+        """initiate MiHo"""        
         self.set_default()
+
         if params is not None:
             self.update_params(params)
 
 
     def set_default(self):
+        """set default MiHo parameters"""
         self.params = { 'get_avg_hom': {}, 'go_assign': {}, 'show_clustering': {}}
 
 
+    def get_current(self):
+        """get current MiHo parameters"""
+        tmp_params = self.params.copy()
+
+        for i in ['get_avg_hom', 'show_clustering', 'go_assign']:
+            if i not in tmp_params:
+                tmp_params[i] = {}
+
+        return merge_params(self.all_params(), tmp_params)
+
+
     def update_params(self, params):
+        """update current MiHo parameters"""
         all_default_params = self.all_params()
-        clear_params = purge_default(all_default_params, params)
+        clear_params = purge_default(all_default_params, params.copy())
         
         for i in ['get_avg_hom', 'show_clustering', 'go_assign']:
             if i in clear_params:
                 self.params[i] = clear_params[i]
 
 
-    def all_params(self):
+    @staticmethod
+    def all_params():
+        """all MiHo parameters with default values"""
         ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 10000,
                                 'min_iter': 100, 'p' :0.9, 'svd_th': 0.05}
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
@@ -495,7 +526,7 @@ class miho:
 
 
     def show_clustering(self, im1, im2):
-        """ todo: show MiHo clutering as in the paper"""
+        """ show MiHo clutering"""
         if hasattr(self, 'Hs'):
             self.im1 = im1
             self.im2 = im2
@@ -519,9 +550,13 @@ if __name__ == '__main__':
     start = time.time()
     mihoo = miho()
 
-    # params = mihoo.all_params()
+    # params = miho.all_params()
     # params['go_assign']['method'] = cluster_assign_base    
     # params['go_assign']['method_args']['err_th'] = 16
+    # mihoo = miho(params)
+
+    # params = mihoo.get_current()
+    # params['get_avg_hom']['min_plane_pts'] = 16
     # mihoo.update_params(params)
 
     mihoo.planar_clustering(m12[:, :2], m12[:, 2:])
