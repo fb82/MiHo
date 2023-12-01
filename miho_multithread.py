@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import pickle
 import time
 import scipy.io as sio
+import multiprocessing as mp
 
 
 def data_normalize(pts):
@@ -124,24 +125,54 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
     sum_midx = 0
     Nc = np.Inf
 
-    for c in range(1, max_iter):
+    def loop_sac():
+        nonlocal pt1
+        nonlocal pt2
+
         sidx = np.random.choice(n, size=4, replace=False)
-        
+    
         H1, eD = compute_homography(pt1[:, sidx], ptm[:, sidx])
-        if eD[-2] < svd_th: continue
+        if eD[-2] < svd_th: return False, None, None, None, None, None
 
         H2, eD = compute_homography(pt2[:, sidx], ptm[:, sidx])
-        if eD[-2] < svd_th:  continue
+        if eD[-2] < svd_th: return False, None, None, None, None, None
 
         nidx = get_inliers(pt1, ptm, H1, th_out, sidx) * get_inliers(pt2, ptm, H2, th_out, sidx)
 
         sum_nidx = np.sum(nidx)
+
+        return True, H1, H2, sidx, nidx, sum_nidx            
+
+    # for c in range(1, max_iter):
+    #     is_good, H1, H2, sidx, nidx, sum_nidx = loop_sac()
+        
+    #     if not is_good:
+    #         continue
+
+
+    c = 0
+    n_thread = max(1, mp.cpu_count()-1)
+    pool = mp.Pool(n_thread)
+    while c < max_iter:
+        pool_sac = p.map(loop_sac, range(n_thread))
+
+        pool_best = None
+        pool_inl = -1
+        for i in pool_sac:
+            if i[0] and (i[-1] > pool_inl):
+                pool_inl = i[-1]
+                pool_best = i
+        c += n_thread
+
+        is_good, H1, H2, sidx, nidx, sum_nidx = pool_best
+
+
         if sum_nidx > sum_midx:
             midx = nidx
             sum_midx = sum_nidx
             sidx_ = sidx
-            Nc = steps(4, sum_midx / n, p)
- 
+
+        Nc = steps(4, sum_midx / n, p)
         if (c > Nc) and (c > min_iter):
             break
 
@@ -164,7 +195,7 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
 
 
 def get_avg_hom(pt1, pt2, ransac_middle_args= {'th_in': 7, 'th_out': 15,
-               'max_iter': 10000, 'min_iter': 200, 'p' :0.9, 'svd_th': 0.05},
+               'max_iter': 10000, 'min_iter': 100, 'p' :0.9, 'svd_th': 0.05},
                 min_plane_pts=4, min_pt_gap=4, max_ref_iter=0,
                 max_fail_count=2, random_seed_init=123):
 
@@ -492,7 +523,7 @@ class miho:
     def all_params():
         """all MiHo parameters with default values"""
         ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 10000,
-                                'min_iter': 200, 'p' :0.9, 'svd_th': 0.05}
+                                'min_iter': 100, 'p' :0.9, 'svd_th': 0.05}
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
                               'min_plane_pts': 4, 'min_pt_gap': 4,
                               'max_ref_iter': 0, 'max_fail_count': 2,
