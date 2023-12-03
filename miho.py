@@ -152,7 +152,7 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
         if (c > Nc) and (c > min_iter):
             break
 
-    if (sum_midx > 0):
+    if (sum_midx >= 4):
         H1, _ = compute_homography(pt1[:, midx], ptm[:, midx])
         H2, _ = compute_homography(pt2[:, midx], ptm[:, midx])
 
