@@ -104,6 +104,7 @@ def get_inliers(pt1, pt2, H, ths, sidx):
 def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=0.9, svd_th=0.05, buffers=5, ssidx=None):
 
     n = pt1.shape[1]
+
     th_in = th_in ** 2
     th_out = th_out ** 2
 
@@ -114,23 +115,29 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
         H2 = np.array([])
         iidx = np.zeros(n, dtype=bool)
         oidx = np.zeros(n, dtype=bool)
-        sidx_ = np.full((4, buffers), n)
-        return H1, H2, iidx, oidx
+        vidx = np.zeros((n, 0), dtype=bool)
+        return H1, H2, iidx, oidx, vidx
 
     min_iter = min(min_iter, n*(n-1)*(n-2)*(n-3) / 12)
 
     oidx = np.zeros(n, dtype=bool)
-
+    vidx = np.zeros((n, buffers), dtype=bool)
     midx = np.zeros((n, buffers+1), dtype=bool)
-    sum_midx = np.zeros(buffers+1)
-    sidx_ = np.full((4, buffers+1), n)
+
+    sum_midx = 0
     Nc = np.Inf
     min_th_stats = 0
+
     sn = ssidx.shape[1]
 
     for c in range(1, max_iter):
-        if (ssidx is not None) and (c <= sn):
-            sidx = ssidx[:,c]
+        if c < sn:
+            aux = np.argwhere(ssidx[:, c])
+            if aux.shape[0] > 4:
+                aux_idx = np.random.choice(aux.shape[0], size=4, replace=False)
+                sidx = np.squeeze(aux[aux_idx])
+            else:
+                sidx = np.random.choice(n, size=4, replace=False)                
         else:
             sidx = np.random.choice(n, size=4, replace=False)
         
@@ -153,24 +160,27 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
         updated_model = False
 
         midx[:,-1] = nidx
-        sidx_[:,-1] = sidx
-        sum_midx[-1] = np.sum(nidx)
+        sum_nidx = np.sum(nidx)
 
-        if sum_midx[-1] > min_th_stats:       
+        if sum_nidx > min_th_stats:       
 
-            idxs = list(np.arange(buffers+1))
+            idxs = np.arange(buffers+1)
             q = n+1
 
             for t in range(buffers):
-                uidx = np.logical_not(np.any(midx[:,idxs[:t]], axis=1)[:, np.newaxis])
-                
-                ssum = np.sum(uidx & midx[:,idxs[t:]], axis=0)
+                uidx = np.logical_not(np.any(midx[:, idxs[:t]], axis=1)[:, np.newaxis])
+
+                tsum = uidx & midx[:,idxs[t:]]                
+                ssum = np.sum(tsum, axis=0)
+                vidx[:, t] = tsum[:, np.argmax(ssum)]
                 
                 tt = np.argmax(ssum[-1] > ssum[:-1])
                 if (ssum[-1] > ssum[tt]):
                     aux = idxs[-1]
                     idxs[-1] = idxs[t+tt]
                     idxs[t+tt] = aux
+                    if t==0:
+                        sidx_ = sidx
 
                 q = np.minimum(q, np.max(ssum))
 
@@ -178,24 +188,23 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
                             
             updated_model = idxs[0] != 0
             midx = midx[:, idxs]
-            sum_midx = sum_midx[idxs]
-            sidx_ = sidx_[:, idxs]      
 
         if updated_model:
-            Nc = steps(4, sum_midx[0] / n, p)
+            sum_midx = np.sum(midx[:, 0])
+            Nc = steps(4, sum_midx / n, p)
  
         if (c > Nc) and (c > min_iter):
             break
 
-    sidx_ = sidx_[:,:-1]
+    vidx = vidx[:,1:]
 
-    if (sum_midx[0] > 0):
+    if sum_midx > 0:
         bidx = midx[:, 0]
         H1, _ = compute_homography(pt1[:, bidx], ptm[:, bidx])
         H2, _ = compute_homography(pt2[:, bidx], ptm[:, bidx])
 
-        inl1 = get_inliers(pt1, ptm, H1, [th_in, th_out], sidx_[:,0])
-        inl2 = get_inliers(pt2, ptm, H2, [th_in, th_out], sidx_[:,0])
+        inl1 = get_inliers(pt1, ptm, H1, [th_in, th_out], sidx_)
+        inl2 = get_inliers(pt2, ptm, H2, [th_in, th_out], sidx_)
         iidx = inl1[0] & inl2[0]
         oidx = inl1[1] & inl2[1]
     else:
@@ -205,13 +214,13 @@ def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=
         iidx = np.zeros(n, dtype=bool)
         oidx = np.zeros(n, dtype=bool)
 
-    return H1, H2, iidx, oidx, sidx_
+    return H1, H2, iidx, oidx, vidx
 
 
 def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
-                max_ref_iter=0, max_fail_count=2, random_seed_init=123):
+                max_ref_iter=0, max_fail_count=2, random_seed_init=69):
 
-    # set to 123 for debugging and profiling
+    # set to 69 for debugging and profiling
     if random_seed_init is not None:
         np.random.seed(random_seed_init)
 
@@ -226,10 +235,11 @@ def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
 
     pt1 = np.vstack((pt1.T, np.ones((1, l))))
     pt2 = np.vstack((pt2.T, np.ones((1, l))))
-
+    
     fail_count = 0
     midx_sum = 0
-    ssidx = None
+    ssidx = np.zeros((l,0), dtype=bool)
+
     while (np.sum(midx) < l - 4):
         pt1_ = pt1[:, ~midx]
         pt1_ = np.dot(H1, pt1_)
@@ -238,11 +248,18 @@ def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
         pt2_ = pt2[:, ~midx]
         pt2_ = np.dot(H2, pt2_)
         pt2_ = pt2_ / pt2_[2, :]
+        
+        ssidx = ssidx[~midx, :]
 
         H1_, H2_, iidx, oidx, ssidx = ransac_middle(pt1_, pt2_, ssidx=ssidx, **ransac_middle_args)
-                        
-# TODO: adjust ssidx indexes        
-        
+                   
+        # print(np.sum(ssidx, axis=0))
+        good_ssidx = np.logical_not(np.sum(ssidx, axis=0) == 0)
+        ssidx = ssidx[:, good_ssidx]
+        tsidx = np.zeros((l, ssidx.shape[1]), dtype=bool)
+        tsidx[~midx,:] = ssidx
+        ssidx = tsidx
+                
         idx = np.zeros(l, dtype=bool)
         idx[~midx] = oidx
 
@@ -538,11 +555,12 @@ class miho:
     def all_params():
         """all MiHo parameters with default values"""
         ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 10000,
-                                'min_iter': 100, 'p' :0.9, 'svd_th': 0.05}
+                                'min_iter': 100, 'p' :0.9, 'svd_th': 0.05,
+                                'buffers': 5}
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
                               'min_plane_pts': 4, 'min_pt_gap': 4,
                               'max_ref_iter': 0, 'max_fail_count': 2,
-                              'random_seed_init': 123}
+                              'random_seed_init': 69}
 
         method_args_params = {'median_th': 5, 'err_th': 15, 'err_th_only': 24}
         go_assign_params = {'method': cluster_assign,
