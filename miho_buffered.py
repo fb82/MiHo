@@ -53,7 +53,7 @@ def compute_homography(pts1, pts2):
     # ))
 
     try:
-        _, D, V = np.linalg.svd(A, full_matrices=True)        
+        _, D, V = np.linalg.svd(A, full_matrices=True)
         H = V[-1, :].reshape(3, 3).T
         H = np.linalg.inv(T2) @ H @ T1
     except:
@@ -66,7 +66,7 @@ def compute_homography(pts1, pts2):
 def get_inliers(pt1, pt2, H, ths, sidx):
 
     l = pt1.shape[1]
-    ths_ = [ths] if not isinstance(ths, list) else ths    
+    ths_ = [ths] if not isinstance(ths, list) else ths
     m = len(ths_)
 
     pt2_ = np.dot(H, pt1)
@@ -95,11 +95,11 @@ def get_inliers(pt1, pt2, H, ths, sidx):
 
     err = np.maximum(err1, err2)
     err[~np.isfinite(err)] = np.inf
-    
+
     nidx = np.zeros((m, l), dtype=bool)
     for i in range(m):
         nidx[i, :] = np.all(np.vstack((err < ths_[i], s2_ == s2,s1_ == s1)), axis=0)
-        
+
     if not isinstance(ths, list): nidx = nidx[0]
 
     return nidx
@@ -131,7 +131,7 @@ def get_error(pt1, pt2, H, sidx):
 
     err = np.maximum(err1, err2)
     err[~np.isfinite(err)] = np.inf
-    
+
     return err
 
 
@@ -173,19 +173,19 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
                 aux = np.argwhere(ssidx[:, c])
                 if aux.shape[0] > 4:
                     aux_idx = np.random.choice(aux.shape[0], size=4, replace=False)
-                    sidx = np.squeeze(aux[aux_idx])                    
+                    sidx = np.squeeze(aux[aux_idx])
                 else:
-                    sidx = np.random.choice(n, size=4, replace=False)                
+                    sidx = np.random.choice(n, size=4, replace=False)
             else:
                 sidx = np.random.choice(n, size=4, replace=False)
-                
+
             if np.all(np.sum(dd[sidx, :][:, sidx], axis=0) >= 3):
-                good_sample = True 
+                good_sample = True
                 break
 
         if not good_sample:
-            break            
-            
+            break
+
         H1, eD = compute_homography(pt1[:, sidx], ptm[:, sidx])
         if eD[-2] < svd_th:
             if (c > Nc) and (c > min_iter):
@@ -206,8 +206,8 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
 
         midx[:,-1] = nidx
         sum_nidx = np.sum(nidx)
-                
-        if sum_nidx > min_th_stats:       
+
+        if sum_nidx > min_th_stats:
 
             idxs = np.arange(buffers+1)
             q = n+1
@@ -215,10 +215,10 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
             for t in range(buffers):
                 uidx = np.logical_not(np.any(midx[:, idxs[:t]], axis=1)[:, np.newaxis])
 
-                tsum = uidx & midx[:, idxs[t:]]                
+                tsum = uidx & midx[:, idxs[t:]]
                 ssum = np.sum(tsum, axis=0)
                 vidx[:, t] = tsum[:, np.argmax(ssum)]
-                
+
                 tt = np.argmax(ssum[-1] > ssum[:-1])
                 if (ssum[-1] > ssum[tt]):
                     aux = idxs[-1]
@@ -226,16 +226,16 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
                     idxs[t+tt] = aux
                     if (t==0) and (tt==0):
                         sidx_ = sidx
- 
+
                 q = np.minimum(q, np.max(ssum))
 
             min_th_stats = np.maximum(4, q)
-                            
+
             updated_model = idxs[0] != 0
             midx = midx[:, idxs]
 
         if updated_model:
-            sum_midx = np.sum(midx[:, 0])            
+            sum_midx = np.sum(midx[:, 0])
             best_model = [H1, H2]
             Nc = steps(4, sum_midx / n, p)
 
@@ -256,12 +256,12 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
 
         if sum_midx > np.sum(oidx):
             H1, H2 = best_model
-                
+
             inl1 = get_inliers(pt1, ptm, H1, [th_in, th_out], sidx_)
             inl2 = get_inliers(pt2, ptm, H2, [th_in, th_out], sidx_)
             iidx = inl1[0] & inl2[0]
             oidx = inl1[1] & inl2[1]
-                    
+
     else:
         H1 = np.array([])
         H2 = np.array([])
@@ -294,7 +294,7 @@ def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
 
     pt1 = np.vstack((pt1.T, np.ones((1, l))))
     pt2 = np.vstack((pt2.T, np.ones((1, l))))
-    
+
     fail_count = 0
     midx_sum = 0
     ssidx = np.zeros((l,0), dtype=bool)
@@ -308,22 +308,22 @@ def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
         pt2_ = pt2[:, ~midx]
         pt2_ = np.dot(H2, pt2_)
         pt2_ = pt2_ / pt2_[2, :]
-        
+
         dd_ = dd[~midx, :][:, ~midx]
-                
+
         ssidx = ssidx[~midx, :]
 
         H1_, H2_, iidx, oidx, ssidx, sidx_ = ransac_middle(pt1_, pt2_, dd_, ssidx=ssidx, **ransac_middle_args)
-                   
+
         sidx_ = sidx[~midx][sidx_]
-        
+
         # print(np.sum(ssidx, axis=0))
         good_ssidx = np.logical_not(np.sum(ssidx, axis=0) == 0)
         ssidx = ssidx[:, good_ssidx]
         tsidx = np.zeros((l, ssidx.shape[1]), dtype=bool)
         tsidx[~midx,:] = ssidx
         ssidx = tsidx
-                
+
         idx = np.zeros(l, dtype=bool)
         idx[~midx] = oidx
 
@@ -332,19 +332,19 @@ def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
 
         midx_sum_old = midx_sum
         midx_sum = np.sum(midx)
-        
+
         H_failed = np.sum(oidx) <= min_plane_pts
         inl_failed = midx_sum - midx_sum_old <= min_pt_gap
         if H_failed or inl_failed:
             fail_count+=1
             if fail_count > max_fail_count: break
-            if inl_failed: midx = tidx        
+            if inl_failed: midx = tidx
             if H_failed: continue
         else:
             fail_count = 0
-       
+
         # print(f"{np.sum(tidx)} {np.sum(midx)} {fail_count}")
-                        
+
         Hdata.append([H1_, H2_, idx, sidx_])
 
     return Hdata
@@ -352,9 +352,9 @@ def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
 
 def dist2(pt):
 
-    pt = pt.astype(np.single)    
+    pt = pt.astype(np.single)
     d = (pt[:, 0, np.newaxis] - pt[np.newaxis :, 0])**2 + (pt[:, 1, np.newaxis] - pt[np.newaxis :, 1])**2
-    
+
     return d
 
 
@@ -362,7 +362,7 @@ def cluster_assign_base(Hdata, pt1=None, pt2=None, **dummy_args):
     l = len(Hdata)
     n = Hdata[0][2].shape[0]
 
-    inl_mask = np.zeros((n, l), dtype=bool)    
+    inl_mask = np.zeros((n, l), dtype=bool)
     for i in range(l): inl_mask[:, i] = Hdata[i][2]
 
     alone_idx = np.sum(inl_mask, axis=1)==0
@@ -394,35 +394,35 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15, **dummy_ar
         err[:, i] = np.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
 
     # min error
-    abs_err_min_val = np.min(err, axis=1)    
-    abs_err_min_idx = np.argmin(err, axis=1)    
+    abs_err_min_val = np.min(err, axis=1)
+    abs_err_min_idx = np.argmin(err, axis=1)
 
-    inl_mask = np.zeros((n, l), dtype=bool)    
+    inl_mask = np.zeros((n, l), dtype=bool)
     for i in range(l): inl_mask[:, i] = Hdata[i][2]
 
     set_size = np.sum(inl_mask, axis=0)
     size_mask = np.repeat(set_size[np.newaxis, :], inl_mask.shape[0], axis=0) * inl_mask
- 
+
     # take a cluster if its cardinality is more than the median of the top median_th ones
     ssize_mask = -np.sort(-size_mask, axis=1)
 
     median_idx = np.sum(ssize_mask[:, :median_th]>0, axis=1) / 2
     median_idx[median_idx==1] = 1.5
-    median_idx = np.maximum(np.ceil(median_idx).astype(int)-1, 0)    
+    median_idx = np.maximum(np.ceil(median_idx).astype(int)-1, 0)
 
     top_median = ssize_mask.flatten(
-        )[np.ravel_multi_index([np.arange(n), median_idx], ssize_mask.shape)]        
-    
+        )[np.ravel_multi_index([np.arange(n), median_idx], ssize_mask.shape)]
+
     # take among the selected the one which gives less error
     discarded_mask = size_mask < top_median[:, np.newaxis]
     err[discarded_mask] = np.Inf
-    err_min_idx = np.argmin(err, axis=1)    
+    err_min_idx = np.argmin(err, axis=1)
 
     # remove match with no cluster
-    alone_idx = np.sum(inl_mask, axis=1)==0        
+    alone_idx = np.sum(inl_mask, axis=1)==0
     really_alone_idx = alone_idx & (abs_err_min_val > err_th**2)
 
-    err_min_idx[alone_idx] = abs_err_min_idx[alone_idx]   
+    err_min_idx[alone_idx] = abs_err_min_idx[alone_idx]
     err_min_idx[really_alone_idx] = -1
 
     return err_min_idx
@@ -446,10 +446,10 @@ def cluster_assign_other(Hdata, pt1=None, pt2=None, err_th_only=15, **dummy_args
 
         err[:, i] = np.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
 
-    err_min_idx = np.argmin(err, axis=1)    
+    err_min_idx = np.argmin(err, axis=1)
     err_min_val = err.flatten()[np.ravel_multi_index([np.arange(n), err_min_idx], err.shape)]
- 
-    err_min_idx[(err_min_val > err_th_only**2) | np.isnan(err_min_val)] = -1        
+
+    err_min_idx[(err_min_val > err_th_only**2) | np.isnan(err_min_val)] = -1
 
     return err_min_idx
 
@@ -465,9 +465,9 @@ def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho.pdf', fig_dpi=300,
     im12.paste(im2, (im1.width, 0))
 
     plt.figure()
-    plt.axis('off')            
+    plt.axis('off')
     plt.imshow(im12)
-    
+
     cn = len(colors)
     mn = len(markers)
 
@@ -500,12 +500,12 @@ def purge_default(dict1, dict2):
             return None
         else:
             return dict2
-        
+
     elif isinstance(dict2, dict):
 
         keys1 = list(dict1.keys())
         keys2 = list(dict2.keys())
-    
+
         for i in keys2:
             if i not in keys1:
                 dict2.pop(i, None)
@@ -515,40 +515,40 @@ def purge_default(dict1, dict2):
                     dict2.pop(i, None)
                 else:
                     dict2[i] = aux
-                    
+
         return dict2
 
     elif isinstance(dict2, list):
 
         if len(dict1) != len(dict2):
             return dict2
-        
+
         for i in range(len(dict2)):
             aux = purge_default(dict1[i], dict2[i])
             if aux:
                return dict2
-                    
+
         return None
 
 
 def merge_params(dict1, dict2):
 
-    keys1 = dict1.keys()    
-    keys2 = dict2.keys()    
+    keys1 = dict1.keys()
+    keys2 = dict2.keys()
 
     for i in keys1:
         if (i in keys2):
-            if (not isinstance(dict1[i], dict)): 
+            if (not isinstance(dict1[i], dict)):
                 dict1[i] = dict2[i]
             else:
                 dict1[i] = merge_params(dict1[i], dict2[i])
-    
+
     return dict1
-        
+
 
 class miho:
     def __init__(self, params=None):
-        """initiate MiHo"""        
+        """initiate MiHo"""
         self.set_default()
 
         if params is not None:
@@ -575,7 +575,7 @@ class miho:
         """update current MiHo parameters"""
         all_default_params = self.all_params()
         clear_params = purge_default(all_default_params, params.copy())
-        
+
         for i in ['get_avg_hom', 'show_clustering', 'go_assign']:
             if i in clear_params:
                 self.params[i] = clear_params[i]
@@ -595,7 +595,7 @@ class miho:
         method_args_params = {'median_th': 5, 'err_th': 15, 'err_th_only': 15}
         go_assign_params = {'method': cluster_assign,
                             'method_args': method_args_params}
-        
+
         show_clustering_params = {'tosave': 'miho.pdf', 'fig_dpi': 300,
              'colors': ['#FF1F5B', '#00CD6C', '#009ADE', '#AF58BA', '#FFC61E', '#F28522'],
              'markers': ['o','x','8','p','h'], 'bad_marker': 'd', 'bad_color': '#000000',
@@ -611,10 +611,10 @@ class miho:
         """run MiHo"""
         self.pt1 = pt1
         self.pt2 = pt2
-        
-        Hdata = get_avg_hom(pt1, pt2, **self.params['get_avg_hom'])       
+
+        Hdata = get_avg_hom(pt1, pt2, **self.params['get_avg_hom'])
         self.Hs = Hdata
- 
+
         self.Hidx = go_assign(Hdata, pt1, pt2, **self.params['go_assign'])
 
         return self.Hs, self.Hidx
@@ -628,8 +628,8 @@ class miho:
 
             show_fig(im1, im2, self.pt1, self.pt2, self.Hs, self.Hidx,
                      **self.params['show_clustering'])
-            
-            
+
+
 if __name__ == '__main__':
 
     img1 = 'data/im1.png'
@@ -646,7 +646,7 @@ if __name__ == '__main__':
     mihoo = miho()
 
     # params = miho.all_params()
-    # params['go_assign']['method'] = cluster_assign_base    
+    # params['go_assign']['method'] = cluster_assign_base
     # params['go_assign']['method_args']['err_th'] = 16
     # mihoo = miho(params)
 
@@ -660,10 +660,10 @@ if __name__ == '__main__':
 
     # import pickle
     #
-    # with open('miho.pkl', 'wb') as file:      
-    #     pickle.dump(mihoo, file) 
+    # with open('miho.pkl', 'wb') as file:
+    #     pickle.dump(mihoo, file)
     #
-    # with open('miho.pkl', 'rb') as miho_pkl:       
-    #     mihoo = pickle.load(miho_pkl) 
+    # with open('miho.pkl', 'rb') as miho_pkl:
+    #     mihoo = pickle.load(miho_pkl)
 
     mihoo.show_clustering(im1, im2)
