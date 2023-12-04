@@ -514,12 +514,10 @@ class miho:
     def all_params():
         """all MiHo parameters with default values"""
         ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 500,
-                                'min_iter': 50, 'p' :0.9, 'svd_th': 0.05,
-                                'buffers': 5}
+                                'min_iter': 50, 'p' :0.9, 'svd_th': 0.05}
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
                               'min_plane_pts': 4, 'min_pt_gap': 4,
-                              'max_fail_count': 2, 'random_seed_init': 123,
-                              'th_grid': 15}
+                              'max_fail_count': 2, 'random_seed_init': 123}
 
         method_args_params = {'median_th': 5, 'err_th': 15, 'err_th_only': 15}
         go_assign_params = {'method': cluster_assign,

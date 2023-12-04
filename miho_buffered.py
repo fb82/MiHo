@@ -275,7 +275,7 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
 def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
                 max_fail_count=3, random_seed_init=123, th_grid=15):
 
-    # set to 69 for debugging and profiling
+    # set to 123 for debugging and profiling
     if random_seed_init is not None:
         np.random.seed(random_seed_init)
 
