@@ -64,38 +64,34 @@ def compute_homography(pts1, pts2):
 
 
 def get_inliers(pt1, pt2, H, ths, sidx):
-
     l = pt1.shape[1]
-    ths_ = [ths] if not isinstance(ths, list) else ths    
-    m = len(ths_)
 
     pt2_ = np.dot(H, pt1)
     s2_ = np.sign(pt2_[2, :])
+    tmp2_ = pt2_[:2, :] / pt2_[2, :] - pt2[:2, :]
+    err2 = np.sum(tmp2_**2, axis=0)
     s2 = s2_[sidx[0]]
 
     if not np.all(s2_[sidx] == s2):
-        nidx = np.zeros((m, l), dtype=bool)
-        if not isinstance(ths, list): nidx = nidx[0]
+        nidx = np.zeros(l, dtype=bool)
         return nidx
-
-    tmp2_ = pt2_[:2, :] / pt2_[2, :] - pt2[:2, :]
-    err2 = np.sum(tmp2_**2, axis=0)
 
     pt1_ = np.dot(np.linalg.inv(H), pt2)
     s1_ = np.sign(pt1_[2, :])
+    tmp1_ = pt1_[:2, :] / pt1_[2, :] - pt1[:2, :]
+    err1 = np.sum(tmp1_**2, axis=0)
     s1 = s1_[sidx[0]]
 
     if not np.all(s1_[sidx] == s1):
-        nidx = np.zeros((m, l), dtype=bool)
-        if not isinstance(ths, list): nidx = nidx[0]
+        nidx = np.zeros(l, dtype=bool)
         return nidx
-
-    tmp1_ = pt1_[:2, :] / pt1_[2, :] - pt1[:2, :]
-    err1 = np.sum(tmp1_**2, axis=0)
 
     err = np.maximum(err1, err2)
     err[~np.isfinite(err)] = np.inf
     
+    ths_ = [ths] if not isinstance(ths, list) else ths
+    
+    m = len(ths_)
     nidx = np.zeros((m, l), dtype=bool)
     for i in range(m):
         nidx[i, :] = np.all(np.vstack((err < ths_[i], s2_ == s2,s1_ == s1)), axis=0)
@@ -105,40 +101,9 @@ def get_inliers(pt1, pt2, H, ths, sidx):
     return nidx
 
 
-def get_error(pt1, pt2, H, sidx):
-
-    l = pt1.shape[1]
-
-    pt2_ = np.dot(H, pt1)
-    s2_ = np.sign(pt2_[2, :])
-    s2 = s2_[sidx[0]]
-
-    if not np.all(s2_[sidx] == s2):
-        return np.full(l, np.inf)
-
-    tmp2_ = pt2_[:2, :] / pt2_[2, :] - pt2[:2, :]
-    err2 = np.sum(tmp2_**2, axis=0)
-
-    pt1_ = np.dot(np.linalg.inv(H), pt2)
-    s1_ = np.sign(pt1_[2, :])
-    s1 = s1_[sidx[0]]
-
-    if not np.all(s1_[sidx] == s1):
-        return np.full(l, np.Inf)
-
-    tmp1_ = pt1_[:2, :] / pt1_[2, :] - pt1[:2, :]
-    err1 = np.sum(tmp1_**2, axis=0)
-
-    err = np.maximum(err1, err2)
-    err[~np.isfinite(err)] = np.inf
-    
-    return err
-
-
-def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None):
+def ransac_middle(pt1, pt2, th_in=7, th_out=15, max_iter=10000, min_iter=100, p=0.9, svd_th=0.05):
 
     n = pt1.shape[1]
-
     th_in = th_in ** 2
     th_out = th_out ** 2
 
@@ -149,43 +114,18 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
         H2 = np.array([])
         iidx = np.zeros(n, dtype=bool)
         oidx = np.zeros(n, dtype=bool)
-        vidx = np.zeros((n, 0), dtype=bool)
-        sidx_ = np.zeros((4,), dtype=int)
-        return H1, H2, iidx, oidx, vidx, sidx_
+        return H1, H2, iidx, oidx
 
     min_iter = min(min_iter, n*(n-1)*(n-2)*(n-3) / 12)
 
-    vidx = np.zeros((n, buffers), dtype=bool)
-    midx = np.zeros((n, buffers+1), dtype=bool)
-
+    midx = np.zeros(n, dtype=bool)
+    oidx = np.zeros(n, dtype=bool)
     sum_midx = 0
     Nc = np.Inf
-    min_th_stats = 3
-
-    sn = ssidx.shape[1]
-    sidx_ = np.zeros((4,), dtype=int)
 
     for c in range(1, max_iter):
-
-        good_sample = False
-        for i in range(min_iter):
-            if c < sn:
-                aux = np.argwhere(ssidx[:, c])
-                if aux.shape[0] > 4:
-                    aux_idx = np.random.choice(aux.shape[0], size=4, replace=False)
-                    sidx = np.squeeze(aux[aux_idx])                    
-                else:
-                    sidx = np.random.choice(n, size=4, replace=False)                
-            else:
-                sidx = np.random.choice(n, size=4, replace=False)
-                
-            if np.all(np.sum(dd[sidx, :][:, sidx], axis=0) >= 3):
-                good_sample = True 
-                break
-
-        if not good_sample:
-            break            
-            
+        sidx = np.random.choice(n, size=4, replace=False)
+        
         H1, eD = compute_homography(pt1[:, sidx], ptm[:, sidx])
         if eD[-2] < svd_th:
             if (c > Nc) and (c > min_iter):
@@ -202,66 +142,24 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
 
         nidx = get_inliers(pt1, ptm, H1, th_out, sidx) * get_inliers(pt2, ptm, H2, th_out, sidx)
 
-        updated_model = False
-
-        midx[:,-1] = nidx
         sum_nidx = np.sum(nidx)
-                
-        if sum_nidx > min_th_stats:       
-
-            idxs = np.arange(buffers+1)
-            q = n+1
-
-            for t in range(buffers):
-                uidx = np.logical_not(np.any(midx[:, idxs[:t]], axis=1)[:, np.newaxis])
-
-                tsum = uidx & midx[:, idxs[t:]]                
-                ssum = np.sum(tsum, axis=0)
-                vidx[:, t] = tsum[:, np.argmax(ssum)]
-                
-                tt = np.argmax(ssum[-1] > ssum[:-1])
-                if (ssum[-1] > ssum[tt]):
-                    aux = idxs[-1]
-                    idxs[-1] = idxs[t+tt]
-                    idxs[t+tt] = aux
-                    if (t==0) and (tt==0):
-                        sidx_ = sidx
- 
-                q = np.minimum(q, np.max(ssum))
-
-            min_th_stats = np.maximum(4, q)
-                            
-            updated_model = idxs[0] != 0
-            midx = midx[:, idxs]
-
-        if updated_model:
-            sum_midx = np.sum(midx[:, 0])            
-            best_model = [H1, H2]
+        if sum_nidx > sum_midx:
+            midx = nidx
+            sum_midx = sum_nidx
+            sidx_ = sidx
             Nc = steps(4, sum_midx / n, p)
-
+ 
         if (c > Nc) and (c > min_iter):
             break
 
-    vidx = vidx[:,1:]
-
-    if sum_midx >= 4:
-        bidx = midx[:, 0]
-        H1, _ = compute_homography(pt1[:, bidx], ptm[:, bidx])
-        H2, _ = compute_homography(pt2[:, bidx], ptm[:, bidx])
+    if (sum_midx >= 4):
+        H1, _ = compute_homography(pt1[:, midx], ptm[:, midx])
+        H2, _ = compute_homography(pt2[:, midx], ptm[:, midx])
 
         inl1 = get_inliers(pt1, ptm, H1, [th_in, th_out], sidx_)
         inl2 = get_inliers(pt2, ptm, H2, [th_in, th_out], sidx_)
         iidx = inl1[0] & inl2[0]
         oidx = inl1[1] & inl2[1]
-
-        if sum_midx > np.sum(oidx):
-            H1, H2 = best_model
-                
-            inl1 = get_inliers(pt1, ptm, H1, [th_in, th_out], sidx_)
-            inl2 = get_inliers(pt2, ptm, H2, [th_in, th_out], sidx_)
-            iidx = inl1[0] & inl2[0]
-            oidx = inl1[1] & inl2[1]
-                    
     else:
         H1 = np.array([])
         H2 = np.array([])
@@ -269,13 +167,13 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
         iidx = np.zeros(n, dtype=bool)
         oidx = np.zeros(n, dtype=bool)
 
-    return H1, H2, iidx, oidx, vidx, sidx_
+    return H1, H2, iidx, oidx
 
 
 def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
-                max_fail_count=3, random_seed_init=123, th_grid=15):
+                max_ref_iter=0, max_fail_count=2, random_seed_init=123):
 
-    # set to 69 for debugging and profiling
+    # set to 123 for debugging and profiling
     if random_seed_init is not None:
         np.random.seed(random_seed_init)
 
@@ -288,18 +186,11 @@ def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
     midx = np.zeros(l, dtype=bool)
     tidx = np.zeros(l, dtype=bool)
 
-    d1 = dist2(pt1) > th_grid**2
-    d2 = dist2(pt2) > th_grid**2
-    dd = d1 & d2
-
     pt1 = np.vstack((pt1.T, np.ones((1, l))))
     pt2 = np.vstack((pt2.T, np.ones((1, l))))
-    
+
     fail_count = 0
     midx_sum = 0
-    ssidx = np.zeros((l,0), dtype=bool)
-    sidx = np.arange(l)
-
     while (np.sum(midx) < l - 4):
         pt1_ = pt1[:, ~midx]
         pt1_ = np.dot(H1, pt1_)
@@ -308,22 +199,9 @@ def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
         pt2_ = pt2[:, ~midx]
         pt2_ = np.dot(H2, pt2_)
         pt2_ = pt2_ / pt2_[2, :]
-        
-        dd_ = dd[~midx, :][:, ~midx]
-                
-        ssidx = ssidx[~midx, :]
 
-        H1_, H2_, iidx, oidx, ssidx, sidx_ = ransac_middle(pt1_, pt2_, dd_, ssidx=ssidx, **ransac_middle_args)
-                   
-        sidx_ = sidx[~midx][sidx_]
-        
-        # print(np.sum(ssidx, axis=0))
-        good_ssidx = np.logical_not(np.sum(ssidx, axis=0) == 0)
-        ssidx = ssidx[:, good_ssidx]
-        tsidx = np.zeros((l, ssidx.shape[1]), dtype=bool)
-        tsidx[~midx,:] = ssidx
-        ssidx = tsidx
-                
+        H1_, H2_, iidx, oidx = ransac_middle(pt1_, pt2_, **ransac_middle_args)
+                        
         idx = np.zeros(l, dtype=bool)
         idx[~midx] = oidx
 
@@ -345,17 +223,45 @@ def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
        
         # print(f"{np.sum(tidx)} {np.sum(midx)} {fail_count}")
                         
-        Hdata.append([H1_, H2_, idx, sidx_])
+        H1_new = np.dot(H1_, H1)
+        H2_new = np.dot(H2_, H2)
+
+        # this loop decreases the average but increase max error
+
+        H1_ = np.eye(3)
+        H2_ = np.eye(3)
+
+        ptm_err_old = np.Inf
+
+        # max_ref_iter = 5
+        if max_ref_iter>0: max_ref_iter+=1
+        for i in range(max_ref_iter):
+
+            H1_new_ = np.dot(H1_, H1_new)
+            H2_new_ = np.dot(H2_, H2_new)
+
+            pt1_ = pt1[:, idx]
+            pt1_ = np.dot(H1_new_, pt1_)
+            pt1_ = pt1_ / pt1_[2, :]
+
+            pt2_ = pt2[:, idx]
+            pt2_ = np.dot(H2_new_, pt2_)
+            pt2_ = pt2_ / pt2_[2, :]
+
+            ptm_err = np.max(np.sqrt(np.sum((pt1_ - pt2_)**2, axis=0)))
+            if (ptm_err_old < ptm_err): break
+            ptm_err_old = ptm_err
+
+            H1_new = H1_new_
+            H2_new = H2_new_
+            
+            ptm = (pt1_ + pt2_) / 2
+            H1_, _ = compute_homography(pt1_, ptm)
+            H2_, _ = compute_homography(pt2_, ptm)
+
+        Hdata.append([H1_new, H2_new, idx])
 
     return Hdata
-
-
-def dist2(pt):
-
-    pt = pt.astype(np.single)    
-    d = (pt[:, 0, np.newaxis] - pt[np.newaxis :, 0])**2 + (pt[:, 1, np.newaxis] - pt[np.newaxis :, 1])**2
-    
-    return d
 
 
 def cluster_assign_base(Hdata, pt1=None, pt2=None, **dummy_args):
@@ -382,16 +288,19 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15, **dummy_ar
     pt1 = np.vstack((pt1.T, np.ones((1, n))))
     pt2 = np.vstack((pt2.T, np.ones((1, n))))
 
-    ptm = (pt1 + pt2) / 2
-
     err = np.zeros((n,l))
 
     for i in range(l):
         H1 = Hdata[i][0]
         H2 = Hdata[i][1]
-        sidx = Hdata[i][3]
 
-        err[:, i] = np.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
+        pt1_ = np.dot(H1, pt1)
+        pt1_ = pt1_ / pt1_[2, :]
+
+        pt2_ = np.dot(H2, pt2)
+        pt2_ = pt2_ / pt2_[2, :]
+
+        err[:, i] = np.sqrt(np.sum((pt1_ - pt2_)**2, axis=0)).T
 
     # min error
     abs_err_min_val = np.min(err, axis=1)    
@@ -420,7 +329,7 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15, **dummy_ar
 
     # remove match with no cluster
     alone_idx = np.sum(inl_mask, axis=1)==0        
-    really_alone_idx = alone_idx & (abs_err_min_val > err_th**2)
+    really_alone_idx = alone_idx & (abs_err_min_val > err_th)
 
     err_min_idx[alone_idx] = abs_err_min_idx[alone_idx]   
     err_min_idx[really_alone_idx] = -1
@@ -428,28 +337,31 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15, **dummy_ar
     return err_min_idx
 
 
-def cluster_assign_other(Hdata, pt1=None, pt2=None, err_th_only=15, **dummy_args):
+def cluster_assign_other(Hdata, pt1=None, pt2=None, err_th_only=25, **dummy_args):
     l = len(Hdata)
     n = pt1.shape[0]
 
     pt1 = np.vstack((pt1.T, np.ones((1, n))))
     pt2 = np.vstack((pt2.T, np.ones((1, n))))
 
-    ptm = (pt1 + pt2) / 2
-
     err = np.zeros((n,l))
 
     for i in range(l):
         H1 = Hdata[i][0]
         H2 = Hdata[i][1]
-        sidx = Hdata[i][3]
 
-        err[:, i] = np.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
+        pt1_ = np.dot(H1, pt1)
+        pt1_ = pt1_ / pt1_[2, :]
+
+        pt2_ = np.dot(H2, pt2)
+        pt2_ = pt2_ / pt2_[2, :]
+
+        err[:, i] = np.sqrt(np.sum((pt1_ - pt2_)**2, axis=0)).T
 
     err_min_idx = np.argmin(err, axis=1)    
     err_min_val = err.flatten()[np.ravel_multi_index([np.arange(n), err_min_idx], err.shape)]
  
-    err_min_idx[(err_min_val > err_th_only**2) | np.isnan(err_min_val)] = -1        
+    err_min_idx[(err_min_val > err_th_only) | np.isnan(err_min_val)] = -1        
 
     return err_min_idx
 
@@ -584,15 +496,14 @@ class miho:
     @staticmethod
     def all_params():
         """all MiHo parameters with default values"""
-        ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 500,
-                                'min_iter': 50, 'p' :0.9, 'svd_th': 0.05,
-                                'buffers': 5}
+        ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 10000,
+                                'min_iter': 100, 'p' :0.9, 'svd_th': 0.05}
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
                               'min_plane_pts': 4, 'min_pt_gap': 4,
-                              'max_fail_count': 3, 'random_seed_init': 123,
-                              'th_grid': 15}
+                              'max_ref_iter': 0, 'max_fail_count': 2,
+                              'random_seed_init': 123}
 
-        method_args_params = {'median_th': 5, 'err_th': 15, 'err_th_only': 15}
+        method_args_params = {'median_th': 5, 'err_th': 15, 'err_th_only': 24}
         go_assign_params = {'method': cluster_assign,
                             'method_args': method_args_params}
         
