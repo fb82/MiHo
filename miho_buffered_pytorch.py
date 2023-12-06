@@ -4,63 +4,154 @@ import matplotlib.pyplot as plt
 import time
 import scipy.io as sio
 
+import torch
+
+
+# def data_normalize(pts):
+
+#     c = np.mean(pts, axis=1)
+#     s = np.sqrt(2) / (np.mean(np.sqrt((pts[0, :] - c[0])**2 + (pts[1, :] - c[1])**2)) +
+#                       np.finfo(float).eps)
+
+#     T = np.array([
+#         [s, 0, -c[0] * s],
+#         [0, s, -c[1] * s],
+#         [0, 0, 1]
+#     ])
+
+#     return T
 
 def data_normalize(pts):
+    c = torch.mean(pts, dim=1)
+    norm_diff = torch.sqrt((pts[0, :] - c[0])**2 + (pts[1, :] - c[1])**2)
+    s = torch.sqrt(2) / (torch.mean(norm_diff) + torch.finfo(torch.float32).eps)
 
-    c = np.mean(pts, axis=1)
-    s = np.sqrt(2) / (np.mean(np.sqrt((pts[0, :] - c[0])**2 + (pts[1, :] - c[1])**2)) +
-                      np.finfo(float).eps)
-
-    T = np.array([
+    T = torch.tensor([
         [s, 0, -c[0] * s],
         [0, s, -c[1] * s],
         [0, 0, 1]
-    ])
+    ], dtype=torch.float32)
 
     return T
 
 
+# def steps(pps, inl, p):
+
+#     e = 1 - inl
+#     r = np.log(1 - p) / np.log(1 - (1 - e)**pps)
+
+#     return r
+
+
 def steps(pps, inl, p):
-
     e = 1 - inl
-    r = np.log(1 - p) / np.log(1 - (1 - e)**pps)
-
+    r = torch.log(1 - p) / torch.log(1 - (1 - e)**pps)
     return r
 
 
-def compute_homography(pts1, pts2):
+# def compute_homography(pts1, pts2):
 
+#     T1 = data_normalize(pts1)
+#     T2 = data_normalize(pts2)
+
+#     npts1 = np.dot(T1, pts1)
+#     npts2 = np.dot(T2, pts2)
+
+#     l = npts1.shape[1]
+#     A = np.zeros((l*3,9))
+#     A[:l,3:6] = -np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T)
+#     A[:l,6:] = np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T)
+#     A[l:2*l,:3] = np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T)
+#     A[l:2*l,6:] = -np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T)
+#     # TODO: last block in the matrix A can be removed for speeding the computation
+#     A[2*l:,:3] = -np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T)
+#     A[2*l:,3:6] = np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T)
+
+#     # A = np.vstack((
+#     #     np.hstack((np.zeros((l, 3)), -np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T), np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T))),
+#     #     np.hstack((np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T), np.zeros((l, 3)), -np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T))),
+#     #     np.hstack((-np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T), np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T), np.zeros((l, 3))))
+#     # ))
+
+#     try:
+#         _, D, V = np.linalg.svd(A, full_matrices=True)
+#         H = V[-1, :].reshape(3, 3).T
+#         H = np.linalg.inv(T2) @ H @ T1
+#     except:
+#         H = None
+#         D = np.zeros(9)
+
+#     return H, D
+
+
+def compute_homography(pts1, pts2):
     T1 = data_normalize(pts1)
     T2 = data_normalize(pts2)
 
-    npts1 = np.dot(T1, pts1)
-    npts2 = np.dot(T2, pts2)
+    npts1 = torch.matmul(T1, pts1)
+    npts2 = torch.matmul(T2, pts2)
 
     l = npts1.shape[1]
-    A = np.zeros((l*3,9))
-    A[:l,3:6] = -np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T)
-    A[:l,6:] = np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T)
-    A[l:2*l,:3] = np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T)
-    A[l:2*l,6:] = -np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T)
+    A = torch.zeros((l*3, 9), dtype=torch.float32)
+    A[:l, 3:6] = -torch.mul(torch.tile(npts2[2, :].unsqueeze(1), (1, 3)), npts1.t())
+    A[:l, 6:] = torch.mul(torch.tile(npts2[1, :].unsqueeze(1), (1, 3)), npts1.t())
+    A[l:2*l, :3] = torch.mul(torch.tile(npts2[2, :].unsqueeze(1), (1, 3)), npts1.t())
+    A[l:2*l, 6:] = -torch.mul(torch.tile(npts2[0, :].unsqueeze(1), (1, 3)), npts1.t())
     # TODO: last block in the matrix A can be removed for speeding the computation
-    A[2*l:,:3] = -np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T)
-    A[2*l:,3:6] = np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T)
-
-    # A = np.vstack((
-    #     np.hstack((np.zeros((l, 3)), -np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T), np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T))),
-    #     np.hstack((np.multiply(np.tile(npts2[2, :], (3, 1)).T, npts1.T), np.zeros((l, 3)), -np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T))),
-    #     np.hstack((-np.multiply(np.tile(npts2[1, :], (3, 1)).T, npts1.T), np.multiply(np.tile(npts2[0, :], (3, 1)).T, npts1.T), np.zeros((l, 3))))
-    # ))
+    A[2*l:, :3] = -torch.mul(torch.tile(npts2[1, :].unsqueeze(1), (1, 3)), npts1.t())
+    A[2*l:, 3:6] = torch.mul(torch.tile(npts2[0, :].unsqueeze(1), (1, 3)), npts1.t())
 
     try:
-        _, D, V = np.linalg.svd(A, full_matrices=True)
+        _, D, V = torch.svd(A)
         H = V[-1, :].reshape(3, 3).T
-        H = np.linalg.inv(T2) @ H @ T1
+        H = torch.inverse(T2) @ H @ T1
     except:
         H = None
-        D = np.zeros(9)
+        D = torch.zeros(9, dtype=torch.float32)
 
     return H, D
+
+
+# def get_inliers(pt1, pt2, H, ths, sidx):
+
+#     l = pt1.shape[1]
+#     ths_ = [ths] if not isinstance(ths, list) else ths
+#     m = len(ths_)
+
+#     pt2_ = np.dot(H, pt1)
+#     s2_ = np.sign(pt2_[2, :])
+#     s2 = s2_[sidx[0]]
+
+#     if not np.all(s2_[sidx] == s2):
+#         nidx = np.zeros((m, l), dtype=bool)
+#         if not isinstance(ths, list): nidx = nidx[0]
+#         return nidx
+
+#     tmp2_ = pt2_[:2, :] / pt2_[2, :] - pt2[:2, :]
+#     err2 = np.sum(tmp2_**2, axis=0)
+
+#     pt1_ = np.dot(np.linalg.inv(H), pt2)
+#     s1_ = np.sign(pt1_[2, :])
+#     s1 = s1_[sidx[0]]
+
+#     if not np.all(s1_[sidx] == s1):
+#         nidx = np.zeros((m, l), dtype=bool)
+#         if not isinstance(ths, list): nidx = nidx[0]
+#         return nidx
+
+#     tmp1_ = pt1_[:2, :] / pt1_[2, :] - pt1[:2, :]
+#     err1 = np.sum(tmp1_**2, axis=0)
+
+#     err = np.maximum(err1, err2)
+#     err[~np.isfinite(err)] = np.inf
+
+#     nidx = np.zeros((m, l), dtype=bool)
+#     for i in range(m):
+#         nidx[i, :] = np.all(np.vstack((err < ths_[i], s2_ == s2,s1_ == s1)), axis=0)
+
+#     if not isinstance(ths, list): nidx = nidx[0]
+
+#     return nidx
 
 
 def get_inliers(pt1, pt2, H, ths, sidx):
@@ -69,70 +160,239 @@ def get_inliers(pt1, pt2, H, ths, sidx):
     ths_ = [ths] if not isinstance(ths, list) else ths
     m = len(ths_)
 
-    pt2_ = np.dot(H, pt1)
-    s2_ = np.sign(pt2_[2, :])
+    pt2_ = torch.matmul(H, pt1)
+    s2_ = torch.sign(pt2_[2, :])
     s2 = s2_[sidx[0]]
 
-    if not np.all(s2_[sidx] == s2):
-        nidx = np.zeros((m, l), dtype=bool)
-        if not isinstance(ths, list): nidx = nidx[0]
+    if not torch.all(s2_[sidx] == s2):
+        nidx = torch.zeros((m, l), dtype=torch.bool)
+        if not isinstance(ths, list):
+            nidx = nidx[0]
         return nidx
 
     tmp2_ = pt2_[:2, :] / pt2_[2, :] - pt2[:2, :]
-    err2 = np.sum(tmp2_**2, axis=0)
+    err2 = torch.sum(tmp2_**2, axis=0)
 
-    pt1_ = np.dot(np.linalg.inv(H), pt2)
-    s1_ = np.sign(pt1_[2, :])
+    pt1_ = torch.matmul(torch.inverse(H), pt2)
+    s1_ = torch.sign(pt1_[2, :])
     s1 = s1_[sidx[0]]
 
-    if not np.all(s1_[sidx] == s1):
-        nidx = np.zeros((m, l), dtype=bool)
-        if not isinstance(ths, list): nidx = nidx[0]
+    if not torch.all(s1_[sidx] == s1):
+        nidx = torch.zeros((m, l), dtype=torch.bool)
+        if not isinstance(ths, list):
+            nidx = nidx[0]
         return nidx
 
     tmp1_ = pt1_[:2, :] / pt1_[2, :] - pt1[:2, :]
-    err1 = np.sum(tmp1_**2, axis=0)
+    err1 = torch.sum(tmp1_**2, axis=0)
 
-    err = np.maximum(err1, err2)
-    err[~np.isfinite(err)] = np.inf
+    err = torch.maximum(err1, err2)
+    err[~torch.isfinite(err)] = float('inf')
 
-    nidx = np.zeros((m, l), dtype=bool)
+    nidx = torch.zeros((m, l), dtype=torch.bool)
     for i in range(m):
-        nidx[i, :] = np.all(np.vstack((err < ths_[i], s2_ == s2,s1_ == s1)), axis=0)
+        nidx[i, :] = torch.all(torch.stack((err < ths_[i], s2_ == s2, s1_ == s1)), dim=0)
 
-    if not isinstance(ths, list): nidx = nidx[0]
+    if not isinstance(ths, list):
+        nidx = nidx[0]
 
     return nidx
 
 
-def get_error(pt1, pt2, H, sidx):
+# def get_error(pt1, pt2, H, sidx):
 
+#     l = pt1.shape[1]
+
+#     pt2_ = np.dot(H, pt1)
+#     s2_ = np.sign(pt2_[2, :])
+#     s2 = s2_[sidx[0]]
+
+#     if not np.all(s2_[sidx] == s2):
+#         return np.full(l, np.inf)
+
+#     tmp2_ = pt2_[:2, :] / pt2_[2, :] - pt2[:2, :]
+#     err2 = np.sum(tmp2_**2, axis=0)
+
+#     pt1_ = np.dot(np.linalg.inv(H), pt2)
+#     s1_ = np.sign(pt1_[2, :])
+#     s1 = s1_[sidx[0]]
+
+#     if not np.all(s1_[sidx] == s1):
+#         return np.full(l, np.Inf)
+
+#     tmp1_ = pt1_[:2, :] / pt1_[2, :] - pt1[:2, :]
+#     err1 = np.sum(tmp1_**2, axis=0)
+
+#     err = np.maximum(err1, err2)
+#     err[~np.isfinite(err)] = np.inf
+
+#     return err
+
+
+def get_error(pt1, pt2, H, sidx):
     l = pt1.shape[1]
 
-    pt2_ = np.dot(H, pt1)
-    s2_ = np.sign(pt2_[2, :])
+    pt2_ = torch.matmul(H, pt1)
+    s2_ = torch.sign(pt2_[2, :])
     s2 = s2_[sidx[0]]
 
-    if not np.all(s2_[sidx] == s2):
-        return np.full(l, np.inf)
+    if not torch.all(s2_[sidx] == s2):
+        return torch.full((l,), float('inf'))
 
     tmp2_ = pt2_[:2, :] / pt2_[2, :] - pt2[:2, :]
-    err2 = np.sum(tmp2_**2, axis=0)
+    err2 = torch.sum(tmp2_**2, dim=0)
 
-    pt1_ = np.dot(np.linalg.inv(H), pt2)
-    s1_ = np.sign(pt1_[2, :])
+    pt1_ = torch.matmul(torch.inverse(H), pt2)
+    s1_ = torch.sign(pt1_[2, :])
     s1 = s1_[sidx[0]]
 
-    if not np.all(s1_[sidx] == s1):
-        return np.full(l, np.Inf)
+    if not torch.all(s1_[sidx] == s1):
+        return torch.full((l,), float('inf'))
 
     tmp1_ = pt1_[:2, :] / pt1_[2, :] - pt1[:2, :]
-    err1 = np.sum(tmp1_**2, axis=0)
+    err1 = torch.sum(tmp1_**2, dim=0)
 
-    err = np.maximum(err1, err2)
-    err[~np.isfinite(err)] = np.inf
+    err = torch.maximum(err1, err2)
+    err[~torch.isfinite(err)] = float('inf')
 
     return err
+
+
+# def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None):
+
+#     n = pt1.shape[1]
+
+#     th_in = th_in ** 2
+#     th_out = th_out ** 2
+
+#     ptm = (pt1 + pt2) / 2
+
+#     if n < 4:
+#         H1 = np.array([])
+#         H2 = np.array([])
+#         iidx = np.zeros(n, dtype=bool)
+#         oidx = np.zeros(n, dtype=bool)
+#         vidx = np.zeros((n, 0), dtype=bool)
+#         sidx_ = np.zeros((4,), dtype=int)
+#         return H1, H2, iidx, oidx, vidx, sidx_
+
+#     min_iter = min(min_iter, n*(n-1)*(n-2)*(n-3) / 12)
+
+#     vidx = np.zeros((n, buffers), dtype=bool)
+#     midx = np.zeros((n, buffers+1), dtype=bool)
+
+#     sum_midx = 0
+#     Nc = np.Inf
+#     min_th_stats = 3
+
+#     sn = ssidx.shape[1]
+#     sidx_ = np.zeros((4,), dtype=int)
+
+#     for c in range(1, max_iter):
+
+#         good_sample = False
+#         for i in range(min_iter):
+#             if c < sn:
+#                 aux = np.argwhere(ssidx[:, c])
+#                 if aux.shape[0] > 4:
+#                     aux_idx = np.random.choice(aux.shape[0], size=4, replace=False)
+#                     sidx = np.squeeze(aux[aux_idx])
+#                 else:
+#                     sidx = np.random.choice(n, size=4, replace=False)
+#             else:
+#                 sidx = np.random.choice(n, size=4, replace=False)
+
+#             if np.all(np.sum(dd[sidx, :][:, sidx], axis=0) >= 3):
+#                 good_sample = True
+#                 break
+
+#         if not good_sample:
+#             break
+
+#         H1, eD = compute_homography(pt1[:, sidx], ptm[:, sidx])
+#         if eD[-2] < svd_th:
+#             if (c > Nc) and (c > min_iter):
+#                 break
+#             else:
+#                 continue
+
+#         H2, eD = compute_homography(pt2[:, sidx], ptm[:, sidx])
+#         if eD[-2] < svd_th:
+#             if (c > Nc) and (c > min_iter):
+#                 break
+#             else:
+#                 continue
+
+#         nidx = get_inliers(pt1, ptm, H1, th_out, sidx) * get_inliers(pt2, ptm, H2, th_out, sidx)
+
+#         updated_model = False
+
+#         midx[:,-1] = nidx
+#         sum_nidx = np.sum(nidx)
+
+#         if sum_nidx > min_th_stats:
+
+#             idxs = np.arange(buffers+1)
+#             q = n+1
+
+#             for t in range(buffers):
+#                 uidx = np.logical_not(np.any(midx[:, idxs[:t]], axis=1)[:, np.newaxis])
+
+#                 tsum = uidx & midx[:, idxs[t:]]
+#                 ssum = np.sum(tsum, axis=0)
+#                 vidx[:, t] = tsum[:, np.argmax(ssum)]
+
+#                 tt = np.argmax(ssum[-1] > ssum[:-1])
+#                 if (ssum[-1] > ssum[tt]):
+#                     aux = idxs[-1]
+#                     idxs[-1] = idxs[t+tt]
+#                     idxs[t+tt] = aux
+#                     if (t==0) and (tt==0):
+#                         sidx_ = sidx
+
+#                 q = np.minimum(q, np.max(ssum))
+
+#             min_th_stats = np.maximum(4, q)
+
+#             updated_model = idxs[0] != 0
+#             midx = midx[:, idxs]
+
+#         if updated_model:
+#             sum_midx = np.sum(midx[:, 0])
+#             best_model = [H1, H2]
+#             Nc = steps(4, sum_midx / n, p)
+
+#         if (c > Nc) and (c > min_iter):
+#             break
+
+#     vidx = vidx[:,1:]
+
+#     if sum_midx >= 4:
+#         bidx = midx[:, 0]
+#         H1, _ = compute_homography(pt1[:, bidx], ptm[:, bidx])
+#         H2, _ = compute_homography(pt2[:, bidx], ptm[:, bidx])
+
+#         inl1 = get_inliers(pt1, ptm, H1, [th_in, th_out], sidx_)
+#         inl2 = get_inliers(pt2, ptm, H2, [th_in, th_out], sidx_)
+#         iidx = inl1[0] & inl2[0]
+#         oidx = inl1[1] & inl2[1]
+
+#         if sum_midx > np.sum(oidx):
+#             H1, H2 = best_model
+
+#             inl1 = get_inliers(pt1, ptm, H1, [th_in, th_out], sidx_)
+#             inl2 = get_inliers(pt2, ptm, H2, [th_in, th_out], sidx_)
+#             iidx = inl1[0] & inl2[0]
+#             oidx = inl1[1] & inl2[1]
+
+#     else:
+#         H1 = np.array([])
+#         H2 = np.array([])
+
+#         iidx = np.zeros(n, dtype=bool)
+#         oidx = np.zeros(n, dtype=bool)
+
+#     return H1, H2, iidx, oidx, vidx, sidx_
 
 
 def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None):
@@ -145,41 +405,41 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
     ptm = (pt1 + pt2) / 2
 
     if n < 4:
-        H1 = np.array([])
-        H2 = np.array([])
-        iidx = np.zeros(n, dtype=bool)
-        oidx = np.zeros(n, dtype=bool)
-        vidx = np.zeros((n, 0), dtype=bool)
-        sidx_ = np.zeros((4,), dtype=int)
+        H1 = torch.tensor([])
+        H2 = torch.tensor([])
+        iidx = torch.zeros(n, dtype=torch.bool)
+        oidx = torch.zeros(n, dtype=torch.bool)
+        vidx = torch.zeros((n, 0), dtype=torch.bool)
+        sidx_ = torch.zeros((4,), dtype=torch.int32)
         return H1, H2, iidx, oidx, vidx, sidx_
-
+    
     min_iter = min(min_iter, n*(n-1)*(n-2)*(n-3) / 12)
 
-    vidx = np.zeros((n, buffers), dtype=bool)
-    midx = np.zeros((n, buffers+1), dtype=bool)
+    vidx = torch.zeros((n, buffers), dtype=torch.bool)
+    midx = torch.zeros((n, buffers+1), dtype=torch.bool)
 
     sum_midx = 0
-    Nc = np.Inf
+    Nc = float('inf')
     min_th_stats = 3
 
     sn = ssidx.shape[1]
-    sidx_ = np.zeros((4,), dtype=int)
+    sidx_ = torch.zeros((4,), dtype=torch.int32)
 
     for c in range(1, max_iter):
 
         good_sample = False
         for i in range(min_iter):
             if c < sn:
-                aux = np.argwhere(ssidx[:, c])
+                aux = torch.nonzero(ssidx[:, c]).squeeze()
                 if aux.shape[0] > 4:
-                    aux_idx = np.random.choice(aux.shape[0], size=4, replace=False)
-                    sidx = np.squeeze(aux[aux_idx])
+                    aux_idx = torch.randperm(aux.shape[0])[:4]
+                    sidx = aux[aux_idx]
                 else:
-                    sidx = np.random.choice(n, size=4, replace=False)
+                    sidx = torch.randperm(n)[:4]
             else:
-                sidx = np.random.choice(n, size=4, replace=False)
+                sidx = torch.randperm(n)[:4]
 
-            if np.all(np.sum(dd[sidx, :][:, sidx], axis=0) >= 3):
+            if torch.sum(torch.sum(dd[sidx, :][:, sidx], axis=0) >= 3) == 4:
                 good_sample = True
                 break
 
@@ -188,61 +448,62 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
 
         H1, eD = compute_homography(pt1[:, sidx], ptm[:, sidx])
         if eD[-2] < svd_th:
-            if (c > Nc) and (c > min_iter):
+            if c > Nc and c > min_iter:
                 break
             else:
                 continue
 
+        # Compute H2
         H2, eD = compute_homography(pt2[:, sidx], ptm[:, sidx])
         if eD[-2] < svd_th:
-            if (c > Nc) and (c > min_iter):
+            if c > Nc and c > min_iter:
                 break
             else:
                 continue
 
-        nidx = get_inliers(pt1, ptm, H1, th_out, sidx) * get_inliers(pt2, ptm, H2, th_out, sidx)
+        nidx = torch.mul(get_inliers(pt1, ptm, H1, th_out, sidx), get_inliers(pt2, ptm, H2, th_out, sidx))
 
         updated_model = False
 
-        midx[:,-1] = nidx
-        sum_nidx = np.sum(nidx)
+        midx[:, -1] = nidx
+        sum_nidx = torch.sum(nidx)
 
         if sum_nidx > min_th_stats:
 
-            idxs = np.arange(buffers+1)
-            q = n+1
+            idxs = torch.arange(buffers+1)
+            q = n+1     
 
             for t in range(buffers):
-                uidx = np.logical_not(np.any(midx[:, idxs[:t]], axis=1)[:, np.newaxis])
+                uidx = ~torch.any(midx[:, idxs[:t]], dim=1).unsqueeze(1)
 
-                tsum = uidx & midx[:, idxs[t:]]
-                ssum = np.sum(tsum, axis=0)
-                vidx[:, t] = tsum[:, np.argmax(ssum)]
+                tsum = uidx & midx[:, idxs[:t]]
+                ssum = torch.sum(tsum, dim=0)
+                vidx[:, t] = tsum[:, torch.argmax(ssum)]
 
-                tt = np.argmax(ssum[-1] > ssum[:-1])
-                if (ssum[-1] > ssum[tt]):
-                    aux = idxs[-1]
-                    idxs[-1] = idxs[t+tt]
+                tt = torch.argmax(ssum[-1] > ssum[:-1])
+                if ssum[-1] > ssum[tt]:
+                    aux = idxs[-1].clone()
+                    idxs[-1] = idxs[t+tt].clone()
                     idxs[t+tt] = aux
-                    if (t==0) and (tt==0):
+                    if t == 0 and tt == 0:
                         sidx_ = sidx
 
-                q = np.minimum(q, np.max(ssum))
+                q = torch.minimum(q, torch.max(ssum))
 
-            min_th_stats = np.maximum(4, q)
+            min_th_stats = torch.maximum(4, q)
 
             updated_model = idxs[0] != 0
             midx = midx[:, idxs]
 
         if updated_model:
-            sum_midx = np.sum(midx[:, 0])
+            sum_midx = torch.sum(midx[:, 0])
             best_model = [H1, H2]
             Nc = steps(4, sum_midx / n, p)
 
-        if (c > Nc) and (c > min_iter):
+        if c > Nc and c > min_iter:
             break
 
-    vidx = vidx[:,1:]
+    vidx = vidx[:, 1:]
 
     if sum_midx >= 4:
         bidx = midx[:, 0]
@@ -254,7 +515,7 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
         iidx = inl1[0] & inl2[0]
         oidx = inl1[1] & inl2[1]
 
-        if sum_midx > np.sum(oidx):
+        if sum_midx > torch.sum(oidx):
             H1, H2 = best_model
 
             inl1 = get_inliers(pt1, ptm, H1, [th_in, th_out], sidx_)
@@ -263,50 +524,128 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
             oidx = inl1[1] & inl2[1]
 
     else:
-        H1 = np.array([])
-        H2 = np.array([])
+        H1 = torch.tensor([])
+        H2 = torch.tensor([])
 
-        iidx = np.zeros(n, dtype=bool)
-        oidx = np.zeros(n, dtype=bool)
+        iidx = torch.zeros(n, dtype=torch.bool)
+        oidx = torch.zeros(n, dtype=torch.bool)
 
     return H1, H2, iidx, oidx, vidx, sidx_
 
 
-def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
+# def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
+#                 max_fail_count=3, random_seed_init=123, th_grid=15):
+
+#     # set to 123 for debugging and profiling
+#     if random_seed_init is not None:
+#         np.random.seed(random_seed_init)
+
+#     H1 = np.eye(3)
+#     H2 = np.eye(3)
+
+#     Hdata = []
+#     l = pt1.shape[0]
+
+#     midx = np.zeros(l, dtype=bool)
+#     tidx = np.zeros(l, dtype=bool)
+
+#     d1 = dist2(pt1) > th_grid**2
+#     d2 = dist2(pt2) > th_grid**2
+#     dd = d1 & d2
+
+#     pt1 = np.vstack((pt1.T, np.ones((1, l))))
+#     pt2 = np.vstack((pt2.T, np.ones((1, l))))
+
+#     fail_count = 0
+#     midx_sum = 0
+#     ssidx = np.zeros((l,0), dtype=bool)
+#     sidx = np.arange(l)
+
+#     while (np.sum(midx) < l - 4):
+#         pt1_ = pt1[:, ~midx]
+#         pt1_ = np.dot(H1, pt1_)
+#         pt1_ = pt1_ / pt1_[2, :]
+
+#         pt2_ = pt2[:, ~midx]
+#         pt2_ = np.dot(H2, pt2_)
+#         pt2_ = pt2_ / pt2_[2, :]
+
+#         dd_ = dd[~midx, :][:, ~midx]
+
+#         ssidx = ssidx[~midx, :]
+
+#         H1_, H2_, iidx, oidx, ssidx, sidx_ = ransac_middle(pt1_, pt2_, dd_, ssidx=ssidx, **ransac_middle_args)
+
+#         sidx_ = sidx[~midx][sidx_]
+
+#         # print(np.sum(ssidx, axis=0))
+#         good_ssidx = np.logical_not(np.sum(ssidx, axis=0) == 0)
+#         ssidx = ssidx[:, good_ssidx]
+#         tsidx = np.zeros((l, ssidx.shape[1]), dtype=bool)
+#         tsidx[~midx,:] = ssidx
+#         ssidx = tsidx
+
+#         idx = np.zeros(l, dtype=bool)
+#         idx[~midx] = oidx
+
+#         midx[~midx] = iidx
+#         tidx = tidx | idx
+
+#         midx_sum_old = midx_sum
+#         midx_sum = np.sum(midx)
+
+#         H_failed = np.sum(oidx) <= min_plane_pts
+#         inl_failed = midx_sum - midx_sum_old <= min_pt_gap
+#         if H_failed or inl_failed:
+#             fail_count+=1
+#             if fail_count > max_fail_count: break
+#             if inl_failed: midx = tidx
+#             if H_failed: continue
+#         else:
+#             fail_count = 0
+
+#         # print(f"{np.sum(tidx)} {np.sum(midx)} {fail_count}")
+
+#         Hdata.append([H1_, H2_, idx, sidx_])
+
+#     return Hdata
+
+
+def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
                 max_fail_count=3, random_seed_init=123, th_grid=15):
 
     # set to 123 for debugging and profiling
     if random_seed_init is not None:
-        np.random.seed(random_seed_init)
+        torch.manual_seed(random_seed_init)
 
-    H1 = np.eye(3)
-    H2 = np.eye(3)
+    H1 = torch.eye(3)
+    H2 = torch.eye(3)
 
     Hdata = []
     l = pt1.shape[0]
 
-    midx = np.zeros(l, dtype=bool)
-    tidx = np.zeros(l, dtype=bool)
+    midx = torch.zeros(l, dtype=torch.bool)
+    tidx = torch.zeros(l, dtype=torch.bool)
 
     d1 = dist2(pt1) > th_grid**2
     d2 = dist2(pt2) > th_grid**2
     dd = d1 & d2
 
-    pt1 = np.vstack((pt1.T, np.ones((1, l))))
-    pt2 = np.vstack((pt2.T, np.ones((1, l))))
+    pt1 = torch.cat((pt1.t(), torch.ones(1, l)))
+    pt2 = torch.cat((pt2.t(), torch.ones(1, l)))
 
     fail_count = 0
     midx_sum = 0
-    ssidx = np.zeros((l,0), dtype=bool)
-    sidx = np.arange(l)
+    ssidx = torch.zeros((l, 0), dtype=torch.bool)
+    sidx = torch.arange(l)
 
-    while (np.sum(midx) < l - 4):
+    while torch.sum(midx) < l - 4:
         pt1_ = pt1[:, ~midx]
-        pt1_ = np.dot(H1, pt1_)
+        pt1_ = torch.matmul(H1, pt1_)
         pt1_ = pt1_ / pt1_[2, :]
 
         pt2_ = pt2[:, ~midx]
-        pt2_ = np.dot(H2, pt2_)
+        pt2_ = torch.matmul(H2, pt2_)
         pt2_ = pt2_ / pt2_[2, :]
 
         dd_ = dd[~midx, :][:, ~midx]
@@ -317,44 +656,53 @@ def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
 
         sidx_ = sidx[~midx][sidx_]
 
-        # print(np.sum(ssidx, axis=0))
-        good_ssidx = np.logical_not(np.sum(ssidx, axis=0) == 0)
+        # print(torch.sum(ssidx, dim=0))
+        good_ssidx = torch.logical_not(torch.sum(ssidx, dim=0) == 0)
         ssidx = ssidx[:, good_ssidx]
-        tsidx = np.zeros((l, ssidx.shape[1]), dtype=bool)
-        tsidx[~midx,:] = ssidx
+        tsidx = torch.zeros((l, ssidx.shape[1]), dtype=torch.bool)
+        tsidx[~midx, :] = ssidx
         ssidx = tsidx
 
-        idx = np.zeros(l, dtype=bool)
+        idx = torch.zeros(l, dtype=torch.bool)
         idx[~midx] = oidx
 
         midx[~midx] = iidx
         tidx = tidx | idx
 
         midx_sum_old = midx_sum
-        midx_sum = np.sum(midx)
+        midx_sum = torch.sum(midx)
 
-        H_failed = np.sum(oidx) <= min_plane_pts
+        H_failed = torch.sum(oidx) <= min_plane_pts
         inl_failed = midx_sum - midx_sum_old <= min_pt_gap
         if H_failed or inl_failed:
-            fail_count+=1
-            if fail_count > max_fail_count: break
-            if inl_failed: midx = tidx
-            if H_failed: continue
+            fail_count += 1
+            if fail_count > max_fail_count:
+                break
+            if inl_failed:
+                midx = tidx
+            if H_failed:
+                continue
         else:
             fail_count = 0
 
-        # print(f"{np.sum(tidx)} {np.sum(midx)} {fail_count}")
+        # print(f"{torch.sum(tidx)} {torch.sum(midx)} {fail_count}")
 
         Hdata.append([H1_, H2_, idx, sidx_])
 
     return Hdata
 
 
+# def dist2(pt):
+
+#     pt = pt.astype(np.single)
+#     d = (pt[:, 0, np.newaxis] - pt[np.newaxis :, 0])**2 + (pt[:, 1, np.newaxis] - pt[np.newaxis :, 1])**2
+
+#     return d
+
+
 def dist2(pt):
-
-    pt = pt.astype(np.single)
-    d = (pt[:, 0, np.newaxis] - pt[np.newaxis :, 0])**2 + (pt[:, 1, np.newaxis] - pt[np.newaxis :, 1])**2
-
+    pt = pt.type(torch.float32)
+    d = (pt[:, 0, None] - pt[None, :, 0])**2 + (pt[:, 1, None] - pt[None, :, 1])**2
     return d
 
 
@@ -375,51 +723,103 @@ def cluster_assign_base(Hdata, pt1=None, pt2=None, **dummy_args):
     return max_size_idx
 
 
+# def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15, **dummy_args):
+#     l = len(Hdata)
+#     n = pt1.shape[0]
+
+#     pt1 = np.vstack((pt1.T, np.ones((1, n))))
+#     pt2 = np.vstack((pt2.T, np.ones((1, n))))
+
+#     ptm = (pt1 + pt2) / 2
+
+#     err = np.zeros((n,l))
+
+#     for i in range(l):
+#         H1 = Hdata[i][0]
+#         H2 = Hdata[i][1]
+#         sidx = Hdata[i][3]
+
+#         err[:, i] = np.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
+
+#     # min error
+#     abs_err_min_val = np.min(err, axis=1)
+#     abs_err_min_idx = np.argmin(err, axis=1)
+
+#     inl_mask = np.zeros((n, l), dtype=bool)
+#     for i in range(l): inl_mask[:, i] = Hdata[i][2]
+
+#     set_size = np.sum(inl_mask, axis=0)
+#     size_mask = np.repeat(set_size[np.newaxis, :], inl_mask.shape[0], axis=0) * inl_mask
+
+#     # take a cluster if its cardinality is more than the median of the top median_th ones
+#     ssize_mask = -np.sort(-size_mask, axis=1)
+
+#     median_idx = np.sum(ssize_mask[:, :median_th]>0, axis=1) / 2
+#     median_idx[median_idx==1] = 1.5
+#     median_idx = np.maximum(np.ceil(median_idx).astype(int)-1, 0)
+
+#     top_median = ssize_mask.flatten(
+#         )[np.ravel_multi_index([np.arange(n), median_idx], ssize_mask.shape)]
+
+#     # take among the selected the one which gives less error
+#     discarded_mask = size_mask < top_median[:, np.newaxis]
+#     err[discarded_mask] = np.Inf
+#     err_min_idx = np.argmin(err, axis=1)
+
+#     # remove match with no cluster
+#     alone_idx = np.sum(inl_mask, axis=1)==0
+#     really_alone_idx = alone_idx & (abs_err_min_val > err_th**2)
+
+#     err_min_idx[alone_idx] = abs_err_min_idx[alone_idx]
+#     err_min_idx[really_alone_idx] = -1
+
+#     return err_min_idx
+
+
 def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15, **dummy_args):
     l = len(Hdata)
     n = pt1.shape[0]
 
-    pt1 = np.vstack((pt1.T, np.ones((1, n))))
-    pt2 = np.vstack((pt2.T, np.ones((1, n))))
+    pt1 = torch.vstack((pt1.T, torch.ones((1, n))))
+    pt2 = torch.vstack((pt2.T, torch.ones((1, n))))
 
     ptm = (pt1 + pt2) / 2
 
-    err = np.zeros((n,l))
+    err = torch.zeros((n, l))
 
     for i in range(l):
         H1 = Hdata[i][0]
         H2 = Hdata[i][1]
         sidx = Hdata[i][3]
 
-        err[:, i] = np.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
+        err[:, i] = torch.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
 
     # min error
-    abs_err_min_val = np.min(err, axis=1)
-    abs_err_min_idx = np.argmin(err, axis=1)
+    abs_err_min_val, abs_err_min_idx = torch.min(err, dim=1)
 
-    inl_mask = np.zeros((n, l), dtype=bool)
-    for i in range(l): inl_mask[:, i] = Hdata[i][2]
+    inl_mask = torch.zeros((n, l), dtype=torch.bool)
+    for i in range(l):
+        inl_mask[:, i] = Hdata[i][2]
 
-    set_size = np.sum(inl_mask, axis=0)
-    size_mask = np.repeat(set_size[np.newaxis, :], inl_mask.shape[0], axis=0) * inl_mask
+    set_size = torch.sum(inl_mask, dim=0)
+    size_mask = torch.repeat_interleave(set_size.unsqueeze(0), n, dim=0) * inl_mask
 
     # take a cluster if its cardinality is more than the median of the top median_th ones
-    ssize_mask = -np.sort(-size_mask, axis=1)
+    ssize_mask, _ = torch.sort(size_mask, descending=True, dim=1)
 
-    median_idx = np.sum(ssize_mask[:, :median_th]>0, axis=1) / 2
-    median_idx[median_idx==1] = 1.5
-    median_idx = np.maximum(np.ceil(median_idx).astype(int)-1, 0)
+    median_idx = torch.sum(ssize_mask[:, :median_th] > 0, dim=1) / 2
+    median_idx[median_idx == 1] = 1.5
+    median_idx = torch.maximum(torch.ceil(median_idx).to(torch.int)-1, 0)
 
-    top_median = ssize_mask.flatten(
-        )[np.ravel_multi_index([np.arange(n), median_idx], ssize_mask.shape)]
+    top_median = ssize_mask.flatten()[torch.arange(n) * ssize_mask.shape[1] + median_idx]
 
     # take among the selected the one which gives less error
-    discarded_mask = size_mask < top_median[:, np.newaxis]
-    err[discarded_mask] = np.Inf
-    err_min_idx = np.argmin(err, axis=1)
+    discarded_mask = size_mask < top_median.unsqueeze(1)
+    err[discarded_mask] = float('inf')
+    err_min_idx = torch.argmin(err, dim=1)
 
     # remove match with no cluster
-    alone_idx = np.sum(inl_mask, axis=1)==0
+    alone_idx = torch.sum(inl_mask, dim=1) == 0
     really_alone_idx = alone_idx & (abs_err_min_val > err_th**2)
 
     err_min_idx[alone_idx] = abs_err_min_idx[alone_idx]
