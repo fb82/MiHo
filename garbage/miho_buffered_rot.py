@@ -272,52 +272,65 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
     return H1, H2, iidx, oidx, vidx, sidx_
 
 
-def rot_best(pt1, pt2, n=4):    
-    n = int(n)
-    if n < 1: n = 1
-    
-    # current MiHo formulation is translation invariant    
+def rot_best(pt1, pt2, sz2=None):    
+
     pt1 = pt1[:2,:]
+    c1 = np.mean(pt1, axis=1);
+    pt1 = pt1 - c1[:, np.newaxis]
+
     pt2 = pt2[:2,:]    
+    c2 = np.mean(pt2, axis=1);
+    pt2 = pt2 - c2[:, np.newaxis]
 
-    a = 2 * np.pi / n
-    R = np.asarray([[np.cos(a), -np.sin(a)], [np.sin(a), np.cos(a)]])
-
+    R = np.asarray([[0, -1], [1, 0]])
     M = np.eye(2)
     
     l = pt1.shape[1]
     d = np.zeros((l,l, 3))
     d[:, :, 0] = dist2(pt1.T)
-    d[:, :, 2] = dist2(pt2.T)
     
     sum_best = -np.inf
     R_best = np.eye(3)
     
-    for i in range(n):
+    for i in range(4):
         pt2_ = M @ pt2
         ptm = (pt1 + pt2_) / 2
 
         d[:, :, 1] = dist2(ptm.T)
+        d[:, :, 2] = dist2(pt2_.T)
         
         k = np.argsort(d, axis=2)
         sum_k = np.sum(k[:, :, 1] == 1)   
         
-        # print(f"{i} {sum_k}")
-        
         if sum_k > sum_best:
             sum_best = sum_k
             R_best = M
+            idx = i
         
         M = R @ M
         
     aux = np.eye(3)
     aux[:2, :2] = R_best
-                
+    
+    if sz2 is not None:
+        h = sz2[0] / 2
+        w = sz2[1] / 2
+        if (idx == 1) or (idx == 3):
+            T1 = np.asarray([[1, 0, -w], [0, 1, -h], [0, 0, 1]])
+            T2 = np.asarray([[1, 0, h], [0, 1, w], [0, 0, 1]])
+            aux = T2 @ aux @ T1
+        if (idx == 2):
+            T1 = np.asarray([[1, 0, -w], [0, 1, -h], [0, 0, 1]])
+            T2 = np.asarray([[1, 0, w], [0, 1, h], [0, 0, 1]])
+            aux = T2 @ aux @ T1        
+    else:
+        warnings.warn("no sz2 provided for rot_check!!!")
+            
     return aux
 
 def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
                 max_fail_count=3, random_seed_init=123, th_grid=15,
-                rot_check=4):
+                rot_check=False, sz2=None):
 
     # set to 123 for debugging and profiling
     if random_seed_init is not None:
@@ -339,8 +352,8 @@ def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
     pt1 = np.vstack((pt1.T, np.ones((1, l))))
     pt2 = np.vstack((pt2.T, np.ones((1, l))))
 
-    if rot_check > 1:
-        H2 = rot_best(pt1, pt2, rot_check)
+    if rot_check:
+        H2 = rot_best(pt1, pt2, sz2)
 
     fail_count = 0
     midx_sum = 0
@@ -392,7 +405,7 @@ def get_avg_hom(pt1, pt2, ransac_middle_args= {}, min_plane_pts=4, min_pt_gap=4,
 
         # print(f"{np.sum(tidx)} {np.sum(midx)} {fail_count}")
 
-        Hdata.append([H1_ @ H1, H2_ @ H2, idx, sidx_])
+        Hdata.append([H1_, H2_, idx, sidx_])
 
     return Hdata, H1, H2
 
@@ -435,7 +448,7 @@ def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **du
     pt2_ = np.dot(H2_pre, pt2)
     pt2_ = pt2_ / pt2_[2, :]
 
-    ptm = (pt1_ + pt2_) / 2
+    ptm_ = (pt1_ + pt2_) / 2
 
     err = np.zeros((n,l))
 
@@ -444,7 +457,7 @@ def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **du
         H2 = Hdata[i][1]
         sidx = Hdata[i][3]
 
-        err[:, i] = np.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
+        err[:, i] = np.maximum(get_error(pt1_, ptm_, H1, sidx), get_error(pt2_, ptm_, H2, sidx))
 
     # min error
     abs_err_min_val = np.min(err, axis=1)
@@ -494,7 +507,7 @@ def cluster_assign_other(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15, **dumm
     pt2_ = np.dot(H2_pre, pt2)
     pt2_ = pt2_ / pt2_[2, :]
 
-    ptm = (pt1_ + pt2_) / 2
+    ptm_ = (pt1_ + pt2_) / 2
 
     err = np.zeros((n,l))
 
@@ -503,7 +516,7 @@ def cluster_assign_other(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15, **dumm
         H2 = Hdata[i][1]
         sidx = Hdata[i][3]
 
-        err[:, i] = np.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
+        err[:, i] = np.maximum(get_error(pt1_, ptm_, H1, sidx), get_error(pt2_, ptm_, H2, sidx))
 
     err_min_idx = np.argmin(err, axis=1)
     err_min_val = err.flatten()[np.ravel_multi_index([np.arange(n), err_min_idx], err.shape)]
@@ -649,7 +662,7 @@ class miho:
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
                               'min_plane_pts': 4, 'min_pt_gap': 4,
                               'max_fail_count': 3, 'random_seed_init': 123,
-                              'th_grid': 15, 'rot_check': 4}
+                              'th_grid': 15, 'rot_check': False}
 
         method_args_params = {'median_th': 5, 'err_th': 15, 'err_th_only': 15}
         go_assign_params = {'method': cluster_assign,
@@ -666,13 +679,21 @@ class miho:
                 'show_clustering': show_clustering_params}
 
 
-    def planar_clustering(self, pt1, pt2):
+    def planar_clustering(self, pt1, pt2, sz1=None, sz2=None):
         """run MiHo"""
         self.pt1 = pt1
         self.pt2 = pt2
 
-        Hdata, H1_pre, H2_pre = get_avg_hom(pt1, pt2, **self.params['get_avg_hom'])
+        args = self.params['get_avg_hom']
 
+        if sz1 is not None:
+            self.sz1 = sz1
+            
+        if sz2 is not None:
+            self.sz2 = sz2
+            args["sz2"] = sz2
+
+        Hdata, H1_pre, H2_pre = get_avg_hom(pt1, pt2, **args)
         self.Hs = Hdata
         self.H1_pre = H1_pre
         self.H2_pre = H2_pre
@@ -723,7 +744,7 @@ if __name__ == '__main__':
     # params['get_avg_hom']['min_plane_pts'] = 16
     # mihoo.update_params(params)
 
-    mihoo.planar_clustering(m12[:, :2], m12[:, 2:])
+    mihoo.planar_clustering(m12[:, :2], m12[:, 2:], sz2=(im2.height, im2.width))
     # mihoo.planar_clustering(m12[:, :2], m12[:, 2:])
 
     end = time.time()
