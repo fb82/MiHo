@@ -393,6 +393,11 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15, **dummy_ar
         
         err[:, i] = np.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
 
+    print(f'&&&&&&&&&&&&& err = {err}')
+    print(f'&&&&&&&&&&&&& err = {err.shape}')
+    print(f'&&&&&&&&&&&&& err = {err.dtype}')
+
+
     # min error
     abs_err_min_val = np.min(err, axis=1)
     abs_err_min_idx = np.argmin(err, axis=1)
@@ -454,7 +459,7 @@ def cluster_assign_other(Hdata, pt1=None, pt2=None, err_th_only=15, **dummy_args
     return err_min_idx
 
 
-def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho.pdf', fig_dpi=300,
+def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho_buffered.pdf', fig_dpi=300,
              colors = ['#FF1F5B', '#00CD6C', '#009ADE', '#AF58BA', '#FFC61E', '#F28522'],
              markers = ['o','x','8','p','h'], bad_marker = 'd', bad_color = '#000000',
              plot_opt = {'markersize': 2, 'markeredgewidth': 0.5,
@@ -596,7 +601,7 @@ class miho:
         go_assign_params = {'method': cluster_assign,
                             'method_args': method_args_params}
 
-        show_clustering_params = {'tosave': 'miho.pdf', 'fig_dpi': 300,
+        show_clustering_params = {'tosave': 'miho_buffered.pdf', 'fig_dpi': 300,
              'colors': ['#FF1F5B', '#00CD6C', '#009ADE', '#AF58BA', '#FFC61E', '#F28522'],
              'markers': ['o','x','8','p','h'], 'bad_marker': 'd', 'bad_color': '#000000',
              'plot_opt': {'markersize': 2, 'markeredgewidth': 0.5,

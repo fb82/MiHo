@@ -87,14 +87,14 @@ def steps(pps, inl, p):
 
 
 def compute_homography(pts1, pts2):
-    T1 = data_normalize(pts1)
-    T2 = data_normalize(pts2)
+    T1 = data_normalize(pts1).to(device)
+    T2 = data_normalize(pts2).to(device)
 
     npts1 = torch.matmul(T1, pts1)
     npts2 = torch.matmul(T2, pts2)
 
     l = npts1.shape[1]
-    A = torch.zeros((l*3, 9), dtype=torch.float32)
+    A = torch.zeros((l*3, 9), dtype=torch.float32).to(device)
     # A[:l, 3:6] = -torch.mul(torch.tile(npts2[2, :].unsqueeze(1), (1, 3)), npts1.t())
     # A[:l, 6:] = torch.mul(torch.tile(npts2[1, :].unsqueeze(1), (1, 3)), npts1.t())
     # A[l:2*l, :3] = torch.mul(torch.tile(npts2[2, :].unsqueeze(1), (1, 3)), npts1.t())
@@ -174,7 +174,7 @@ def get_inliers(pt1, pt2, H, ths, sidx):
     s2 = s2_[sidx[0]]
 
     if not torch.all(s2_[sidx] == s2):
-        nidx = torch.zeros((m, l), dtype=torch.bool)
+        nidx = torch.zeros((m, l), dtype=torch.bool).to(device)
         if not isinstance(ths, list):
             nidx = nidx[0]
         return nidx
@@ -187,7 +187,7 @@ def get_inliers(pt1, pt2, H, ths, sidx):
     s1 = s1_[sidx[0]]
 
     if not torch.all(s1_[sidx] == s1):
-        nidx = torch.zeros((m, l), dtype=torch.bool)
+        nidx = torch.zeros((m, l), dtype=torch.bool).to(device)
         if not isinstance(ths, list):
             nidx = nidx[0]
         return nidx
@@ -198,7 +198,7 @@ def get_inliers(pt1, pt2, H, ths, sidx):
     err = torch.maximum(err1, err2)
     err[~torch.isfinite(err)] = float('inf')
 
-    nidx = torch.zeros((m, l), dtype=torch.bool)
+    nidx = torch.zeros((m, l), dtype=torch.bool).to(device)
     for i in range(m):
         nidx[i, :] = torch.all(torch.stack((err < ths_[i], s2_ == s2, s1_ == s1)), dim=0)
 
@@ -414,25 +414,25 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
     ptm = (pt1 + pt2) / 2
 
     if n < 4:
-        H1 = torch.tensor([])
-        H2 = torch.tensor([])
-        iidx = torch.zeros(n, dtype=torch.bool)
-        oidx = torch.zeros(n, dtype=torch.bool)
-        vidx = torch.zeros((n, 0), dtype=torch.bool)
-        sidx_ = torch.zeros((4,), dtype=torch.int32)
+        H1 = torch.tensor([]).to(device)
+        H2 = torch.tensor([]).to(device)
+        iidx = torch.zeros(n, dtype=torch.bool).to(device)
+        oidx = torch.zeros(n, dtype=torch.bool).to(device)
+        vidx = torch.zeros((n, 0), dtype=torch.bool).to(device)
+        sidx_ = torch.zeros((4,), dtype=torch.int32).to(device)
         return H1, H2, iidx, oidx, vidx, sidx_
     
     min_iter = min(min_iter, n*(n-1)*(n-2)*(n-3) / 12)
 
-    vidx = torch.zeros((n, buffers), dtype=torch.bool)
-    midx = torch.zeros((n, buffers+1), dtype=torch.bool)
+    vidx = torch.zeros((n, buffers), dtype=torch.bool).to(device)
+    midx = torch.zeros((n, buffers+1), dtype=torch.bool).to(device)
 
     sum_midx = 0
     Nc = float('inf')
     min_th_stats = 3
 
     sn = ssidx.shape[1]
-    sidx_ = torch.zeros((4,), dtype=torch.long)
+    sidx_ = torch.zeros((4,), dtype=torch.long).to(device)
 
     for c in range(1, max_iter):
 
@@ -442,13 +442,14 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
                 aux = torch.nonzero(ssidx[:, c]).squeeze(1)
                 if aux.shape[0] > 4:
                     aux_idx = torch.randperm(aux.shape[0])[:4]
-                    sidx = aux[aux_idx]
+                    sidx = aux[aux_idx].to(device)
                 else:
-                    sidx = torch.randperm(n)[:4]
+                    sidx = torch.randperm(n)[:4].to(device)
             else:
-                sidx = torch.randperm(n)[:4]
+                sidx = torch.randperm(n)[:4].to(device)
 
-            if torch.sum(torch.sum(dd[sidx, :][:, sidx], axis=0) >= 3) == 4:
+            if torch.all(torch.sum(dd[sidx][:, sidx], dim=0) >= 3):
+            # if torch.sum(torch.sum(dd[sidx, :][:, sidx], axis=0) >= 3) == 4:
                 good_sample = True
                 break
 
@@ -533,11 +534,11 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
             oidx = inl1[1] & inl2[1]
 
     else:
-        H1 = torch.tensor([])
-        H2 = torch.tensor([])
+        H1 = torch.tensor([]).to(device)
+        H2 = torch.tensor([]).to(device)
 
-        iidx = torch.zeros(n, dtype=torch.bool)
-        oidx = torch.zeros(n, dtype=torch.bool)
+        iidx = torch.zeros(n, dtype=torch.bool).to(device)
+        oidx = torch.zeros(n, dtype=torch.bool).to(device)
 
     return H1, H2, iidx, oidx, vidx, sidx_
 
@@ -627,26 +628,26 @@ def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
     if random_seed_init is not None:
         torch.manual_seed(random_seed_init)
 
-    H1 = torch.eye(3)
-    H2 = torch.eye(3)
+    H1 = torch.eye(3).to(device)
+    H2 = torch.eye(3).to(device)
 
     Hdata = []
     l = pt1.shape[0]
 
-    midx = torch.zeros(l, dtype=torch.bool)
-    tidx = torch.zeros(l, dtype=torch.bool)
+    midx = torch.zeros(l, dtype=torch.bool).to(device)
+    tidx = torch.zeros(l, dtype=torch.bool).to(device)
 
     d1 = dist2(pt1) > th_grid**2
     d2 = dist2(pt2) > th_grid**2
     dd = d1 & d2
 
-    pt1 = torch.cat((pt1.t(), torch.ones(1, l)))
-    pt2 = torch.cat((pt2.t(), torch.ones(1, l)))
+    pt1 = torch.cat((pt1.t(), torch.ones(1, l).to(device)))
+    pt2 = torch.cat((pt2.t(), torch.ones(1, l).to(device)))
 
     fail_count = 0
     midx_sum = 0
-    ssidx = torch.zeros((l, 0), dtype=torch.bool)
-    sidx = torch.arange(l)
+    ssidx = torch.zeros((l, 0), dtype=torch.bool).to(device)
+    sidx = torch.arange(l).to(device)
 
     while torch.sum(midx) < l - 4:
         pt1_ = pt1[:, ~midx]
@@ -657,7 +658,7 @@ def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
         pt2_ = torch.matmul(H2, pt2_)
         pt2_ = pt2_ / pt2_[2, :]
 
-        dd_ = dd[~midx, :][:, ~midx]
+        dd_ = dd[~midx, :][:, ~midx].to(device)
 
         ssidx = ssidx[~midx, :]
 
@@ -668,11 +669,11 @@ def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
         # print(torch.sum(ssidx, dim=0))
         good_ssidx = torch.logical_not(torch.sum(ssidx, dim=0) == 0)
         ssidx = ssidx[:, good_ssidx]
-        tsidx = torch.zeros((l, ssidx.shape[1]), dtype=torch.bool)
+        tsidx = torch.zeros((l, ssidx.shape[1]), dtype=torch.bool).to(device)
         tsidx[~midx, :] = ssidx
         ssidx = tsidx
 
-        idx = torch.zeros(l, dtype=torch.bool)
+        idx = torch.zeros(l, dtype=torch.bool).to(device)
         idx[~midx] = oidx
 
         midx[~midx] = iidx
@@ -789,12 +790,12 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15, **dummy_ar
     l = len(Hdata)
     n = pt1.shape[0]
 
-    pt1 = torch.vstack((pt1.T, torch.ones((1, n))))
-    pt2 = torch.vstack((pt2.T, torch.ones((1, n))))
+    pt1 = torch.vstack((pt1.T, torch.ones((1, n)).to(device)))
+    pt2 = torch.vstack((pt2.T, torch.ones((1, n)).to(device)))
 
     ptm = (pt1 + pt2) / 2
 
-    err = torch.zeros((n, l))
+    err = torch.zeros((n, l)).to(device)
 
     for i in range(l):
         H1 = Hdata[i][0]
@@ -806,7 +807,7 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15, **dummy_ar
     # min error
     abs_err_min_val, abs_err_min_idx = torch.min(err, dim=1)
 
-    inl_mask = torch.zeros((n, l), dtype=torch.bool)
+    inl_mask = torch.zeros((n, l), dtype=torch.bool).to(device)
     for i in range(l):
         inl_mask[:, i] = Hdata[i][2]
 
@@ -822,7 +823,7 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15, **dummy_ar
 
     # flat_indices = torch.arange(n) * ssize_mask.shape[1] + median_idx
     # top_median = ssize_mask.view(-1)[flat_indices]
-    top_median = ssize_mask.flatten()[torch.arange(n) * ssize_mask.shape[1] + median_idx]
+    top_median = ssize_mask.flatten()[torch.arange(n).to(device) * ssize_mask.shape[1] + median_idx]
 
     # take among the selected the one which gives less error
     discarded_mask = size_mask < top_median.unsqueeze(1)
@@ -1023,13 +1024,14 @@ class miho:
         self.pt1 = pt1
         self.pt2 = pt2
 
-        pt1_tensor = torch.tensor(pt1, dtype=torch.float32)
-        pt2_tensor = torch.tensor(pt2, dtype=torch.float32)
+        pt1_tensor = torch.tensor(pt1, dtype=torch.float32).to(device)
+        pt2_tensor = torch.tensor(pt2, dtype=torch.float32).to(device)
 
         Hdata = get_avg_hom(pt1_tensor, pt2_tensor, **self.params['get_avg_hom'])
         self.Hs = Hdata
 
-        self.Hidx = go_assign(Hdata, pt1_tensor, pt2_tensor, **self.params['go_assign'])
+        Hidx = go_assign(Hdata, pt1_tensor, pt2_tensor, **self.params['go_assign'])
+        self.Hidx = Hidx.cpu()
 
         return self.Hs, self.Hidx
 
