@@ -699,9 +699,9 @@ class miho:
 
 if __name__ == '__main__':
 
-    img1 = 'data/im2_rot.png'
-    img2 = 'data/im2.png'
-    match_file = 'data/matches.mat'
+    img1 = 'data/im1.png'
+    img2 = 'data/im2_rot.png'
+    match_file = 'data/matches_rot.mat'
 
     im1 = Image.open(img1)
     im2 = Image.open(img2)
