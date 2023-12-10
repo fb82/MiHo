@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 import scipy.io as sio
+import warnings
 
 import torch
 
@@ -268,8 +269,54 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
     return H1, H2, iidx, oidx, vidx, sidx_
 
 
+def rot_best(pt1, pt2, n=4):
+    n = int(n)
+    if n < 1:
+        n = 1
+    
+    # current MiHo formulation is translation invariant
+    pt1 = pt1[:2, :]
+    pt2 = pt2[:2, :]
+
+    a = 2 * np.pi / n
+    R = torch.tensor([[np.cos(a), -np.sin(a)], [np.sin(a), np.cos(a)]], dtype=torch.float)
+
+    M = torch.eye(2)
+    
+    l = pt1.shape[1]
+    d = torch.zeros((l, l, 3))
+    d[:, :, 0] = dist2(pt1.t())
+    d[:, :, 2] = dist2(pt2.t())
+    
+    sum_best = float("-inf")
+    # R_best = torch.eye(3)
+    
+    for i in range(n):
+        pt2_ = torch.matmul(M, pt2)
+        ptm = (pt1 + pt2_) / 2
+
+        d[:, :, 1] = dist2(ptm.t())
+        
+        k = torch.argsort(d, dim=2)
+        sum_k = torch.sum(k[:, :, 1] == 1).item() 
+        
+        # print(f"{i} {sum_k}")
+        
+        if sum_k > sum_best:
+            sum_best = sum_k
+            R_best = M
+        
+        M = torch.matmul(R, M)
+        
+    aux = torch.eye(3)
+    aux[:2, :2] = R_best
+    
+    return aux
+
+
 def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
-                max_fail_count=3, random_seed_init=123, th_grid=15):
+                max_fail_count=3, random_seed_init=123, th_grid=15,
+                rot_check=4):
 
     # set to 123 for debugging and profiling
     if random_seed_init is not None:
@@ -290,6 +337,9 @@ def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
 
     pt1 = torch.cat((pt1.t(), torch.ones(1, l)))
     pt2 = torch.cat((pt2.t(), torch.ones(1, l)))
+
+    if rot_check > 1:
+        H2 = rot_best(pt1, pt2, rot_check)
 
     fail_count = 0
     midx_sum = 0
@@ -344,9 +394,9 @@ def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
 
         # print(f"{torch.sum(tidx)} {torch.sum(midx)} {fail_count}")
 
-        Hdata.append([H1_, H2_, idx, sidx_])
+        Hdata.append([torch.matmul(H1_, H1), torch.matmul(H2_, H2), idx, sidx_])
 
-    return Hdata
+    return Hdata, H1, H2
 
 
 def dist2(pt):
@@ -355,7 +405,7 @@ def dist2(pt):
     return d
 
 
-def cluster_assign_base(Hdata, pt1=None, pt2=None, **dummy_args):
+def cluster_assign_base(Hdata, pt1, pt2, H1_pre, H2_pre, **dummy_args):
     l = len(Hdata)
     n = Hdata[0][2].shape[0]
 
@@ -372,14 +422,20 @@ def cluster_assign_base(Hdata, pt1=None, pt2=None, **dummy_args):
     return max_size_idx
 
 
-def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15, **dummy_args):
+def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **dummy_args):
     l = len(Hdata)
     n = pt1.shape[0]
 
     pt1 = torch.vstack((pt1.T, torch.ones((1, n))))
     pt2 = torch.vstack((pt2.T, torch.ones((1, n))))
 
-    ptm = (pt1 + pt2) / 2
+    pt1_ = torch.matmul(H1_pre, pt1)
+    pt1_ = pt1_ / pt1_[2, :]
+
+    pt2_ = torch.matmul(H2_pre, pt2)
+    pt2_ = pt2_ / pt2_[2, :]
+
+    ptm = (pt1_ + pt2_) / 2
 
     err = torch.zeros((n, l))
 
@@ -426,14 +482,20 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15, **dummy_ar
     return err_min_idx
 
 
-def cluster_assign_other(Hdata, pt1=None, pt2=None, err_th_only=15, **dummy_args):
+def cluster_assign_other(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15, **dummy_args):
     l = len(Hdata)
     n = pt1.shape[0]
 
     pt1 = np.vstack((pt1.T, np.ones((1, n))))
     pt2 = np.vstack((pt2.T, np.ones((1, n))))
 
-    ptm = (pt1 + pt2) / 2
+    pt1_ = torch.matmul(H1_pre, pt1)
+    pt1_ = pt1_ / pt1_[2, :]
+
+    pt2_ = torch.matmul(H2_pre, pt2)
+    pt2_ = pt2_ / pt2_[2, :]
+
+    ptm = (pt1_ + pt2_) / 2
 
     err = np.zeros((n,l))
 
@@ -452,7 +514,7 @@ def cluster_assign_other(Hdata, pt1=None, pt2=None, err_th_only=15, **dummy_args
     return err_min_idx
 
 
-def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho_buffered_pytorch.pdf', fig_dpi=300,
+def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho_buffered_rot_pytorch.pdf', fig_dpi=300,
              colors = ['#FF1F5B', '#00CD6C', '#009ADE', '#AF58BA', '#FFC61E', '#F28522'],
              markers = ['o','x','8','p','h'], bad_marker = 'd', bad_color = '#000000',
              plot_opt = {'markersize': 2, 'markeredgewidth': 0.5,
@@ -484,8 +546,8 @@ def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho_buffered_pytorch.pdf'
     plt.savefig(tosave, dpi = fig_dpi, bbox_inches='tight')
 
 
-def go_assign(Hdata, pt1=None, pt2=None, method=cluster_assign, method_args={}):
-    return method(Hdata, pt1, pt2, **method_args)
+def go_assign(Hdata, pt1, pt2, H1_pre, H2_pre, method=cluster_assign, method_args={}):
+    return method(Hdata, pt1, pt2, H1_pre, H2_pre, **method_args)
 
 
 def purge_default(dict1, dict2):
@@ -588,13 +650,13 @@ class miho:
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
                               'min_plane_pts': 4, 'min_pt_gap': 4,
                               'max_fail_count': 3, 'random_seed_init': 123,
-                              'th_grid': 15}
+                              'th_grid': 15, 'rot_check': 4}
 
         method_args_params = {'median_th': 5, 'err_th': 15, 'err_th_only': 15}
         go_assign_params = {'method': cluster_assign,
                             'method_args': method_args_params}
 
-        show_clustering_params = {'tosave': 'miho_buffered_pytorch.pdf', 'fig_dpi': 300,
+        show_clustering_params = {'tosave': 'miho_buffered_rot_pytorch.pdf', 'fig_dpi': 300,
              'colors': ['#FF1F5B', '#00CD6C', '#009ADE', '#AF58BA', '#FFC61E', '#F28522'],
              'markers': ['o','x','8','p','h'], 'bad_marker': 'd', 'bad_color': '#000000',
              'plot_opt': {'markersize': 2, 'markeredgewidth': 0.5,
@@ -613,10 +675,12 @@ class miho:
         pt1_tensor = torch.from_numpy(pt1).type(torch.float32)
         pt2_tensor = torch.from_numpy(pt2).type(torch.float32)
 
-        Hdata = get_avg_hom(pt1_tensor, pt2_tensor, **self.params['get_avg_hom'])
+        Hdata, H1_pre, H2_pre = get_avg_hom(pt1_tensor, pt2_tensor, **self.params['get_avg_hom'])
         self.Hs = Hdata
+        self.H1_pre = H1_pre
+        self.H2_pre = H2_pre
 
-        self.Hidx = go_assign(Hdata, pt1_tensor, pt2_tensor, **self.params['go_assign'])
+        self.Hidx = go_assign(Hdata, pt1_tensor, pt2_tensor, H1_pre, H2_pre, **self.params['go_assign'])
 
         return self.Hs, self.Hidx
 
@@ -629,11 +693,13 @@ class miho:
 
             show_fig(im1, im2, self.pt1, self.pt2, self.Hs, self.Hidx,
                      **self.params['show_clustering'])
+        else:
+            warnings.warn("planar_clustering must run before!!!")
 
 
 if __name__ == '__main__':
 
-    img1 = 'data/im1.png'
+    img1 = 'data/im2_rot.png'
     img2 = 'data/im2.png'
     match_file = 'data/matches.mat'
 
@@ -644,7 +710,12 @@ if __name__ == '__main__':
     m12 = m12['matches'][m12['midx'] > 0, :]
 
     start = time.time()
-    mihoo = miho()
+
+    params = miho.all_params()
+    params['get_avg_hom']['rot_check'] = True
+    mihoo = miho(params)
+
+    # mihoo = miho(params)
 
     # params = miho.all_params()
     # params['go_assign']['method'] = cluster_assign_base
@@ -656,6 +727,8 @@ if __name__ == '__main__':
     # mihoo.update_params(params)
 
     mihoo.planar_clustering(m12[:, :2], m12[:, 2:])
+    # mihoo.planar_clustering(m12[:, :2], m12[:, 2:])
+
     end = time.time()
     print("Elapsed = %s" % (end - start))
 

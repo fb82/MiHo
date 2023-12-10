@@ -513,7 +513,7 @@ def cluster_assign_other(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15, **dumm
     return err_min_idx
 
 
-def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho.pdf', fig_dpi=300,
+def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho_buffered_rot.pdf', fig_dpi=300,
              colors = ['#FF1F5B', '#00CD6C', '#009ADE', '#AF58BA', '#FFC61E', '#F28522'],
              markers = ['o','x','8','p','h'], bad_marker = 'd', bad_color = '#000000',
              plot_opt = {'markersize': 2, 'markeredgewidth': 0.5,
@@ -655,7 +655,7 @@ class miho:
         go_assign_params = {'method': cluster_assign,
                             'method_args': method_args_params}
 
-        show_clustering_params = {'tosave': 'miho.pdf', 'fig_dpi': 300,
+        show_clustering_params = {'tosave': 'miho_buffered_rot.pdf', 'fig_dpi': 300,
              'colors': ['#FF1F5B', '#00CD6C', '#009ADE', '#AF58BA', '#FFC61E', '#F28522'],
              'markers': ['o','x','8','p','h'], 'bad_marker': 'd', 'bad_color': '#000000',
              'plot_opt': {'markersize': 2, 'markeredgewidth': 0.5,

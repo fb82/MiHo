@@ -393,11 +393,6 @@ def cluster_assign(Hdata, pt1=None, pt2=None, median_th=5, err_th=15, **dummy_ar
         
         err[:, i] = np.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
 
-    print(f'&&&&&&&&&&&&& err = {err}')
-    print(f'&&&&&&&&&&&&& err = {err.shape}')
-    print(f'&&&&&&&&&&&&& err = {err.dtype}')
-
-
     # min error
     abs_err_min_val = np.min(err, axis=1)
     abs_err_min_idx = np.argmin(err, axis=1)
