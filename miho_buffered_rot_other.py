@@ -105,6 +105,46 @@ def get_inliers(pt1, pt2, H, ths, sidx):
     return nidx
 
 
+def get_inliers_fast(pt1, pt2, H1, H2, ths, sidx):
+
+    l = pt1.shape[1]
+    ths_ = [ths] if not isinstance(ths, list) else ths
+    m = len(ths_)
+
+    pt2_ = np.dot(H1, pt1)
+    s2_ = np.sign(pt2_[2, :])
+    s2 = s2_[sidx[0]]
+
+    if not np.all(s2_[sidx] == s2):
+        nidx = np.zeros((m, l), dtype=bool)
+        if not isinstance(ths, list): nidx = nidx[0]
+        return nidx
+
+    tmp2 = pt2_[:2, :] / pt2_[2, :]
+
+    pt1_ = np.dot(H2, pt2)
+    s1_ = np.sign(pt1_[2, :])
+    s1 = s1_[sidx[0]]
+
+    if not np.all(s1_[sidx] == s1):
+        nidx = np.zeros((m, l), dtype=bool)
+        if not isinstance(ths, list): nidx = nidx[0]
+        return nidx
+
+    tmp1 = pt1_[:2, :] / pt1_[2, :]
+
+    err = np.sum((tmp1 - tmp2)**2, axis=0)
+    err[~np.isfinite(err)] = np.inf
+
+    nidx = np.zeros((m, l), dtype=bool)
+    for i in range(m):
+        nidx[i, :] = np.all(np.vstack((err < 2 * ths_[i], s2_ == s2,s1_ == s1)), axis=0)
+
+    if not isinstance(ths, list): nidx = nidx[0]
+
+    return nidx
+
+
 def get_error(pt1, pt2, H, sidx):
 
     l = pt1.shape[1]
@@ -135,12 +175,43 @@ def get_error(pt1, pt2, H, sidx):
     return err
 
 
+def get_error_fast(pt1, pt2, H1, H2, sidx):
+
+    l = pt1.shape[1]
+
+    pt2_ = np.dot(H1, pt1)
+    s2_ = np.sign(pt2_[2, :])
+    s2 = s2_[sidx[0]]
+
+    if not np.all(s2_[sidx] == s2):
+        return np.full(l, np.inf)
+
+    tmp2 = pt2_[:2, :] / pt2_[2, :]
+
+    pt1_ = np.dot(H2, pt2)
+    s1_ = np.sign(pt1_[2, :])
+    s1 = s1_[sidx[0]]
+
+    if not np.all(s1_[sidx] == s1):
+        return np.full(l, np.Inf)
+
+    tmp1 = pt1_[:2, :] / pt1_[2, :]
+
+    err = np.sum((tmp1 - tmp2)**2, axis=0)
+    err[~np.isfinite(err)] = np.inf
+
+    return err
+
+
 def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None):
 
     n = pt1.shape[1]
 
-    th_in = th_in ** 2
-    th_out = th_out ** 2
+    # th_in = th_in ** 2
+    # th_out = th_out ** 2
+
+    th_in = 4 * (th_in ** 2)
+    th_out = 4 * (th_out ** 2)
 
     ptm = (pt1 + pt2) / 2
 
@@ -200,7 +271,8 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
             else:
                 continue
 
-        nidx = get_inliers(pt1, ptm, H1, th_out, sidx) * get_inliers(pt2, ptm, H2, th_out, sidx)
+        # nidx = get_inliers(pt1, ptm, H1, th_out, sidx) * get_inliers(pt2, ptm, H2, th_out, sidx)
+        nidx = get_inliers_fast(pt1, pt2, H1, H2, th_out, sidx)
 
         updated_model = False
 
@@ -249,19 +321,22 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
         H1, _ = compute_homography(pt1[:, bidx], ptm[:, bidx])
         H2, _ = compute_homography(pt2[:, bidx], ptm[:, bidx])
 
-        inl1 = get_inliers(pt1, ptm, H1, [th_in, th_out], sidx_)
-        inl2 = get_inliers(pt2, ptm, H2, [th_in, th_out], sidx_)
-        iidx = inl1[0] & inl2[0]
-        oidx = inl1[1] & inl2[1]
+        # inl1 = get_inliers(pt1, ptm, H1, [th_in, th_out], sidx_)
+        # inl2 = get_inliers(pt2, ptm, H2, [th_in, th_out], sidx_)
+        # iidx = inl1[0] & inl2[0]
+        # oidx = inl1[1] & inl2[1]
+
+        iidx, oidx = get_inliers_fast(pt1, pt2, H1, H2, [th_in, th_out], sidx_)
 
         if sum_midx > np.sum(oidx):
             H1, H2 = best_model
 
-            inl1 = get_inliers(pt1, ptm, H1, [th_in, th_out], sidx_)
-            inl2 = get_inliers(pt2, ptm, H2, [th_in, th_out], sidx_)
-            iidx = inl1[0] & inl2[0]
-            oidx = inl1[1] & inl2[1]
+            # inl1 = get_inliers(pt1, ptm, H1, [th_in, th_out], sidx_)
+            # inl2 = get_inliers(pt2, ptm, H2, [th_in, th_out], sidx_)
+            # iidx = inl1[0] & inl2[0]
+            # oidx = inl1[1] & inl2[1]
 
+            iidx, oidx = get_inliers_fast(pt1, pt2, H1, H2, [th_in, th_out], sidx_)
     else:
         H1 = np.array([])
         H2 = np.array([])
@@ -290,6 +365,11 @@ def rot_best(pt1, pt2, n=4):
     d0 = dist2(pt1.T)
     d2 = dist2(pt2.T)
     
+    # l = pt1.shape[1]
+    # d = np.zeros((l,l, 3))
+    # d[:, :, 0] = dist2(pt1.T)
+    # d[:, :, 2] = dist2(pt2.T)    
+    
     sum_best = -np.inf
     R_best = np.eye(3)
     
@@ -301,6 +381,11 @@ def rot_best(pt1, pt2, n=4):
                 
         in_middle = (np.sign(d0 - d1) * np.sign(d1 - d2)) > 0
         sum_k = np.sum(in_middle)        
+        
+        # d[:, :, 1] = dist2(ptm.T)
+        # 
+        # k = np.argsort(d, axis=2)
+        # sum_k = np.sum(k[:, :, 1] == 1)           
         
         # print(f"{i} {sum_k}")
         
@@ -432,13 +517,13 @@ def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **du
     pt1 = np.vstack((pt1.T, np.ones((1, n))))
     pt2 = np.vstack((pt2.T, np.ones((1, n))))
 
-    pt1_ = np.dot(H1_pre, pt1)
-    pt1_ = pt1_ / pt1_[2, :]
+    # pt1_ = np.dot(H1_pre, pt1)
+    # pt1_ = pt1_ / pt1_[2, :]
 
-    pt2_ = np.dot(H2_pre, pt2)
-    pt2_ = pt2_ / pt2_[2, :]
+    # pt2_ = np.dot(H2_pre, pt2)
+    # pt2_ = pt2_ / pt2_[2, :]
 
-    ptm = (pt1_ + pt2_) / 2
+    # ptm = (pt1_ + pt2_) / 2
 
     err = np.zeros((n,l))
 
@@ -447,7 +532,8 @@ def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **du
         H2 = Hdata[i][1]
         sidx = Hdata[i][3]
 
-        err[:, i] = np.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
+        # err[:, i] = np.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
+        err[:, i] = get_error_fast(pt1, pt2, H1, H2, sidx)
 
     # min error
     abs_err_min_val = np.min(err, axis=1)
@@ -476,7 +562,7 @@ def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **du
 
     # remove match with no cluster
     alone_idx = np.sum(inl_mask, axis=1)==0
-    really_alone_idx = alone_idx & (abs_err_min_val > err_th**2)
+    really_alone_idx = alone_idx & (abs_err_min_val > 4 * (err_th**2))
 
     err_min_idx[alone_idx] = abs_err_min_idx[alone_idx]
     err_min_idx[really_alone_idx] = -1
@@ -491,13 +577,13 @@ def cluster_assign_other(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15, **dumm
     pt1 = np.vstack((pt1.T, np.ones((1, n))))
     pt2 = np.vstack((pt2.T, np.ones((1, n))))
 
-    pt1_ = np.dot(H1_pre, pt1)
-    pt1_ = pt1_ / pt1_[2, :]
+    # pt1_ = np.dot(H1_pre, pt1)
+    # pt1_ = pt1_ / pt1_[2, :]
 
-    pt2_ = np.dot(H2_pre, pt2)
-    pt2_ = pt2_ / pt2_[2, :]
+    # pt2_ = np.dot(H2_pre, pt2)
+    # pt2_ = pt2_ / pt2_[2, :]
 
-    ptm = (pt1_ + pt2_) / 2
+    # ptm = (pt1_ + pt2_) / 2
 
     err = np.zeros((n,l))
 
@@ -506,17 +592,18 @@ def cluster_assign_other(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15, **dumm
         H2 = Hdata[i][1]
         sidx = Hdata[i][3]
 
-        err[:, i] = np.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
+        # err[:, i] = np.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
+        err[:, i] = get_error_fast(pt1, pt2, H1, H2, sidx)
 
     err_min_idx = np.argmin(err, axis=1)
     err_min_val = err.flatten()[np.ravel_multi_index([np.arange(n), err_min_idx], err.shape)]
 
-    err_min_idx[(err_min_val > err_th_only**2) | np.isnan(err_min_val)] = -1
+    err_min_idx[(err_min_val > 4 * (err_th_only**2)) | np.isnan(err_min_val)] = -1
 
     return err_min_idx
 
 
-def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho_buffered_rot.pdf', fig_dpi=300,
+def show_fig(im1, im2, pt1, pt2, Hdata, Hidx, tosave='miho.pdf', fig_dpi=300,
              colors = ['#FF1F5B', '#00CD6C', '#009ADE', '#AF58BA', '#FFC61E', '#F28522'],
              markers = ['o','x','8','p','h'], bad_marker = 'd', bad_color = '#000000',
              plot_opt = {'markersize': 2, 'markeredgewidth': 0.5,
@@ -658,7 +745,7 @@ class miho:
         go_assign_params = {'method': cluster_assign,
                             'method_args': method_args_params}
 
-        show_clustering_params = {'tosave': 'miho_buffered_rot.pdf', 'fig_dpi': 300,
+        show_clustering_params = {'tosave': 'miho.pdf', 'fig_dpi': 300,
              'colors': ['#FF1F5B', '#00CD6C', '#009ADE', '#AF58BA', '#FFC61E', '#F28522'],
              'markers': ['o','x','8','p','h'], 'bad_marker': 'd', 'bad_color': '#000000',
              'plot_opt': {'markersize': 2, 'markeredgewidth': 0.5,
