@@ -281,37 +281,29 @@ def rot_best(pt1, pt2, n=4):
     pt1 = pt1[:2, :]
     pt2 = pt2[:2, :]
 
-    a = 2 * np.pi / n
-    R = torch.tensor([[np.cos(a), -np.sin(a)], [np.sin(a), np.cos(a)]], dtype=torch.float).to(device)
-    
-    M = torch.eye(2).to(device)
-    
     d0 = dist2(pt1.t())
     d2 = dist2(pt2.t())
+
+    a = torch.arange(n) * 2 * np.pi / n
+    R = torch.stack((torch.stack((torch.cos(a), -torch.sin(a)), dim=1), torch.stack((torch.sin(a), torch.cos(a)), dim=1)), dim=1).to(device)    
+
+    pt2_ = torch.matmul(R, pt2)
+    # ptm = (pt1[None, :] + pt2_) / 2
+    ptm = (pt1.unsqueeze(0) + pt2_) / 2
+
+    d1 = dist2_batch(ptm.permute(0,2,1))
     
-    sum_best = float("-inf")
-    # R_best = torch.eye(3)
+    # in_middle = (torch.sign(d0[None, :, :] - d1) * torch.sign(d1 - d2[None, :, :])) > 0    
+    in_middle = (torch.sign(d0.unsqueeze(0) - d1) * torch.sign(d1 - d2.unsqueeze(0))) > 0    
 
-    for i in range(n):        
-        pt2_ = torch.matmul(M, pt2)
-        ptm = (pt1 + pt2_) / 2
+    sum_all_k = torch.sum(in_middle,(1, 2))    
+    # print(sum_all_k)
     
-        d1 = dist2(ptm.t())
-                        
-        in_middle = (torch.sign(d0 - d1) * torch.sign(d1 - d2)) > 0
-        sum_k = torch.sum(in_middle).item()
-
-        # print(f"{i} {sum_k}")
-
-        if sum_k > sum_best:
-            sum_best = sum_k
-            R_best = M
-        
-        M = torch.matmul(R, M)
-        
+    best_i = torch.argmax(sum_all_k)
+    
     aux = torch.eye(3).to(device)
-    aux[:2, :2] = R_best
-    
+    aux[:2, :2] = R[best_i, :, :]
+               
     end = time.time()
     print("Elapsed rot_best time = %s" % (end - start))    
     
@@ -401,6 +393,13 @@ def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
         Hdata.append([torch.matmul(H1_, H1), torch.matmul(H2_, H2), idx, sidx_])
 
     return Hdata, H1, H2
+
+
+def dist2_batch(pt):
+    pt = pt.type(torch.float32)
+    d = (pt.unsqueeze(-1)[:, :, 0, :] - pt.unsqueeze(1)[:, :, :, 0])**2 + (pt.unsqueeze(-1)[:, :, 1, :] - pt.unsqueeze(1)[:, :, :, 1])**2
+    # d = (pt[:, :, 0, None] - pt[:, None, :, 0])**2 + (pt[:, :, 1, None] - pt[:, None, :, 1])**2
+    return d
 
 
 def dist2(pt):
