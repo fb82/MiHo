@@ -63,6 +63,16 @@ def compute_homography(pts1, pts2):
     return H, D
 
 
+def sampler(n,k,m):
+    p = np.floor(np.random.rand(m,k) * np.arange(n,n-k,-1)[np.newaxis, :]).astype(int)  
+    for i in range(1,k):
+        p[:, 0:i] = np.sort(p[:, 0:i])
+        for j in range(i):
+            p[:,i] = p[:,i] + (p[:,i] >= p[:,j])
+
+    return p
+    
+
 def get_inliers(pt1, pt2, H, ths, sidx):
 
     l = pt1.shape[1]
@@ -698,6 +708,20 @@ class miho:
 
 
 if __name__ == '__main__':
+
+    # start = time.time()
+    # for t in range(500):
+    #     sampler(8000,4,50)        
+    # end = time.time()
+    # print("Elapsed = %s" % (end - start))
+
+    # start = time.time()
+    # for t in range(500):
+    #     tmp = np.zeros((50,4)).astype(int)
+    #     for i in range(50):
+    #         tmp[i,:] = np.random.choice(8000, size=4, replace=False)         
+    # end = time.time()
+    # print("Elapsed = %s" % (end - start))
 
     img1 = 'data/im1.png'
     img2 = 'data/im2_rot.png'
