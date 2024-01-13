@@ -5,118 +5,6 @@ import time
 import scipy.io as sio
 import warnings
 
-
-def compute_homography_duplex(pts1, pts2, ptsm):
-
-    def data_normalize_redux(pts):
-    
-        c = np.mean(pts, axis=1)
-        s = np.sqrt(2) / (np.mean(np.sqrt((pts[0, :] - c[0])**2 + (pts[1, :] - c[1])**2)) +
-                          np.finfo(float).eps)    
-        return c, s
-
-    c1, s1 = data_normalize_redux(pts1)
-    c2, s2 = data_normalize_redux(pts2)
-    cm, sm = data_normalize_redux(ptsm)
-
-    p1x = s1 * (pts1[0, :] - c1[0])
-    p1y = s1 * (pts1[1, :] - c1[1])
-
-    p2x = s2 * (pts2[0, :] - c2[0])
-    p2y = s2 * (pts2[1, :] - c2[1])
-
-    pmx = sm * (ptsm[0, :] - cm[0])
-    pmy = sm * (ptsm[1, :] - cm[1])
-
-    l = p1x.shape[0]
-
-    A1 = np.zeros((l*3,9))
-    A1[:l, 3] = -p1x
-    A1[:l, 4] = -p1y
-    A1[:l, 5] = -1
-
-    A1[:l, 6] = np.multiply(pmy, p1x)
-    A1[:l, 7] = np.multiply(pmy, p1y)
-    A1[:l, 8] = pmy
-
-    A1[l:2*l, 0] = p1x
-    A1[l:2*l, 1] = p1y
-    A1[l:2*l, 2] = 1
-
-    A1[l:2*l, 6] = -np.multiply(pmx, p1x)
-    A1[l:2*l, 7] = -np.multiply(pmx, p1y)
-    A1[l:2*l, 8] = -pmx
-
-    A1[2*l:, 0] = -np.multiply(pmy, p1x)
-    A1[2*l:, 1] = -np.multiply(pmy, p1y)
-    A1[2*l:, 2] = -pmy
-
-    A1[2*l:, 3] = np.multiply(pmx, p1x)
-    A1[2*l:, 4] = np.multiply(pmx, p1y)
-    A1[2*l:, 5] = pmx
-
-
-    A2 = np.zeros((l*3,9))
-    A2[:l, 3] = -p2x
-    A2[:l, 4] = -p2y
-    A2[:l, 5] = -1
-
-    A2[:l, 6] = np.multiply(pmy, p2x)
-    A2[:l, 7] = np.multiply(pmy, p2y)
-    A2[:l, 8] = pmy
-
-    A2[l:2*l, 0] = p2x
-    A2[l:2*l, 1] = p2y
-    A2[l:2*l, 2] = 1
-
-    A2[l:2*l, 6] = -np.multiply(pmx, p2x)
-    A2[l:2*l, 7] = -np.multiply(pmx, p2y)
-    A2[l:2*l, 8] = -pmx
-
-    A2[2*l:, 0] = -np.multiply(pmy, p2x)
-    A2[2*l:, 1] = -np.multiply(pmy, p2y)
-    A2[2*l:, 2] = -pmy
-
-    A2[2*l:, 3] = np.multiply(pmx, p2x)
-    A2[2*l:, 4] = np.multiply(pmx, p2y)
-    A2[2*l:, 5] = pmx
-
-    try:
-        _, D1, V1 = np.linalg.svd(A1, full_matrices=True)
-        H1 = V1[-1, :].reshape(3, 3).T
-        
-        _, D2, V2 = np.linalg.svd(A2, full_matrices=True)
-        H2 = V2[-1, :].reshape(3, 3).T
-
-        T1 = np.array([
-            [s1, 0, -c1[0] * s1],
-            [0, s1, -c1[1] * s1],
-            [0, 0, 1]
-        ])
-    
-        T2 = np.array([
-            [s2, 0, -c2[0] * s2],
-            [0, s2, -c2[1] * s2],
-            [0, 0, 1]
-        ])
-    
-        Tm_inv = np.array([
-            [1/sm, 0, cm[0]],
-            [0, 1/sm, cm[1]],
-            [0, 0, 1]
-        ])
-        
-        H1 = Tm_inv @ H1 @ T1
-        H2 = Tm_inv @ H2 @ T2        
-        D = np.maximum(D1, D2)
-    except:
-        H1 = None
-        H2 = None
-        D = np.zeros(9)
-
-    return H1, H2, D
-
-
 def data_normalize(pts):
 
     c = np.mean(pts, axis=1)
@@ -286,51 +174,64 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
 
     sn = ssidx.shape[1]
     sidx_ = np.zeros((4,), dtype=int)
+
     ssidx_count = np.sum(ssidx, axis=0)
+    sidx_table = np.zeros((0,4), dtype='int')
+    sidx_table_n = 0
+    sampler_i = 0
+    
+    # print("start")
 
     for c in range(1, max_iter):
+        
+        prev_check = (c < sn) and  (ssidx_count[c] > 4)
+
+        if prev_check:
+            c_n = ssidx_count[c]
+        else:
+            c_n = n
 
         good_sample = False
-        prev_check = (c < sn) and (ssidx_count[c] > 4)
-        
-        for i in range(min_iter):
+        for i in range(min_iter): 
+ 
+            if (sidx_table_n != c_n) or (sampler_i >= sidx_table.shape[0]):                                
+                sidx_table = sampler(c_n, 4, min_iter)
+                sampler_i = 0
+                sidx_table_n = c_n
+                
+                # print(f"{c_n} {sidx_table.shape[0]}")
+                                
             if prev_check:
                 aux = np.argwhere(ssidx[:, c])
-                aux_idx = np.random.choice(ssidx_count[c], size=4, replace=False)
-                sidx = np.squeeze(aux[aux_idx])
+                sidx = np.squeeze(aux[sidx_table[sampler_i]])
             else:
-                sidx = np.random.choice(n, size=4, replace=False)
-
+                sidx = sidx_table[sampler_i]
+                
+            sampler_i += 1
+                            
             if np.all(np.sum(dd[sidx, :][:, sidx], axis=0) >= 3):
                 good_sample = True
                 break
-
+                        
         if not good_sample:
             if prev_check:
                 continue
             else:
                 break
-            
-        H1, H2, eD = compute_homography_duplex(pt1[:, sidx], pt2[:, sidx], ptm[:, sidx])
+
+        H1, eD = compute_homography(pt1[:, sidx], ptm[:, sidx])
         if eD[-2] < svd_th:
             if (c > Nc) and (c > min_iter):
                 break
             else:
                 continue
-            
-        # H1, eD = compute_homography(pt1[:, sidx], ptm[:, sidx])
-        # if eD[-2] < svd_th:
-        #     if (c > Nc) and (c > min_iter):
-        #         break
-        #     else:
-        #         continue
-        #
-        # H2, eD = compute_homography(pt2[:, sidx], ptm[:, sidx])
-        # if eD[-2] < svd_th:
-        #     if (c > Nc) and (c > min_iter):
-        #         break
-        #     else:
-        #         continue
+
+        H2, eD = compute_homography(pt2[:, sidx], ptm[:, sidx])
+        if eD[-2] < svd_th:
+            if (c > Nc) and (c > min_iter):
+                break
+            else:
+                continue
 
         nidx = get_inliers(pt1, ptm, H1, th_out, sidx) * get_inliers(pt2, ptm, H2, th_out, sidx)
 
@@ -378,10 +279,8 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
 
     if sum_midx >= 4:
         bidx = midx[:, 0]
-        H1, H2, _ = compute_homography_duplex(pt1[:, bidx], pt2[:, bidx], ptm[:, bidx])
-
-        # H1, _ = compute_homography(pt1[:, bidx], ptm[:, bidx])
-        # H2, _ = compute_homography(pt2[:, bidx], ptm[:, bidx])
+        H1, _ = compute_homography(pt1[:, bidx], ptm[:, bidx])
+        H2, _ = compute_homography(pt2[:, bidx], ptm[:, bidx])
 
         inl1 = get_inliers(pt1, ptm, H1, [th_in, th_out], sidx_)
         inl2 = get_inliers(pt2, ptm, H2, [th_in, th_out], sidx_)
@@ -834,16 +733,16 @@ class miho:
 if __name__ == '__main__':
 
     # start = time.time()
-    # for t in range(1000):
+    # for t in range(500):
     #     sampler(8000,4,50)        
     # end = time.time()
     # print("Elapsed = %s" % (end - start))
 
     # start = time.time()
-    # for t in range(1000):
+    # for t in range(500):
     #     tmp = np.zeros((50,4)).astype(int)
     #     for i in range(50):
-    #         tmp[i] = np.random.choice(8000, size=4, replace=False)         
+    #         tmp[i,:] = np.random.choice(8000, size=4, replace=False)         
     # end = time.time()
     # print("Elapsed = %s" % (end - start))
 

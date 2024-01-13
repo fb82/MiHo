@@ -8,6 +8,171 @@ import torch
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+
+def get_inlier_duplex(H12, pt1, pt2, ptm, sidx_par, th):
+    l2 = sidx_par.size()[0]        
+    n = pt1.size()[1]
+    
+    ptm_reproj = torch.cat((torch.matmul(H12[:l2], pt1.unsqueeze(0)), torch.matmul(H12[l2:], pt2.unsqueeze(0))), dim=0)
+    sign_ptm = torch.sign(ptm_reproj[:, 2, :])
+
+    pt12_reproj = torch.linalg.solve(H12, ptm.unsqueeze(0))
+    sign_pt12 = torch.sign(pt12_reproj[:, 2, :])
+
+    idx_aux = torch.arange(l2*2, device=device).unsqueeze(1)*n + sidx_par.repeat(2,1)
+
+    sa = sign_ptm.flatten()[idx_aux.flatten()].reshape(idx_aux.size())
+    sb = sign_pt12.flatten()[idx_aux.flatten()].reshape(idx_aux.size())
+    
+    ssa = torch.all(sa[:, 0].unsqueeze(1) == sa, dim=1)
+    ssb = torch.all(sb[:, 0].unsqueeze(1) == sb, dim=1)
+
+    ssa_ = sa[:, 0].unsqueeze(1) == sign_ptm
+    ssb_ = sb[:, 0].unsqueeze(1) == sign_pt12
+
+    mask = torch.logical_and(torch.logical_and(ssa_, ssb_), torch.logical_and(ssa, ssb).unsqueeze(1))
+    
+    err_m = ptm_reproj[:, :2] / ptm_reproj[:, 2].unsqueeze(1) - ptm[:2].unsqueeze(0)
+    err_12 = torch.cat((pt12_reproj[:l2, :2] / pt12_reproj[:l2, 2].unsqueeze(1) - pt1[:2].unsqueeze(0), pt12_reproj[l2:, :2] / pt12_reproj[l2:, 2].unsqueeze(1) - pt2[:2].unsqueeze(0)), dim=0)
+
+    err = torch.maximum(torch.sum(err_m ** 2, dim=1), torch.sum(err_12 ** 2, dim=1))
+    err[~torch.isfinite(err)] = float('inf')
+    err_ = err.unsqueeze(0) < th
+
+    final_mask = torch.logical_and(mask.unsqueeze(0), err_)
+    return torch.logical_and(final_mask[:, :l2], final_mask[:, l2:]).squeeze()
+
+
+def compute_homography_duplex(pt1, pt2, ptm, sidx_par):
+    
+    if sidx_par.dtype != torch.bool:
+        l0 = sidx_par.size()[0]
+        l1 = sidx_par.size()[1]
+        
+        pt1_par = pt1[:, sidx_par.flatten()].reshape(3, l0, l1).permute(1, 0, 2)
+        pt2_par = pt2[:, sidx_par.flatten()].reshape(3, l0, l1).permute(1, 0, 2)
+        ptm_par = ptm[:, sidx_par.flatten()].reshape(3, l0, l1).permute(1, 0, 2)
+    else:
+        l0 = 1
+        l1 = sidx_par.sum()
+        
+        pt1_par = pt1[:, sidx_par].reshape(3, l0, l1).permute(1, 0, 2)
+        pt2_par = pt2[:, sidx_par].reshape(3, l0, l1).permute(1, 0, 2)
+        ptm_par = ptm[:, sidx_par].reshape(3, l0, l1).permute(1, 0, 2)
+        
+
+    c1 = torch.mean(pt1_par[:, :2], dim=2)
+    c2 = torch.mean(pt2_par[:, :2], dim=2)
+    cm = torch.mean(ptm_par[:, :2], dim=2)
+
+    norm_diff_1 = torch.sqrt(torch.sum((pt1_par[:, :2] - c1.unsqueeze(2))**2, dim=1))
+    norm_diff_2 = torch.sqrt(torch.sum((pt2_par[:, :2] - c2.unsqueeze(2))**2, dim=1))
+    norm_diff_m = torch.sqrt(torch.sum((ptm_par[:, :2] - cm.unsqueeze(2))**2, dim=1))
+
+    s1 = np.sqrt(2) / (torch.mean(norm_diff_1, dim=1) + torch.finfo(torch.float32).eps)
+    s2 = np.sqrt(2) / (torch.mean(norm_diff_2, dim=1) + torch.finfo(torch.float32).eps)
+    sm = np.sqrt(2) / (torch.mean(norm_diff_m, dim=1) + torch.finfo(torch.float32).eps)
+
+    T12 = torch.zeros((l0*2, 3, 3), dtype=torch.float32, device=device)
+    T12[:l0, 0, 0] = s1
+    T12[:l0, 1, 1] = s1        
+    T12[:l0, 2, 2] = 1
+    T12[:l0, 0, 2] = -c1[:, 0] * s1
+    T12[:l0, 1, 2] = -c1[:, 1] * s1
+
+    T12[l0:, 0, 0] = s2
+    T12[l0:, 1, 1] = s2
+    T12[l0:, 2, 2] = 1
+    T12[l0:, 0, 2] = -c2[:, 0] * s2
+    T12[l0:, 1, 2] = -c2[:, 1] * s2
+
+    Tm = torch.zeros((l0*2, 3, 3), dtype=torch.float32, device=device)
+    Tm[l0:, 0, 0] = 1/sm
+    Tm[l0:, 1, 1] = 1/sm
+    Tm[l0:, 2, 2] = 1
+    Tm[l0:, 0, 2] = cm[:, 0]
+    Tm[l0:, 1, 2] = cm[:, 1]
+
+    Tm[:l0, 0, 0] = 1/sm
+    Tm[:l0, 1, 1] = 1/sm
+    Tm[:l0, 2, 2] = 1
+    Tm[:l0, 0, 2] = cm[:, 0]
+    Tm[:l0, 1, 2] = cm[:, 1]
+
+
+    p1x = s1.unsqueeze(1) * (pt1_par[:,0] - c1[:,0].unsqueeze(1))
+    p1y = s1.unsqueeze(1) * (pt1_par[:,1] - c1[:,1].unsqueeze(1))
+
+    p2x = s2.unsqueeze(1) * (pt2_par[:,0] - c2[:,0].unsqueeze(1))
+    p2y = s2.unsqueeze(1) * (pt2_par[:,1] - c2[:,1].unsqueeze(1))
+
+    pmx = sm.unsqueeze(1) * (ptm_par[:,0] - cm[:,0].unsqueeze(1))
+    pmy = sm.unsqueeze(1) * (ptm_par[:,1] - cm[:,1].unsqueeze(1))
+
+
+    A = torch.zeros((l0*2, l1*3, 9), dtype=torch.float32, device=device)
+
+
+    A[:l0, :l1, 3] = -p1x
+    A[:l0, :l1, 4] = -p1y
+    A[:l0, :l1, 5] = -1
+
+    A[:l0, :l1, 6] = torch.mul(pmy, p1x)
+    A[:l0, :l1, 7] = torch.mul(pmy, p1y)
+    A[:l0, :l1, 8] = pmy
+
+    A[:l0, l1:2*l1, 0] = p1x
+    A[:l0, l1:2*l1, 1] = p1y
+    A[:l0, l1:2*l1, 2] = 1
+
+    A[:l0, l1:2*l1, 6] = -torch.mul(pmx, p1x)
+    A[:l0, l1:2*l1, 7] = -torch.mul(pmx, p1y)
+    A[:l0, l1:2*l1, 8] = -pmx
+
+    A[:l0, 2*l1:, 0] = -torch.mul(pmy, p1x)
+    A[:l0, 2*l1:, 1] = -torch.mul(pmy, p1y)
+    A[:l0, 2*l1:, 2] = -pmy
+
+    A[:l0, 2*l1:, 3] = torch.mul(pmx, p1x)
+    A[:l0, 2*l1:, 4] = torch.mul(pmx, p1y)
+    A[:l0, 2*l1:, 5] = pmx
+
+
+    A[l0:, :l1, 3] = -p2x
+    A[l0:, :l1, 4] = -p2y
+    A[l0:, :l1, 5] = -1
+
+    A[l0:, :l1, 6] = torch.mul(pmy, p2x)
+    A[l0:, :l1, 7] = torch.mul(pmy, p2y)
+    A[l0:, :l1, 8] = pmy
+
+    A[l0:, l1:2*l1, 0] = p2x
+    A[l0:, l1:2*l1, 1] = p2y
+    A[l0:, l1:2*l1, 2] = 1
+
+    A[l0:, l1:2*l1, 6] = -torch.mul(pmx, p2x)
+    A[l0:, l1:2*l1, 7] = -torch.mul(pmx, p2y)
+    A[l0:, l1:2*l1, 8] = -pmx
+
+    A[l0:, 2*l1:, 0] = -torch.mul(pmy, p2x)
+    A[l0:, 2*l1:, 1] = -torch.mul(pmy, p2y)
+    A[l0:, 2*l1:, 2] = -pmy
+
+    A[l0:, 2*l1:, 3] = torch.mul(pmx, p2x)
+    A[l0:, 2*l1:, 4] = torch.mul(pmx, p2y)
+    A[l0:, 2*l1:, 5] = pmx
+
+
+    _, D, V = torch.linalg.svd(A, full_matrices=True)
+    H12 = V[:, -1, :].reshape(l0*2, 3, 3).permute(0,2,1)
+    H12 = torch.matmul(torch.matmul(Tm, H12), T12)
+
+    # H12 = H12.reshape(2, l0 ,3, 3)
+    sv = torch.amax(D[:, -2].reshape(2, l0), dim=0)
+    
+    return H12, sv
+
+
 def data_normalize(pts):
     c = torch.mean(pts, dim=1)
     norm_diff = torch.sqrt((pts[0, :] - c[0])**2 + (pts[1, :] - c[1])**2)
@@ -17,7 +182,7 @@ def data_normalize(pts):
         [s, 0, -c[0] * s],
         [0, s, -c[1] * s],
         [0, 0, 1]
-    ], dtype=torch.float32)
+    ], dtype=torch.float32, device=device)
 
     return T
 
@@ -29,14 +194,14 @@ def steps(pps, inl, p):
 
 
 def compute_homography(pts1, pts2):
-    T1 = data_normalize(pts1).to(device)
-    T2 = data_normalize(pts2).to(device)
+    T1 = data_normalize(pts1)
+    T2 = data_normalize(pts2)
 
     npts1 = torch.matmul(T1, pts1)
     npts2 = torch.matmul(T2, pts2)
 
     l = npts1.shape[1]
-    A = torch.zeros((l*3, 9), dtype=torch.float32).to(device)
+    A = torch.zeros((l*3, 9), dtype=torch.float32, device=device)
     A[:l, 3:6] = -torch.mul(torch.tile(npts2[2, :], (3, 1)).t(), npts1.t())
     A[:l, 6:] = torch.mul(torch.tile(npts2[1, :], (3, 1)).t(), npts1.t())
     A[l:2*l, :3] = torch.mul(torch.tile(npts2[2, :], (3, 1)).t(), npts1.t())
@@ -68,7 +233,7 @@ def get_inliers(pt1, pt2, H, ths, sidx):
     s2 = s2_[sidx[0]]
 
     if not torch.all(s2_[sidx] == s2):
-        nidx = torch.zeros((m, l), dtype=torch.bool).to(device)
+        nidx = torch.zeros((m, l), dtype=torch.bool, device=device)
         if not isinstance(ths, list):
             nidx = nidx[0]
         return nidx
@@ -81,7 +246,7 @@ def get_inliers(pt1, pt2, H, ths, sidx):
     s1 = s1_[sidx[0]]
 
     if not torch.all(s1_[sidx] == s1):
-        nidx = torch.zeros((m, l), dtype=torch.bool).to(device)
+        nidx = torch.zeros((m, l), dtype=torch.bool, device=device)
         if not isinstance(ths, list):
             nidx = nidx[0]
         return nidx
@@ -92,7 +257,7 @@ def get_inliers(pt1, pt2, H, ths, sidx):
     err = torch.maximum(err1, err2)
     err[~torch.isfinite(err)] = float('inf')
 
-    nidx = torch.zeros((m, l), dtype=torch.bool).to(device)
+    nidx = torch.zeros((m, l), dtype=torch.bool, device=device)
     for i in range(m):
         nidx[i, :] = torch.all(torch.stack((err < ths_[i], s2_ == s2, s1_ == s1)), dim=0)
 
@@ -132,7 +297,6 @@ def get_error(pt1, pt2, H, sidx):
 
 
 def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None):
-
     n = pt1.shape[1]
 
     th_in = th_in ** 2
@@ -140,133 +304,170 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
 
     ptm = (pt1 + pt2) / 2
 
+    th = torch.tensor(th_out, device=device).reshape(1,1,1)
+    ths = torch.tensor([th_in, th_out], device=device).reshape(2,1,1)
+
     if n < 4:
-        H1 = torch.tensor([]).to(device)
-        H2 = torch.tensor([]).to(device)
-        iidx = torch.zeros(n, dtype=torch.bool).to(device)
-        oidx = torch.zeros(n, dtype=torch.bool).to(device)
-        vidx = torch.zeros((n, 0), dtype=torch.bool).to(device)
-        sidx_ = torch.zeros((4,), dtype=torch.int32).to(device)
+        H1 = torch.tensor([], device=device)
+        H2 = torch.tensor([], device=device)
+        iidx = torch.zeros(n, dtype=torch.bool, device=device)
+        oidx = torch.zeros(n, dtype=torch.bool, device=device)
+        vidx = torch.zeros((n, 0), dtype=torch.bool, device=device)
+        sidx_ = torch.zeros((4,), dtype=torch.int32, device=device)
         return H1, H2, iidx, oidx, vidx, sidx_
     
     min_iter = min(min_iter, n*(n-1)*(n-2)*(n-3) / 12)
 
-    vidx = torch.zeros((n, buffers), dtype=torch.bool).to(device)
-    midx = torch.zeros((n, buffers+1), dtype=torch.bool).to(device)
+    vidx = torch.zeros((n, buffers), dtype=torch.bool, device=device)
+    midx = torch.zeros((n, buffers+1), dtype=torch.bool, device=device)
 
     sum_midx = 0
     Nc = float('inf')
     min_th_stats = 3
 
     sn = ssidx.shape[1]
-    sidx_ = torch.zeros((4,), dtype=torch.long).to(device)
+    sidx_ = torch.zeros((4,), dtype=torch.long, device=device)
+    
+    ssidx_sz = torch.sum(ssidx, dim=0)
 
-    for c in range(1, max_iter):
+    par_run = 50000 // n
 
-        good_sample = False
-        for i in range(min_iter):
-            if c < sn:
-                aux = torch.nonzero(ssidx[:, c]).squeeze(1)
-                if aux.shape[0] > 4:
-                    aux_idx = torch.randperm(aux.shape[0])[:4]
-                    sidx = aux[aux_idx].to(device)
-                else:
-                    sidx = torch.randperm(n)[:4].to(device)
+    c = 0
+    while c < max_iter:
+        c_par = torch.arange(c, min(max_iter, c + par_run), device=device)
+        c_par_sz = c_par.size()[0]
+
+        n_par = torch.full((c_par_sz,), n, dtype=torch.int, device=device)
+        for i in range(c_par_sz):
+            if (c_par[i] < sn):
+                if ssidx_sz[c_par[i]] > 4:
+                    n_par[i] = ssidx_sz[c_par[i]]
             else:
-                sidx = torch.randperm(n)[:4].to(device)
+                break
+        n_par = n_par.repeat(min_iter)
 
-            if torch.all(torch.sum(dd[sidx][:, sidx], dim=0) >= 3):
-            # if torch.sum(torch.sum(dd[sidx, :][:, sidx], axis=0) >= 3) == 4:
-                good_sample = True
+        sidx = (torch.rand((min_iter * c_par_sz, 4), device=device) * torch.stack((n_par, n_par-1, n_par-2, n_par-3)).permute(1,0)).type(torch.int)  
+        for k in range(1,4):
+            sidx[:, 0:k] = torch.sort(sidx[:, 0:k])[0]
+            for kk in range(k):
+                sidx[:, k] = sidx[:, k] + (sidx[:, k] >= sidx[:, kk])
+        sidx = sidx.reshape(min_iter, c_par_sz, 4)
+
+        for i in range(c_par_sz):
+            if (c_par[i] < sn):
+                if ssidx_sz[c_par[i]] > 4:
+                    aux = sidx[:, c_par[i]].flatten()
+                    tmp = torch.nonzero(ssidx[:, c_par[i]]).squeeze()
+                    aux = tmp[aux]
+                    sidx[:, c_par[i]] = aux.reshape(min_iter, 4)                
+            else:
                 break
 
-        if not good_sample:
-            break
+        dd_check = dd.flatten()[sidx.repeat((1,1,4)).flatten() * dd.size()[0] + sidx.repeat_interleave(4, dim=2).flatten()].reshape(min_iter, c_par_sz, -1)
+        dd_good = torch.sum(dd_check, dim=-1) >= 12
 
-        H1, eD = compute_homography(pt1[:, sidx], ptm[:, sidx])
-        if eD[-2] < svd_th:
-            if c > Nc and c > min_iter:
+        good_sample_par = torch.zeros(c_par_sz, dtype=torch.bool, device=device)
+        sidx_par = torch.zeros((c_par_sz, 4), dtype=torch.int, device=device)
+                
+        for i in range(c_par_sz):
+            for j in range(min_iter):
+                if dd_good[j, i]:
+                    good_sample_par[i] = True
+                    sidx_par[i, :] = sidx[j, i, :]
+                    break
+
+        sidx_par = sidx_par[good_sample_par]
+        c_par = c_par[good_sample_par]             
+        
+        H12, sv = compute_homography_duplex(pt1, pt2, ptm, sidx_par)
+        good_H = sv > svd_th
+
+        H12 = H12[good_H.repeat(2)]            
+        sidx_par = sidx_par[good_H]
+        c_par = c_par[good_H]
+        
+        if not c_par.size()[0]:
+            if (c + par_run > Nc) and (c + par_run > min_iter):
                 break
             else:
                 continue
+                
+        nidx_par = get_inlier_duplex(H12, pt1, pt2, ptm, sidx_par, th)                        
+        sum_nidx_par = nidx_par.sum(dim=1)
+        l2 = sidx_par.size()[0]
 
-        # Compute H2
-        H2, eD = compute_homography(pt2[:, sidx], ptm[:, sidx])
-        if eD[-2] < svd_th:
-            if c > Nc and c > min_iter:
-                break
-            else:
-                continue
+        for i in range(l2):
+            sum_nidx = sum_nidx_par[i]
 
-        nidx = torch.mul(get_inliers(pt1, ptm, H1, th_out, sidx), get_inliers(pt2, ptm, H2, th_out, sidx))
+            nidx = nidx_par[i]
+            
+            sidx_i = sidx_par[i]
 
-        updated_model = False
+            H1 = H12[i]
+            H2 = H12[i + l2]
 
-        midx[:, -1] = nidx
-        sum_nidx = torch.sum(nidx)
-
-        if sum_nidx > min_th_stats:
-
-            idxs = torch.arange(buffers+1)
-            q = torch.tensor(n+1)
-
-            for t in range(buffers):
-                uidx = ~torch.any(midx[:, idxs[:t]], dim=1).unsqueeze(1)
-
-                tsum = uidx & midx[:, idxs[t:]]
-                ssum = torch.sum(tsum, dim=0)
-                vidx[:, t] = tsum[:, torch.argmax(ssum)]
-
-                tt = torch.argmax((ssum[-1] > ssum[:-1]).to(torch.long))
-                if ssum[-1] > ssum[tt]:
-                    aux = idxs[-1].clone()
-                    idxs[-1] = idxs[t+tt].clone()
-                    idxs[t+tt] = aux
-                    if t == 0 and tt == 0:
-                        sidx_ = sidx
-
-                q = torch.minimum(q, torch.max(ssum))
-
-            min_th_stats = torch.maximum(torch.tensor(4), q)
-
-            updated_model = idxs[0] != 0
-            midx = midx[:, idxs]
-
-        if updated_model:
-            sum_midx = torch.sum(midx[:, 0])
-            best_model = [H1, H2]
-            Nc = steps(4, sum_midx / n, p)
-
-        if c > Nc and c > min_iter:
+            updated_model = False
+    
+            midx[:, -1] = nidx
+    
+            if sum_nidx > min_th_stats:
+    
+                idxs = torch.arange(buffers+1)
+                q = torch.tensor(n+1)
+    
+                for t in range(buffers):
+                    uidx = ~torch.any(midx[:, idxs[:t]], dim=1).unsqueeze(1)
+    
+                    tsum = uidx & midx[:, idxs[t:]]
+                    ssum = torch.sum(tsum, dim=0)
+                    vidx[:, t] = tsum[:, torch.argmax(ssum)]
+    
+                    tt = torch.argmax((ssum[-1] > ssum[:-1]).to(torch.long))
+                    if ssum[-1] > ssum[tt]:
+                        aux = idxs[-1].clone()
+                        idxs[-1] = idxs[t+tt].clone()
+                        idxs[t+tt] = aux
+                        if t == 0 and tt == 0:
+                            sidx_ = sidx_i
+    
+                    q = torch.minimum(q, torch.max(ssum))
+    
+                min_th_stats = torch.maximum(torch.tensor(4), q)
+    
+                updated_model = idxs[0] != 0
+                midx = midx[:, idxs]
+    
+            if updated_model:
+                sum_midx = torch.sum(midx[:, 0])
+                best_model = [H1, H2]
+                Nc = steps(4, sum_midx / n, p)
+    
+        if (c + par_run > Nc) and (c + par_run > min_iter):
             break
+            
+        c += par_run
 
     vidx = vidx[:, 1:]
 
     if sum_midx >= 4:
         bidx = midx[:, 0]
-        H1, _ = compute_homography(pt1[:, bidx], ptm[:, bidx])
-        H2, _ = compute_homography(pt2[:, bidx], ptm[:, bidx])
 
-        inl1 = get_inliers(pt1, ptm, H1, [th_in, th_out], sidx_)
-        inl2 = get_inliers(pt2, ptm, H2, [th_in, th_out], sidx_)
-        iidx = inl1[0] & inl2[0]
-        oidx = inl1[1] & inl2[1]
+        H12, _ = compute_homography_duplex(pt1, pt2, ptm, bidx)
+        H1, H2 = H12
+
+        iidx, oidx = get_inlier_duplex(H12, pt1, pt2, ptm, sidx_.unsqueeze(0), ths)                        
 
         if sum_midx > torch.sum(oidx):
             H1, H2 = best_model
 
-            inl1 = get_inliers(pt1, ptm, H1, [th_in, th_out], sidx_)
-            inl2 = get_inliers(pt2, ptm, H2, [th_in, th_out], sidx_)
-            iidx = inl1[0] & inl2[0]
-            oidx = inl1[1] & inl2[1]
-
+            iidx, oidx = get_inlier_duplex(H12, pt1, pt2, ptm, sidx_.unsqueeze(0), ths)
     else:
-        H1 = torch.tensor([]).to(device)
-        H2 = torch.tensor([]).to(device)
+        H1 = torch.tensor([], device=device)
+        H2 = torch.tensor([], device=device)
 
-        iidx = torch.zeros(n, dtype=torch.bool).to(device)
-        oidx = torch.zeros(n, dtype=torch.bool).to(device)
-
+        iidx = torch.zeros(n, dtype=torch.bool, device=device)
+        oidx = torch.zeros(n, dtype=torch.bool, device=device)
+        
     return H1, H2, iidx, oidx, vidx, sidx_
 
 
@@ -318,29 +519,29 @@ def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
     if random_seed_init is not None:
         torch.manual_seed(random_seed_init)
 
-    H1 = torch.eye(3).to(device)
-    H2 = torch.eye(3).to(device)
+    H1 = torch.eye(3, device=device)
+    H2 = torch.eye(3, device=device)
 
     Hdata = []
     l = pt1.shape[0]
 
-    midx = torch.zeros(l, dtype=torch.bool).to(device)
-    tidx = torch.zeros(l, dtype=torch.bool).to(device)
+    midx = torch.zeros(l, dtype=torch.bool, device=device)
+    tidx = torch.zeros(l, dtype=torch.bool, device=device)
 
     d1 = dist2(pt1) > th_grid**2
     d2 = dist2(pt2) > th_grid**2
     dd = d1 & d2
 
-    pt1 = torch.cat((pt1.t(), torch.ones(1, l).to(device)))
-    pt2 = torch.cat((pt2.t(), torch.ones(1, l).to(device)))
+    pt1 = torch.cat((pt1.t(), torch.ones(1, l, device=device)))
+    pt2 = torch.cat((pt2.t(), torch.ones(1, l, device=device)))
 
     if rot_check > 1:
         H2 = rot_best(pt1, pt2, rot_check)
 
     fail_count = 0
     midx_sum = 0
-    ssidx = torch.zeros((l, 0), dtype=torch.bool).to(device)
-    sidx = torch.arange(l).to(device)
+    ssidx = torch.zeros((l, 0), dtype=torch.bool, device=device)
+    sidx = torch.arange(l, device=device)
 
     while torch.sum(midx) < l - 4:
         pt1_ = pt1[:, ~midx]
@@ -362,11 +563,11 @@ def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
         # print(torch.sum(ssidx, dim=0))
         good_ssidx = torch.logical_not(torch.sum(ssidx, dim=0) == 0)
         ssidx = ssidx[:, good_ssidx]
-        tsidx = torch.zeros((l, ssidx.shape[1]), dtype=torch.bool).to(device)
+        tsidx = torch.zeros((l, ssidx.shape[1]), dtype=torch.bool, device=device)
         tsidx[~midx, :] = ssidx
         ssidx = tsidx
 
-        idx = torch.zeros(l, dtype=torch.bool).to(device)
+        idx = torch.zeros(l, dtype=torch.bool, device=device)
         idx[~midx] = oidx
 
         midx[~midx] = iidx
@@ -429,8 +630,8 @@ def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **du
     l = len(Hdata)
     n = pt1.shape[0]
 
-    pt1 = torch.vstack((pt1.T, torch.ones((1, n)).to(device)))
-    pt2 = torch.vstack((pt2.T, torch.ones((1, n)).to(device)))
+    pt1 = torch.vstack((pt1.T, torch.ones((1, n), device=device)))
+    pt2 = torch.vstack((pt2.T, torch.ones((1, n), device=device)))
 
     pt1_ = torch.matmul(H1_pre, pt1)
     pt1_ = pt1_ / pt1_[2, :]
@@ -440,7 +641,7 @@ def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **du
 
     ptm = (pt1_ + pt2_) / 2
 
-    err = torch.zeros((n, l)).to(device)
+    err = torch.zeros((n, l), device=device)
 
     for i in range(l):
         H1 = Hdata[i][0]
@@ -452,7 +653,7 @@ def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **du
     # min error
     abs_err_min_val, abs_err_min_idx = torch.min(err, dim=1)
 
-    inl_mask = torch.zeros((n, l), dtype=torch.bool).to(device)
+    inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
     for i in range(l):
         inl_mask[:, i] = Hdata[i][2]
 
@@ -468,7 +669,7 @@ def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **du
 
     # flat_indices = torch.arange(n) * ssize_mask.shape[1] + median_idx
     # top_median = ssize_mask.view(-1)[flat_indices]
-    top_median = ssize_mask.flatten()[torch.arange(n).to(device) * ssize_mask.shape[1] + median_idx]
+    top_median = ssize_mask.flatten()[torch.arange(n, device=device) * ssize_mask.shape[1] + median_idx]
 
     # take among the selected the one which gives less error
     discarded_mask = size_mask < top_median.unsqueeze(1)
@@ -672,8 +873,8 @@ class miho:
 
     def planar_clustering(self, pt1, pt2):
         """run MiHo"""
-        self.pt1 = torch.tensor(pt1, dtype=torch.float32).to(device)
-        self.pt2 = torch.tensor(pt2, dtype=torch.float32).to(device)
+        self.pt1 = torch.tensor(pt1, dtype=torch.float32, device=device)
+        self.pt2 = torch.tensor(pt2, dtype=torch.float32, device=device)
 
         Hdata, H1_pre, H2_pre = get_avg_hom(self.pt1, self.pt2, **self.params['get_avg_hom'])
         self.Hs = Hdata
