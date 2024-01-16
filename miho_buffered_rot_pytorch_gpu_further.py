@@ -330,7 +330,7 @@ def sampler4_par(n_par, m):
 
     n_par = n_par.repeat(m)
 
-    sidx = (torch.rand((m * nn, 4), device=device) * torch.stack((n_par, n_par-1, n_par-2, n_par-3)).permute(1,0)).type(torch.int)  
+    sidx = (torch.rand((m * nn, 4), device=device) * torch.stack((n_par, n_par-1, n_par-2, n_par-3)).permute(1,0)).type(torch.long)  
 
     for k in range(1,4):
         sidx[:, 0:k] = torch.sort(sidx[:, 0:k])[0]
@@ -405,7 +405,7 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
         dd_good = torch.sum(dd_check, dim=-1) >= 12
 
         # good_sample_par = torch.zeros(c_par_sz, dtype=torch.bool, device=device)
-        # sidx_par = torch.zeros((c_par_sz, 4), dtype=torch.int, device=device)
+        # sidx_par = torch.zeros((c_par_sz, 4), dtype=torch.long, device=device)
         #        
         # for i in range(c_par_sz):
         #     for j in range(min_iter):
