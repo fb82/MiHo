@@ -9,35 +9,6 @@ import torch
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def get_error_duplex(H12, pt1, pt2, ptm, sidx_par):
-    l2 = sidx_par.size()[0]        
-    n = pt1.size()[1]
-    
-    ptm_reproj = torch.cat((torch.matmul(H12[:l2], pt1.unsqueeze(0)), torch.matmul(H12[l2:], pt2.unsqueeze(0))), dim=0)
-    sign_ptm = torch.sign(ptm_reproj[:, 2, :])
-
-    pt12_reproj = torch.linalg.solve(H12, ptm.unsqueeze(0))
-    sign_pt12 = torch.sign(pt12_reproj[:, 2, :])
-
-    idx_aux = torch.arange(l2*2, device=device)*n + sidx_par[:, 0].repeat(2)
-
-    sa = sign_ptm.flatten()[idx_aux.flatten()].reshape(idx_aux.size())
-    sb = sign_pt12.flatten()[idx_aux.flatten()].reshape(idx_aux.size())
-    
-    ssa = sa.unsqueeze(1) == sign_ptm
-    ssb = sb.unsqueeze(1) == sign_pt12
-
-    mask = torch.logical_and(ssa, ssb)
-    
-    err_m = ptm_reproj[:, :2] / ptm_reproj[:, 2].unsqueeze(1) - ptm[:2].unsqueeze(0)
-    err_12 = torch.cat((pt12_reproj[:l2, :2] / pt12_reproj[:l2, 2].unsqueeze(1) - pt1[:2].unsqueeze(0), pt12_reproj[l2:, :2] / pt12_reproj[l2:, 2].unsqueeze(1) - pt2[:2].unsqueeze(0)), dim=0)
-
-    err = torch.maximum(torch.sum(err_m ** 2, dim=1), torch.sum(err_12 ** 2, dim=1))
-    err[torch.logical_or(~torch.isfinite(err), ~mask)] = float('inf')
-
-    return torch.maximum(err[:l2], err[l2:]).squeeze()
-
-
 def get_inlier_duplex(H12, pt1, pt2, ptm, sidx_par, th):
     l2 = sidx_par.size()[0]        
     n = pt1.size()[1]
@@ -381,41 +352,60 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
         c_par = torch.arange(c, min(max_iter, c + par_run), device=device)
         c_par_sz = c_par.size()[0]
 
-        n_par = torch.full((c_par_sz,), n, dtype=torch.int, device=device)
-        for i in range(c_par_sz):
-            if (c_par[i] < sn):
-                if ssidx_sz[c_par[i]] > 4:
-                    n_par[i] = ssidx_sz[c_par[i]]
-            else:
-                break
+        undone_par = torch.arange(c_par_sz, device=device)
+        undone_n = c_par_sz
+        undone_i = torch.zeros(c_par_sz, device=device)
 
-        sidx = sampler4_par(n_par, min_iter)
+        sidx_par = torch.zeros((c_par_sz, 4), dtype=torch.int, device=device)
+        good_sample_par = torch.zeros(c_par_sz, dtype=torch.bool, device=device)
 
-        for i in range(c_par_sz):
-            if (c_par[i] < sn):
-                if ssidx_sz[c_par[i]] > 4:
-                    aux = sidx[:, c_par[i]].flatten()
-                    tmp = torch.nonzero(ssidx[:, c_par[i]]).squeeze()
-                    aux = tmp[aux]
-                    sidx[:, c_par[i]] = aux.reshape(min_iter, 4)                
-            else:
-                break
+        iter_count = 1
+        while undone_n != 0:
 
-        dd_check = dd.flatten()[sidx.repeat((1,1,4)).flatten() * dd.size()[0] + sidx.repeat_interleave(4, dim=2).flatten()].reshape(min_iter, c_par_sz, -1)
-        dd_good = torch.sum(dd_check, dim=-1) >= 12
-
-        # good_sample_par = torch.zeros(c_par_sz, dtype=torch.bool, device=device)
-        # sidx_par = torch.zeros((c_par_sz, 4), dtype=torch.int, device=device)
-        #        
-        # for i in range(c_par_sz):
-        #     for j in range(min_iter):
-        #         if dd_good[j, i]:
-        #             good_sample_par[i] = True
-        #             sidx_par[i, :] = sidx[j, i, :]
-        #             break
-                
-        good_sample_par, good_idx = dd_good.max(dim=0)
-        sidx_par = sidx.reshape(min_iter * c_par_sz, 4)[good_idx * c_par_sz + torch.arange(c_par_sz, device=device)]
+            n_par = torch.full((undone_n,), n, dtype=torch.int, device=device)
+            for i in range(undone_n):
+                ii = undone_par[i]
+                if (c_par[ii] < sn):
+                    if ssidx_sz[c_par[ii]] > 4:
+                        n_par[i] = ssidx_sz[c_par[ii]]
+                else:
+                    break
+        
+            sidx = sampler4_par(n_par, iter_count)
+            
+            for i in range(undone_n):
+                ii = undone_par[i]                
+                if (c_par[ii] < sn):
+                    if ssidx_sz[c_par[ii]] > 4:
+                        aux = sidx[:, i].flatten()
+                        tmp = torch.nonzero(ssidx[:, c_par[ii]]).squeeze()
+                        aux = tmp[aux]
+                        sidx[:, i] = aux.reshape(iter_count, 4)                
+                else:
+                    break
+    
+            dd_check = dd.flatten()[sidx.repeat((1,1,4)).flatten() * dd.size()[0] + sidx.repeat_interleave(4, dim=2).flatten()].reshape(iter_count, undone_n, -1)
+            dd_good = torch.sum(dd_check, dim=-1) >= 12
+                        
+            bad_n = 0
+            for i in range(undone_n):                
+                ii = undone_par[i]
+                for j in range(iter_count):
+                    if dd_good[j, i]:
+                        good_sample_par[ii] = True
+                        sidx_par[ii, :] = sidx[j, i]
+                        break
+                if not good_sample_par[ii]:
+                    undone_i[ii] += iter_count
+                    if undone_i[ii] < min_iter:
+                        undone_par[bad_n] = i
+                        bad_n += 1
+            undone_n = bad_n
+            
+            iter_count_next = iter_count * 2
+            if iter_count_next + iter_count > min_iter:
+                iter_count_next = min_iter - iter_count
+            iter_count = iter_count_next
 
         sidx_par = sidx_par[good_sample_par]
         c_par = c_par[good_sample_par]             
@@ -513,7 +503,7 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
 
 
 def rot_best(pt1, pt2, n=4):
-    # start = time.time()    
+    start = time.time()    
     
     n = int(n)
     if n < 1:
@@ -546,8 +536,8 @@ def rot_best(pt1, pt2, n=4):
     aux = torch.eye(3).to(device)
     aux[:2, :2] = R[best_i, :, :]
                
-    # end = time.time()
-    # print("Elapsed rot_best time = %s" % (end - start))    
+    end = time.time()
+    print("Elapsed rot_best time = %s" % (end - start))    
     
     return aux
 
@@ -682,33 +672,21 @@ def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **du
 
     ptm = (pt1_ + pt2_) / 2
 
-    # err = torch.zeros((n, l), device=device)
-    # inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
-    #
-    # for i in range(l):
-    #     H1 = Hdata[i][0]
-    #     H2 = Hdata[i][1]
-    #     sidx = Hdata[i][3]
-    #
-    #     inl_mask[:, i] = Hdata[i][2]
-    #
-    #     err[:, i] = torch.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
-
-    H12 = torch.zeros((l*2, 3, 3), device=device)
-    sidx_par = torch.zeros((l, 4), device=device, dtype=torch.long)
-    inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
+    err = torch.zeros((n, l), device=device)
 
     for i in range(l):
-        H12[i] = Hdata[i][0]
-        H12[i+l] = Hdata[i][1]
-        sidx_par[i] = Hdata[i][3]
+        H1 = Hdata[i][0]
+        H2 = Hdata[i][1]
+        sidx = Hdata[i][3]
 
-        inl_mask[:, i] = Hdata[i][2]
-
-    err = get_error_duplex(H12, pt1, pt2, ptm, sidx_par).permute(1,0)
+        err[:, i] = torch.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
 
     # min error
     abs_err_min_val, abs_err_min_idx = torch.min(err, dim=1)
+
+    inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
+    for i in range(l):
+        inl_mask[:, i] = Hdata[i][2]
 
     set_size = torch.sum(inl_mask, dim=0)
     size_mask = torch.repeat_interleave(set_size.unsqueeze(0), n, dim=0) * inl_mask
