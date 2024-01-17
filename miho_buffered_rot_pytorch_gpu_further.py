@@ -667,6 +667,24 @@ def cluster_assign_base(Hdata, pt1, pt2, H1_pre, H2_pre, **dummy_args):
     return max_size_idx
 
 
+def cluster_assign_further(Hdata, pt1, pt2, H1_pre, H2_pre, **dummy_args):
+    l = len(Hdata)
+    n = Hdata[0][2].shape[0]
+
+    inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
+    for i in range(l):
+        inl_mask[:, i] = Hdata[i][2]
+
+    alone_idx = torch.sum(inl_mask, dim=1) == 0
+    set_size = torch.sum(inl_mask, dim=0)
+
+    max_size_idx = torch.argmax(
+        set_size.view(1, -1).expand(inl_mask.shape[0], -1) * inl_mask, dim=1)
+    max_size_idx[alone_idx] = -1
+
+    return max_size_idx
+
+
 def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **dummy_args):
     l = len(Hdata)
     n = pt1.shape[0]
@@ -767,6 +785,38 @@ def cluster_assign_other(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15, **dumm
     err_min_val = err.flatten()[np.ravel_multi_index([np.arange(n), err_min_idx], err.shape)]
 
     err_min_idx[(err_min_val > err_th_only**2) | np.isnan(err_min_val)] = -1
+
+    return err_min_idx
+
+
+def cluster_assign_other_further(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15, **dummy_args):
+    l = len(Hdata)
+    n = pt1.shape[0]
+
+    pt1 = torch.vstack((pt1.T, torch.ones((1, n), device=device)))
+    pt2 = torch.vstack((pt2.T, torch.ones((1, n), device=device)))
+
+    pt1_ = torch.matmul(H1_pre, pt1)
+    pt1_ = pt1_ / pt1_[2, :]
+
+    pt2_ = torch.matmul(H2_pre, pt2)
+    pt2_ = pt2_ / pt2_[2, :]
+
+    ptm = (pt1_ + pt2_) / 2
+
+    err = torch.zeros((n, l), device=device)
+
+    for i in range(l):
+        H1 = Hdata[i][0]
+        H2 = Hdata[i][1]
+        sidx = Hdata[i][3]
+
+        err[:, i] = torch.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
+
+    err_min_idx = torch.argmin(err, dim=1)
+    err_min_val = err.flatten()[torch.arange(n, device=device) * l + err_min_idx]
+
+    err_min_idx[(err_min_val > err_th_only**2) | torch.isnan(err_min_val)] = -1
 
     return err_min_idx
 
