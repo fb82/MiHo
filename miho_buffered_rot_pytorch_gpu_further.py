@@ -437,6 +437,10 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
         sum_nidx_par = nidx_par.sum(dim=1)
         l2 = sidx_par.size()[0]
 
+        sum_nidx_par, sort_idx = torch.sort(sum_nidx_par, descending=True)
+        nidx_par = nidx_par[sort_idx]
+        sidx_par = sidx_par[sort_idx]
+
         for i in range(l2):
             sum_nidx = sum_nidx_par[i]
 
@@ -654,23 +658,6 @@ def cluster_assign_base(Hdata, pt1, pt2, H1_pre, H2_pre, **dummy_args):
     l = len(Hdata)
     n = Hdata[0][2].shape[0]
 
-    inl_mask = np.zeros((n, l), dtype=bool)
-    for i in range(l): inl_mask[:, i] = Hdata[i][2]
-
-    alone_idx = np.sum(inl_mask, axis=1)==0
-    set_size = np.sum(inl_mask, axis=0)
-
-    max_size_idx = np.argmax(
-        np.repeat(set_size[np.newaxis, :], inl_mask.shape[0], axis=0) * inl_mask, axis=1)
-    max_size_idx[alone_idx] = -1
-
-    return max_size_idx
-
-
-def cluster_assign_further(Hdata, pt1, pt2, H1_pre, H2_pre, **dummy_args):
-    l = len(Hdata)
-    n = Hdata[0][2].shape[0]
-
     inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
     for i in range(l):
         inl_mask[:, i] = Hdata[i][2]
@@ -761,38 +748,6 @@ def cluster_assign_other(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15, **dumm
     l = len(Hdata)
     n = pt1.shape[0]
 
-    pt1 = np.vstack((pt1.T, np.ones((1, n))))
-    pt2 = np.vstack((pt2.T, np.ones((1, n))))
-
-    pt1_ = torch.matmul(H1_pre, pt1)
-    pt1_ = pt1_ / pt1_[2, :]
-
-    pt2_ = torch.matmul(H2_pre, pt2)
-    pt2_ = pt2_ / pt2_[2, :]
-
-    ptm = (pt1_ + pt2_) / 2
-
-    err = np.zeros((n,l))
-
-    for i in range(l):
-        H1 = Hdata[i][0]
-        H2 = Hdata[i][1]
-        sidx = Hdata[i][3]
-
-        err[:, i] = np.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
-
-    err_min_idx = np.argmin(err, axis=1)
-    err_min_val = err.flatten()[np.ravel_multi_index([np.arange(n), err_min_idx], err.shape)]
-
-    err_min_idx[(err_min_val > err_th_only**2) | np.isnan(err_min_val)] = -1
-
-    return err_min_idx
-
-
-def cluster_assign_other_further(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15, **dummy_args):
-    l = len(Hdata)
-    n = pt1.shape[0]
-
     pt1 = torch.vstack((pt1.T, torch.ones((1, n), device=device)))
     pt2 = torch.vstack((pt2.T, torch.ones((1, n), device=device)))
 
@@ -804,17 +759,29 @@ def cluster_assign_other_further(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15
 
     ptm = (pt1_ + pt2_) / 2
 
-    err = torch.zeros((n, l), device=device)
+    # err = torch.zeros((n, l), device=device)
+    #
+    # for i in range(l):
+    #     H1 = Hdata[i][0]
+    #     H2 = Hdata[i][1]
+    #     sidx = Hdata[i][3]
+    #
+    #     err[:, i] = torch.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
+
+    H12 = torch.zeros((l*2, 3, 3), device=device)
+    sidx_par = torch.zeros((l, 4), device=device, dtype=torch.long)
 
     for i in range(l):
-        H1 = Hdata[i][0]
-        H2 = Hdata[i][1]
-        sidx = Hdata[i][3]
+        H12[i] = Hdata[i][0]
+        H12[i+l] = Hdata[i][1]
+        sidx_par[i] = Hdata[i][3]
 
-        err[:, i] = torch.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
+    err = get_error_duplex(H12, pt1, pt2, ptm, sidx_par).permute(1,0)
 
-    err_min_idx = torch.argmin(err, dim=1)
-    err_min_val = err.flatten()[torch.arange(n, device=device) * l + err_min_idx]
+    # err_min_idx = torch.argmin(err, dim=1)
+    # err_min_val = err.flatten()[torch.arange(n, device=device) * l + err_min_idx]
+
+    err_min_val, err_min_idx = torch.min(err, dim=1)
 
     err_min_idx[(err_min_val > err_th_only**2) | torch.isnan(err_min_val)] = -1
 
