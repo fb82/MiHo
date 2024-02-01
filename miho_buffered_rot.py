@@ -853,7 +853,7 @@ if __name__ == '__main__':
 
     im1 = Image.open(img1)
     im2 = Image.open(img2)
-
+    
     m12 = sio.loadmat(match_file, squeeze_me=True)
     m12 = m12['matches'][m12['midx'] > 0, :]
 
