@@ -6,7 +6,9 @@ import torchvision.transforms as transforms
 from PIL import Image
 import scipy.io as sio
 
-def save_patch(patch, grid=[40, 50], save_prefix='patch_', save_suffix='.png', normalize_color=False):
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+def save_patch(patch, grid=[40, 50], save_prefix='patch_', save_suffix='.png', normalize=False):
 
     grid_el = grid[0] * grid[1]
     l = patch.size()[0]
@@ -18,13 +20,13 @@ def save_patch(patch, grid=[40, 50], save_prefix='patch_', save_suffix='.png', n
         filename = f'{save_prefix}{i}_{j}{save_suffix}' 
         
         patch_ = patch[i:j]
-        aux = torch.zeros((grid_el, n, m), dtype=torch.float32)
+        aux = torch.zeros((grid_el, n, m), dtype=torch.float32, device=device)
         aux[:j-i] = patch_
         
         mask = aux.isfinite()
         aux[~mask] = 0
         
-        if not normalize_color:
+        if not normalize:
             aux = aux.type(torch.uint8)
         else:
             aux[~mask] = -1        
@@ -45,17 +47,18 @@ def save_patch(patch, grid=[40, 50], save_prefix='patch_', save_suffix='.png', n
 
 def patchify(img, pts, H, r):
 
-    wi = torch.arange(-r,r+1).unsqueeze(0)
+    wi = torch.arange(-r,r+1, device=device).unsqueeze(0)
     ws = r * 2 + 1
     n = pts.size()[0]
     _, y_sz, x_sz = img.size()
     
     x, y = pts.split(1, dim=1)
     
-    widx = torch.full((n, 3, ws**2), 1, dtype=torch.float)
+    widx = torch.zeros((n, 3, ws**2), dtype=torch.float, device=device)
     
-    widx[:, 0, :] = (wi + x).repeat(1,ws)
-    widx[:, 1, :] = (wi + y).repeat_interleave(ws, dim=1)
+    widx[:, 0] = (wi + x).repeat(1,ws)
+    widx[:, 1] = (wi + y).repeat_interleave(ws, dim=1)
+    widx[:, 2] = 1
 
     nidx = torch.matmul(H, widx)
     xx, yy, zz = nidx.split(1, dim=1)
@@ -68,7 +71,7 @@ def patchify(img, pts, H, r):
     xc = xf + 1
     yc = yf + 1
 
-    nidx_mask = torch.logical_or(torch.logical_not(torch.isfinite(xx_)), torch.logical_not(torch.isfinite(yy_))) | torch.logical_or(xf < 0, yf < 0) | torch.logical_or(xc >= x_sz, yc >= y_sz)
+    nidx_mask = torch.logical_or(~torch.isfinite(xx_), ~torch.isfinite(yy_)) | torch.logical_or(xf < 0, yf < 0) | torch.logical_or(xc >= x_sz, yc >= y_sz)
 
     xf[nidx_mask] = 0
     yf[nidx_mask] = 0
@@ -108,13 +111,13 @@ if __name__ == '__main__':
         transforms.PILToTensor() 
         ]) 
         
-    img1 = transform(im1).type(torch.float16)
-    img2 = transform(im2).type(torch.float16)
+    img1 = transform(im1).type(torch.float16).to(device)
+    img2 = transform(im2).type(torch.float16).to(device)
     
-    pt1, pt2 = torch.tensor(m12).round().type(torch.int).split(2, dim=1)
+    pt1, pt2 = torch.tensor(m12, device=device).round().type(torch.int).split(2, dim=1)
     
-    patch1 = patchify(img1, pt1, torch.eye(3).unsqueeze(0), 15)   
-    patch2 = patchify(img2, pt2, torch.eye(3).unsqueeze(0), 15)  
+    patch1 = patchify(img1, pt1, torch.eye(3, device=device).unsqueeze(0), 15)   
+    patch2 = patchify(img2, pt2, torch.eye(3, device=device).unsqueeze(0), 15)  
     
     save_patch(patch1, save_prefix='patch_', save_suffix='_a.png')
     save_patch(patch2, save_prefix='patch_', save_suffix='_b.png')
