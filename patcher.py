@@ -3,27 +3,45 @@
 
 import torch
 import torchvision.transforms as transforms
-
 from PIL import Image
 import scipy.io as sio
 
-
-def save_patch(patch, grid=[40, 50], save_prefix='patch_', save_suffix='.png'):
+def save_patch(patch, grid=[40, 50], save_prefix='patch_', save_suffix='.png', normalize_color=False):
 
     grid_el = grid[0] * grid[1]
     l = patch.size()[0]
     n = patch.size()[1]
     m = patch.size()[2]
+    transform = transforms.ToPILImage()
     for i in range(0, l, grid_el):
         j = min(i+ grid_el, l)
         filename = f'{save_prefix}{i}_{j}{save_suffix}' 
+        
         patch_ = patch[i:j]
-        aux = torch.zeros((grid_el, n, m), dtype=torch.float16)
+        aux = torch.zeros((grid_el, n, m), dtype=torch.float32)
         aux[:j-i] = patch_
         
-        print("doh!")
+        mask = aux.isfinite()
+        aux[~mask] = 0
         
-    return 0
+        if not normalize_color:
+            aux = aux.type(torch.uint8)
+        else:
+            aux[~mask] = -1        
+            avg = ((mask * aux).sum(dim=(1,2)) / mask.sum(dim=(1,2))).reshape(-1, 1, 1).repeat(1, n, m)
+            avg[mask] = aux[mask]
+            m_ = avg.reshape(grid_el, -1).min(dim=1)[0]
+            M_ = avg.reshape(grid_el, -1).max(dim=1)[0]
+            aux = (((aux - m_.reshape(-1, 1, 1)) / (M_ - m_).reshape(-1, 1, 1)) * 255).type(torch.uint8)
+           
+        # if not needed do not add alpha channel
+        all_mask = mask.all()
+        c = 1 + (3 * ~all_mask)
+        aux = aux.reshape(grid[0], grid[1], n, m).permute(0, 2, 1, 3).reshape(grid[0] * n, grid[1] * m).contiguous().unsqueeze(0).repeat(c, 1, 1)
+        if not all_mask:        
+            aux[3, :, :] = (mask *255).type(torch.uint8).reshape(grid[0], grid[1], n, m).permute(0, 2, 1, 3).reshape(grid[0] * n, grid[1] * m).contiguous()
+        transform(aux).save(filename)
+        
 
 def patchify(img, pts, H, r):
 
@@ -45,8 +63,8 @@ def patchify(img, pts, H, r):
     xx_ = xx.squeeze() / zz_
     yy_ = yy.squeeze() / zz_
     
-    xf = xx_.floor().type(torch.int)
-    yf = yy_.floor().type(torch.int)
+    xf = xx_.floor().type(torch.long)
+    yf = yy_.floor().type(torch.long)
     xc = xf + 1
     yc = yf + 1
 
@@ -101,5 +119,4 @@ if __name__ == '__main__':
     save_patch(patch1, save_prefix='patch_', save_suffix='_a.png')
     save_patch(patch2, save_prefix='patch_', save_suffix='_b.png')
 
-    print("doh!")
     

@@ -644,14 +644,15 @@ def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
 
 def dist2_batch(pt):
     pt = pt.type(torch.float32)
-    d = (pt.unsqueeze(-1)[:, :, 0, :] - pt.unsqueeze(1)[:, :, :, 0])**2 + (pt.unsqueeze(-1)[:, :, 1, :] - pt.unsqueeze(1)[:, :, :, 1])**2
+    d = (pt.unsqueeze(-1)[:, :, 0] - pt.unsqueeze(1)[:, :, :, 0])**2 + (pt.unsqueeze(-1)[:, :, 1] - pt.unsqueeze(1)[:, :, :, 1])**2
     # d = (pt[:, :, 0, None] - pt[:, None, :, 0])**2 + (pt[:, :, 1, None] - pt[:, None, :, 1])**2
     return d
 
 
 def dist2(pt):
     pt = pt.type(torch.float32)
-    d = (pt[:, 0, None] - pt[None, :, 0])**2 + (pt[:, 1, None] - pt[None, :, 1])**2
+    d = (pt.unsqueeze(-1)[:, 0] - pt.unsqueeze(0)[:, :, 0])**2 + (pt.unsqueeze(-1)[:, 1] - pt.unsqueeze(0)[:, :, 1])**2
+    # d = (pt[:, 0, None] - pt[None, :, 0])**2 + (pt[:, 1, None] - pt[None, :, 1])**2
     return d
 
 
