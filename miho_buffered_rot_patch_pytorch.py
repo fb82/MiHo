@@ -11,16 +11,14 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 EPS_ = torch.finfo(torch.float32).eps
 sqrt2 = np.sqrt(2)
 
-def norm_corr(patch1, patch2):
-    r = (patch2.size()[1] - 1) / 2
+def norm_corr(patch1, patch2):    
     w = patch2.size()[1]
     ww = w * w
     n = patch1.size()[0]
-    k = torch.ones((w, w), device=device)
-    
-    conv_ = torch.nn.Conv2d(1, 1, (w, w), padding='valid', bias=False, device=device)
-    conv_.weight = torch.nn.Parameter(torch.ones((1, 1, w, w), device=device))    
-    with torch.no_grad():
+
+    with torch.no_grad():    
+        conv_ = torch.nn.Conv2d(1, 1, (w, w), padding='valid', bias=False, device=device)
+        conv_.weight = torch.nn.Parameter(torch.ones((1, 1, w, w), device=device))    
         m1 = conv_(patch1.unsqueeze(1)).squeeze()
         e1 = conv_((patch1**2).unsqueeze(1)).squeeze()
     s1 = torch.sqrt(ww * e1 - m1**2)
@@ -29,15 +27,16 @@ def norm_corr(patch1, patch2):
     e2 = (patch2**2).sum(dim=[1, 2])    
     s2 = torch.sqrt(ww * e2 - m2**2)
 
-    conv__ = torch.nn.Conv2d(n, n, (w, w), padding='valid', bias=False, groups=n, device=device)
-    conv__.weight = torch.nn.Parameter(patch2.unsqueeze(1))    
     with torch.no_grad():
+        conv__ = torch.nn.Conv2d(n, n, (w, w), padding='valid', bias=False, groups=n, device=device)
+        conv__.weight = torch.nn.Parameter(patch2.flip((1, 2)).unsqueeze(1))    
         cc = conv__(patch1).squeeze()
 
-    ncc = ((ww * cc) - (m1 * m2.reshape(n, 1, 1))) / (s1 * s2.reshape(n, 1, 1))    
-    idx = torch.abs(ncc).reshape(n, ww).min(dim=1)
+    nc = ((ww * cc) - (m1 * m2.reshape(n, 1, 1))) / (s1 * s2.reshape(n, 1, 1))    
+    idx = torch.abs(nc).reshape(n, ww).max(dim=1)
+    offset = (torch.vstack((idx[1] % w, idx[1] // w)) - ((w - 1) / 2 + 1)).permute(1,0)
 
-    return 0
+    return offset, idx[0]
 
 def save_patch(patch, grid=[40, 50], save_prefix='patch_', save_suffix='.png', normalize=False):
 
@@ -1178,10 +1177,9 @@ if __name__ == '__main__':
     patch1 = patchify(mihoo.im1, pt1_, Hi1_, w*2)
     patch2 = patchify(mihoo.im2, pt2_, Hi2_, w)
     
-    norm_corr(patch1, patch2)
+    patch1_offset, val1_offeset = norm_corr(patch1, patch2)
     
     save_patch(patch1, save_prefix='patch_', save_suffix='_a.png')
     save_patch(patch2, save_prefix='patch_', save_suffix='_b.png')
-
 
     mihoo.show_clustering()
