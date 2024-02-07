@@ -11,30 +11,250 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 EPS_ = torch.finfo(torch.float32).eps
 sqrt2 = np.sqrt(2)
 
-def norm_corr(patch1, patch2):    
+def refinement_norm_corr(im1, im2, Hs, pt1, pt2, w=15, ref_image=[0, 1], img_patches=False, save_prefix='ncc_patch_'):    
+    l = Hs.size()[0] 
+        
+    Hs1, Hs2 = Hs.split(1, dim=1)
+    Hs1 = Hs1.squeeze()
+    Hs2 = Hs2.squeeze()
+            
+    pt1_ = Hs1.bmm(torch.hstack((pt1, torch.ones((pt1.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
+    pt1_ = pt1_[:, :2] / pt1_[:, 2].unsqueeze(-1)
+    pt2_ = Hs2.bmm(torch.hstack((pt2, torch.ones((pt2.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
+    pt2_ = pt2_[:, :2] / pt2_[:, 2].unsqueeze(-1)
+    
+    Hi = torch.linalg.inv(Hs.reshape(l*2, 3, 3)).reshape(l, 2, 3, 3)    
+    Hi1, Hi2 = Hi.split(1, dim=1)
+    Hi1 = Hi1.squeeze()
+    Hi2 = Hi2.squeeze()
+            
+    # +1 for the subpix
+    w1 = w + 1
+    patch1 = patchify(im1, pt1_.squeeze(), Hi1, w1*2)
+    patch2 = patchify(im2, pt2_.squeeze(), Hi2, w1*2)
+
+    uidx = torch.arange(w1 + 1, 3*w1 + 2)
+    tmp = uidx.unsqueeze(0).repeat(w1*2 + 1, 1)
+    vidx = tmp.permute(1, 0)  * (w1*4 + 1) + tmp
+        
+    patch_val = torch.full((2, l), -1, device=device, dtype=torch.float)
+    patch_offset = torch.zeros(2, l, 2, device=device)
+
+    if 0 in ref_image:
+        patch_offset0, patch_val0 = norm_corr(patch2, patch1.reshape(l, -1)[:, vidx.flatten()].reshape(l, w1*2 + 1, w1*2 + 1))
+        patch_offset[0] = patch_offset0
+        patch_val[0] = patch_val0
+
+    if 1 in ref_image:
+        patch_offset1, patch_val1 = norm_corr(patch1, patch2.reshape(l, -1)[:, vidx.flatten()].reshape(l, w1*2 + 1, w1*2 + 1))
+        patch_offset[1] = patch_offset1
+        patch_val[1] = patch_val1
+        
+    val, val_idx = patch_val.max(dim=0)
+    
+    zidx = (torch.arange(l, device=device) * 4 + (1 - val_idx) * 2).unsqueeze(1).repeat(1,2) + torch.tensor([0, 1], device=device)
+    patch_offset = patch_offset.permute(1, 0, 2).flatten()
+    patch_offset[zidx.flatten()] = 0
+    patch_offset = patch_offset.reshape(l, 2, 2)
+    
+    pt1 = pt1 + patch_offset[:, 0]
+    pt2 = pt2 + patch_offset[:, 1]
+
+    pt1_ = Hi1.bmm(torch.hstack((pt1, torch.ones((pt1.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
+    pt1_ = pt1_[:, :2] / pt1_[:, 2].unsqueeze(-1)
+    pt2_ = Hi2.bmm(torch.hstack((pt2, torch.ones((pt2.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
+    pt2_ = pt2_[:, :2] / pt2_[:, 2].unsqueeze(-1)
+
+    if img_patches:
+        go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix=save_prefix)
+        
+    return pt1_, pt2_, Hs, val
+        
+
+    # function [p2_new,p2_status,p2_err,p2_err_base,T]=ncorr(im1,im2,p1,p2,wr,Hs,s,T_,interp_max)
+    
+    # % wr=15; % window radius
+    # p2_new=p2;
+    # p2_err=inf;
+    # p2_err_base=inf;
+    # T=eye(3);
+    
+    # sH=[s 0 0; 0 s 0; 0 0 1];
+    # Hs{1}=sH*Hs{1};
+    # Hs{2}=sH*T_*Hs{2};
+    
+    # [tmp1,p2_status]=apply_H(p1,Hs{1},eye(3),wr,im1);
+    # if p2_status==1
+    #     return;
+    # end
+    
+    # [tmp2,p2_status]=apply_H(p2,Hs{2},eye(3),2*wr,im2);
+    # if p2_status==1
+    #     return;
+    # end
+    
+    # m=normxcorr2(tmp1,tmp2);
+    # m=m(2*wr+1:end-2*wr,2*wr+1:end-2*wr);
+    # p2_err=max(m,[],'all');
+    
+    # [i,j]=find(m==p2_err);
+    # i=i(1);
+    # j=j(1);
+    
+    # switch interp_max
+    #     case 0 % no max interpolation
+    #         i_=i;
+    #         j_=j;
+    #     case 1 % parabolic max interpolation
+    #         i_=i;
+    #         j_=i;
+    #         if (i>1) && (j>1) && (i<size(m,1)) &&  (j<size(m,2))
+    #             v=m(i,j);
+    #             vl=m(i-1,j);
+    #             vr=m(i+1,j);
+    #             i_=i+(-vl+vr)./(2*(-vl-vr+2*v));
+                
+    #             v=m(i,j);
+    #             vl=m(i,j-1);
+    #             vr=m(i,j+1);
+    #             j_=j+(-vl+vr)./(2*(-vl-vr+2*v));
+    #         end
+    #     case 2 % Lowe's max interpolation
+    #         i_=i;
+    #         j_=j;
+    #         for ii=1:5
+    #             if (i_>1) && (j_>1) && (i_<size(m,1)) &&  (j_<size(m,2))               
+    #                 Dx=0.5*(m(i_,j_+1)-m(i_,j_-1));
+    #                 Dy=0.5*(m(i_+1,j_)-m(i_-1,j_));
+    
+    #                 Dxx=m(i_,j_+1)+m(i_,j_-1)-2.0*m(i_,j_);                
+    #                 Dyy=m(i_+1,j_)+m(i_-1,j_)-2.0*m(i_,j_);                
+    #                 Dxy=0.25*(m(i_+1,j_+1)+m(i_-1,i_-1)-m(i_-1,j_+1)-m(i_+1,j_-1));
+    
+    #                 A=[ ...
+    #                     Dxx Dxy; ...
+    #                     Dxy Dyy; ...
+    #                     ];
+    
+    #                 B=-[ ...
+    #                     Dx; ...
+    #                     Dy; ...
+    #                     ];
+    
+    #                 off=A\B;
+    
+    #                 if any(abs(off)<0.5)
+    #                     i_=i_+off(2);
+    #                     j_=j_+off(1);
+    #                     break;
+    #                 end
+                    
+    #                 i_=i_+round(off(2));
+    #                 j_=j_+round(off(1));
+    #             end
+    #         end
+    # end
+    
+    # if (i_>0.5) && (j_>0.5) && (i_<=size(m,1)+0.5) &&  (j_<=size(m,2)+0.5)
+    #     i=i_;
+    #     j=j_;
+    # end
+    
+    # i=i-wr-1;
+    # j=j-wr-1;
+    
+    # Hp2=Hs{2}*[p2 1]';
+    # Hp2=Hp2(1:2)'/Hp2(3); 
+    
+    # T=[1 0 j; 0 1 i; 0 0 1];
+    
+    # p2_new=Hs{2}\[(Hp2+[j i]) 1]';
+    # p2_new=p2_new(1:2)'/p2_new(3);
+    # p2_status=0;
+    
+    # p2_err=-abs(p2_err);
+
+
+
+
+    return pt1, pt2, Hs
+
+
+def go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_'):
+    l = Hs.size()[0] 
+        
+    Hs1, Hs2 = Hs.split(1, dim=1)
+    Hs1 = Hs1.squeeze()
+    Hs2 = Hs2.squeeze()
+        
+    pt1 = Hs1.bmm(torch.hstack((pt1, torch.ones((pt1.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
+    pt1 = pt1[:, :2] / pt1[:, 2].unsqueeze(-1)
+    pt2 = Hs2.bmm(torch.hstack((pt2, torch.ones((pt2.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
+    pt2 = pt2[:, :2] / pt2[:, 2].unsqueeze(-1)
+    
+    Hi = torch.linalg.inv(Hs.reshape(l*2, 3, 3)).reshape(l, 2, 3, 3)    
+    Hi1, Hi2 = Hi.split(1, dim=1)
+    Hi1 = Hi1.squeeze()
+    Hi2 = Hi2.squeeze()
+            
+    patch1 = patchify(im1, pt1, Hi1, w)
+    patch2 = patchify(im2, pt2, Hi2, w)
+
+    save_patch(patch1, save_prefix=save_prefix, save_suffix='_a.png')
+    save_patch(patch2, save_prefix=save_prefix, save_suffix='_b.png')
+
+
+def refinement_init(im1, im2, Hidx, Hs, pt1, pt2, w=15, img_patches=False):
+    mask = Hidx > -1
+    pt1 = pt1[mask]
+    pt2 = pt2[mask]
+    idx = Hidx[mask].type(torch.long)
+    
+    l = len(Hs)
+    Hs = torch.zeros((l, 2, 3, 3), device=device)
+    for i in range(l):
+        Hs[i, 0] = mihoo.Hs[i][0]
+        Hs[i, 1] = mihoo.Hs[i][1]
+    
+    Hs = Hs[idx]
+        
+    if img_patches:
+        go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='init_patch_')
+    
+    return pt1, pt2, Hs
+
+
+def norm_corr(patch1, patch2):     
     w = patch2.size()[1]
     ww = w * w
     n = patch1.size()[0]
-
-    with torch.no_grad():    
+    
+    with torch.no_grad():
         conv_ = torch.nn.Conv2d(1, 1, (w, w), padding='valid', bias=False, device=device)
-        conv_.weight = torch.nn.Parameter(torch.ones((1, 1, w, w), device=device))    
+        conv_.weight = torch.nn.Parameter(torch.ones((1, 1, w, w), device=device).to(torch.float))    
         m1 = conv_(patch1.unsqueeze(1)).squeeze()
         e1 = conv_((patch1**2).unsqueeze(1)).squeeze()
-    s1 = torch.sqrt(ww * e1 - m1**2)
+        s1 = ww * e1 - m1**2
     
     m2 = patch2.sum(dim=[1, 2])
     e2 = (patch2**2).sum(dim=[1, 2])    
-    s2 = torch.sqrt(ww * e2 - m2**2)
-
+    s2 = ww * e2 - m2**2
+    
     with torch.no_grad():
         conv__ = torch.nn.Conv2d(n, n, (w, w), padding='valid', bias=False, groups=n, device=device)
-        conv__.weight = torch.nn.Parameter(patch2.flip((1, 2)).unsqueeze(1))    
-        cc = conv__(patch1).squeeze()
+        conv__.weight = torch.nn.Parameter(patch2.unsqueeze(1))    
+        cc = conv__(patch1.unsqueeze(0)).squeeze()
 
-    nc = ((ww * cc) - (m1 * m2.reshape(n, 1, 1))) / (s1 * s2.reshape(n, 1, 1))    
-    idx = torch.abs(nc).reshape(n, ww).max(dim=1)
-    offset = (torch.vstack((idx[1] % w, idx[1] // w)) - ((w - 1) / 2 + 1)).permute(1,0)
+    nc = ((ww * cc) - (m1 * m2.reshape(n, 1, 1))) / torch.sqrt(s1 * s2.reshape(n, 1, 1))   
+
+    # max not in the border
+    w_2 = w - 2
+    uidx = torch.arange(1, w - 1)
+    tmp = uidx.unsqueeze(0).repeat(w_2, 1)
+    vidx = tmp.permute(1, 0)  * w + tmp
+
+    idx = torch.abs(nc.reshape(n, -1)[:, vidx.flatten()]).reshape(n, w_2**2).max(dim=1)
+    offset = (torch.vstack((idx[1] % w_2, torch.div(idx[1], w_2, rounding_mode='trunc'))) - ((w_2 - 1) / 2)).permute(1, 0)
 
     return offset, idx[0]
 
@@ -109,7 +329,7 @@ def patchify(img, pts, H, r):
     yc[nidx_mask] = 0
 
     # for mask
-    img_ = img.ravel()
+    img_ = img.flatten()
     aux = img_[0]
     img_[0] = float('nan')
 
@@ -136,8 +356,8 @@ def get_error_duplex(H12, pt1, pt2, ptm, sidx_par):
 
     idx_aux = torch.arange(l2*2, device=device)*n + sidx_par[:, 0].repeat(2)
 
-    sa = sign_ptm.ravel()[idx_aux.ravel()].reshape(idx_aux.size())
-    sb = sign_pt12.ravel()[idx_aux.ravel()].reshape(idx_aux.size())
+    sa = sign_ptm.flatten()[idx_aux.flatten()].reshape(idx_aux.size())
+    sb = sign_pt12.flatten()[idx_aux.flatten()].reshape(idx_aux.size())
     
     ssa = sa.unsqueeze(1) == sign_ptm
     ssb = sb.unsqueeze(1) == sign_pt12
@@ -165,8 +385,8 @@ def get_inlier_duplex(H12, pt1, pt2, ptm, sidx_par, th):
 
     idx_aux = torch.arange(l2*2, device=device).unsqueeze(1)*n + sidx_par.repeat(2,1)
 
-    sa = sign_ptm.ravel()[idx_aux.ravel()].reshape(idx_aux.size())
-    sb = sign_pt12.ravel()[idx_aux.ravel()].reshape(idx_aux.size())
+    sa = sign_ptm.flatten()[idx_aux.flatten()].reshape(idx_aux.size())
+    sb = sign_pt12.flatten()[idx_aux.flatten()].reshape(idx_aux.size())
     
     ssa = torch.all(sa[:, 0].unsqueeze(1) == sa, dim=1)
     ssb = torch.all(sb[:, 0].unsqueeze(1) == sb, dim=1)
@@ -193,9 +413,9 @@ def compute_homography_duplex(pt1, pt2, ptm, sidx_par):
         l0 = sidx_par.size()[0]
         l1 = sidx_par.size()[1]
         
-        pt1_par = pt1[:, sidx_par.ravel()].reshape(3, l0, l1).permute(1, 0, 2)
-        pt2_par = pt2[:, sidx_par.ravel()].reshape(3, l0, l1).permute(1, 0, 2)
-        ptm_par = ptm[:, sidx_par.ravel()].reshape(3, l0, l1).permute(1, 0, 2)
+        pt1_par = pt1[:, sidx_par.flatten()].reshape(3, l0, l1).permute(1, 0, 2)
+        pt2_par = pt2[:, sidx_par.flatten()].reshape(3, l0, l1).permute(1, 0, 2)
+        ptm_par = ptm[:, sidx_par.flatten()].reshape(3, l0, l1).permute(1, 0, 2)
     else:
         l0 = 1
         l1 = sidx_par.sum()
@@ -508,14 +728,14 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
         for i in range(c_par_sz):
             if (c_par[i] < sn):
                 if ssidx_sz[c_par[i]] > 4:
-                    aux = sidx[:, c_par[i]].ravel()
+                    aux = sidx[:, c_par[i]].flatten()
                     tmp = torch.nonzero(ssidx[:, c_par[i]]).squeeze()
                     aux = tmp[aux]
                     sidx[:, c_par[i]] = aux.reshape(min_iter, 4)                
             else:
                 break
 
-        dd_check = dd.ravel()[sidx.repeat((1, 1, 4)).ravel() * dd.size()[0] + sidx.repeat_interleave(4, dim=2).ravel()].reshape(min_iter, c_par_sz, -1)
+        dd_check = dd.flatten()[sidx.repeat((1, 1, 4)).flatten() * dd.size()[0] + sidx.repeat_interleave(4, dim=2).flatten()].reshape(min_iter, c_par_sz, -1)
         dd_good = torch.sum(dd_check, dim=-1) >= 12
 
         # good_sample_par = torch.zeros(c_par_sz, dtype=torch.bool, device=device)
@@ -844,7 +1064,7 @@ def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **du
 
     # flat_indices = torch.arange(n) * ssize_mask.shape[1] + median_idx
     # top_median = ssize_mask.view(-1)[flat_indices]
-    top_median = ssize_mask.ravel()[torch.arange(n, device=device) * ssize_mask.shape[1] + median_idx]
+    top_median = ssize_mask.flatten()[torch.arange(n, device=device) * ssize_mask.shape[1] + median_idx]
 
     # take among the selected the one which gives less error
     discarded_mask = size_mask < top_median.unsqueeze(1)
@@ -896,7 +1116,7 @@ def cluster_assign_other(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15, **dumm
     err = get_error_duplex(H12, pt1, pt2, ptm, sidx_par).permute(1,0)
 
     # err_min_idx = torch.argmin(err, dim=1)
-    # err_min_val = err.ravel()[torch.arange(n, device=device) * l + err_min_idx]
+    # err_min_val = err.flatten()[torch.arange(n, device=device) * l + err_min_idx]
 
     err_min_val, err_min_idx = torch.min(err, dim=1)
 
@@ -1145,41 +1365,8 @@ if __name__ == '__main__':
     #     mihoo = torch.load(miho_pt)
 
     w = 15
-
-    mask = mihoo.Hidx > -1
-    pt1_ = mihoo.pt1[mask]
-    pt2_ = mihoo.pt2[mask]
-    idx = mihoo.Hidx[mask].type(torch.long)
-
-    l = len(mihoo.Hs)
-    Hs = torch.zeros((l, 2, 3, 3), device=device)
-    for i in range(l):
-        Hs[i, 0] = mihoo.Hs[i][0]
-        Hs[i, 1] = mihoo.Hs[i][1]
-
-    Hs_ = Hs[idx]
-    Hs1_, Hs2_ = Hs_.split(1, dim=1)
-    Hs1_ = Hs1_.squeeze()
-    Hs2_ = Hs2_.squeeze()
     
-    pt1_ = Hs1_.bmm(torch.hstack((pt1_, torch.ones((pt1_.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
-    pt1_ = pt1_[:, :2] / pt1_[:, 2].unsqueeze(-1)
-    pt2_ = Hs2_.bmm(torch.hstack((pt2_, torch.ones((pt2_.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
-    pt2_ = pt2_[:, :2] / pt2_[:, 2].unsqueeze(-1)
+    pt1_, pt2_, Hs_ = refinement_init(mihoo.im1, mihoo.im2, mihoo.Hidx, mihoo.Hs, mihoo.pt1, mihoo.pt2, w=15, img_patches=True)        
+    pt1__, pt2__, Hs__, val = refinement_norm_corr(mihoo.im1, mihoo.im2, Hs_, pt1_, pt2_, w=15, ref_image=[0, 1], img_patches=True)   
     
-    Hi = torch.linalg.solve(Hs.reshape(l*2, 3, 3), torch.eye(3, device=device)).reshape(l, 2, 3, 3)
-    
-    Hi_ = Hi[idx]
-    Hi1_, Hi2_ = Hi_.split(1, dim=1)
-    Hi1_ = Hi1_.squeeze()
-    Hi2_ = Hi2_.squeeze()
-    
-    patch1 = patchify(mihoo.im1, pt1_, Hi1_, w*2)
-    patch2 = patchify(mihoo.im2, pt2_, Hi2_, w)
-    
-    patch1_offset, val1_offeset = norm_corr(patch1, patch2)
-    
-    save_patch(patch1, save_prefix='patch_', save_suffix='_a.png')
-    save_patch(patch2, save_prefix='patch_', save_suffix='_b.png')
-
     mihoo.show_clustering()
