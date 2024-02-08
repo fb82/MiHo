@@ -11,6 +11,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 EPS_ = torch.finfo(torch.float32).eps
 sqrt2 = np.sqrt(2)
 
+# test_idx = (torch.rand((2558, 2), device=device) * 29 - 14).round()    
+
 def get_inverse(pt1, pt2, Hs):
     l = Hs.size()[0] 
     Hs1, Hs2 = Hs.split(1, dim=1)
@@ -29,30 +31,29 @@ def get_inverse(pt1, pt2, Hs):
     
     return pt1_, pt2_, Hi, Hi1, Hi2
 
-def refinement_norm_corr(im1, im2, Hs, pt1, pt2, w=15, ref_image=[0, 1], img_patches=False, save_prefix='ncc_patch_'):    
+
+def refinement_norm_corr(im1, im2, Hs, pt1, pt2, w=15, ref_image=[0, 1], subpix=True, img_patches=False, save_prefix='ncc_patch_'):    
     l = Hs.size()[0] 
         
     pt1_, pt2_, Hi, Hi1, Hi2 = get_inverse(pt1, pt2, Hs)    
                 
-    # +1 for the subpix
-    w1 = w + 1
-    patch1 = patchify(im1, pt1_.squeeze(), Hi1, w1*2)
-    patch2 = patchify(im2, pt2_.squeeze(), Hi2, w1*2)
+    patch1 = patchify(im1, pt1_.squeeze(), Hi1, w*2)
+    patch2 = patchify(im2, pt2_.squeeze(), Hi2, w*2)
 
-    uidx = torch.arange(w1 + 1, 3*w1 + 2)
-    tmp = uidx.unsqueeze(0).repeat(w1*2 + 1, 1)
-    vidx = tmp.permute(1, 0)  * (w1*4 + 1) + tmp
+    uidx = torch.arange(w + 1, 3*w + 2)
+    tmp = uidx.unsqueeze(0).repeat(w*2 + 1, 1)
+    vidx = tmp.permute(1, 0) * (w*4 + 1) + tmp
         
     patch_val = torch.full((2, l), -1, device=device, dtype=torch.float)
     patch_offset = torch.zeros(2, l, 2, device=device)
 
     if ('left' in ref_image) or ('both' in ref_image):
-        patch_offset0, patch_val0 = norm_corr(patch2, patch1.reshape(l, -1)[:, vidx.flatten()].reshape(l, w1*2 + 1, w1*2 + 1))
+        patch_offset0, patch_val0 = norm_corr(patch2, patch1.reshape(l, -1)[:, vidx.flatten()].reshape(l, w*2 + 1, w*2 + 1), subpix=subpix)
         patch_offset[0] = patch_offset0
         patch_val[0] = patch_val0
 
     if ('right' in ref_image) or ('both' in ref_image):
-        patch_offset1, patch_val1 = norm_corr(patch1, patch2.reshape(l, -1)[:, vidx.flatten()].reshape(l, w1*2 + 1, w1*2 + 1))
+        patch_offset1, patch_val1 = norm_corr(patch1, patch2.reshape(l, -1)[:, vidx.flatten()].reshape(l, w*2 + 1, w*2 + 1), subpix=subpix)
         patch_offset[1] = patch_offset1
         patch_val[1] = patch_val1
         
@@ -63,128 +64,24 @@ def refinement_norm_corr(im1, im2, Hs, pt1, pt2, w=15, ref_image=[0, 1], img_pat
     patch_offset[zidx.flatten()] = 0
     patch_offset = patch_offset.reshape(l, 2, 2)
     
-    pt1_ = pt1_ + patch_offset[:, 0]
-    pt2_ = pt2_ + patch_offset[:, 1]
+    pt1_ = pt1_ - patch_offset[:, 0]
+    pt2_ = pt2_ - patch_offset[:, 1]
 
     pt1 = Hi1.bmm(torch.hstack((pt1_, torch.ones((pt1_.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
     pt1 = pt1[:, :2] / pt1[:, 2].unsqueeze(-1)
     pt2 = Hi2.bmm(torch.hstack((pt2_, torch.ones((pt2_.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
     pt2 = pt2[:, :2] / pt2[:, 2].unsqueeze(-1)
     
-    # T = torch.eye(3, device=device, dtype=torch.float).reshape(1, 1, 9).repeat(l, 2, 1).reshape(l*2, 9)
-    # aux = patch_offset.reshape(l*2, 2)
-    # T[:, 2] = aux[:, 0]
-    # T[:, 5] = aux[:, 1]
-    # T = T.reshape(l*2, 3, 3)
+    T = torch.eye(3, device=device, dtype=torch.float).reshape(1, 1, 9).repeat(l, 2, 1).reshape(l*2, 9)
+    aux = patch_offset.reshape(l*2, 2)
+    T[:, 2] = -aux[:, 0]
+    T[:, 5] = -aux[:, 1]
+    T = T.reshape(l*2, 3, 3)
     
     if img_patches:
         go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix=save_prefix)
         
-    return pt1, pt2, Hs, val
-        
-
-    # function [p2_new,p2_status,p2_err,p2_err_base,T]=ncorr(im1,im2,p1,p2,wr,Hs,s,T_,interp_max)
-    
-    # % wr=15; % window radius
-    # p2_new=p2;
-    # p2_err=inf;
-    # p2_err_base=inf;
-    # T=eye(3);
-    
-    # sH=[s 0 0; 0 s 0; 0 0 1];
-    # Hs{1}=sH*Hs{1};
-    # Hs{2}=sH*T_*Hs{2};
-    
-    # [tmp1,p2_status]=apply_H(p1,Hs{1},eye(3),wr,im1);
-    # if p2_status==1
-    #     return;
-    # end
-    
-    # [tmp2,p2_status]=apply_H(p2,Hs{2},eye(3),2*wr,im2);
-    # if p2_status==1
-    #     return;
-    # end
-    
-    # m=normxcorr2(tmp1,tmp2);
-    # m=m(2*wr+1:end-2*wr,2*wr+1:end-2*wr);
-    # p2_err=max(m,[],'all');
-    
-    # [i,j]=find(m==p2_err);
-    # i=i(1);
-    # j=j(1);
-    
-    # switch interp_max
-    #     case 0 % no max interpolation
-    #         i_=i;
-    #         j_=j;
-    #     case 1 % parabolic max interpolation
-    #         i_=i;
-    #         j_=i;
-    #         if (i>1) && (j>1) && (i<size(m,1)) &&  (j<size(m,2))
-    #             v=m(i,j);
-    #             vl=m(i-1,j);
-    #             vr=m(i+1,j);
-    #             i_=i+(-vl+vr)./(2*(-vl-vr+2*v));
-                
-    #             v=m(i,j);
-    #             vl=m(i,j-1);
-    #             vr=m(i,j+1);
-    #             j_=j+(-vl+vr)./(2*(-vl-vr+2*v));
-    #         end
-    #     case 2 % Lowe's max interpolation
-    #         i_=i;
-    #         j_=j;
-    #         for ii=1:5
-    #             if (i_>1) && (j_>1) && (i_<size(m,1)) &&  (j_<size(m,2))               
-    #                 Dx=0.5*(m(i_,j_+1)-m(i_,j_-1));
-    #                 Dy=0.5*(m(i_+1,j_)-m(i_-1,j_));
-    
-    #                 Dxx=m(i_,j_+1)+m(i_,j_-1)-2.0*m(i_,j_);                
-    #                 Dyy=m(i_+1,j_)+m(i_-1,j_)-2.0*m(i_,j_);                
-    #                 Dxy=0.25*(m(i_+1,j_+1)+m(i_-1,i_-1)-m(i_-1,j_+1)-m(i_+1,j_-1));
-    
-    #                 A=[ ...
-    #                     Dxx Dxy; ...
-    #                     Dxy Dyy; ...
-    #                     ];
-    
-    #                 B=-[ ...
-    #                     Dx; ...
-    #                     Dy; ...
-    #                     ];
-    
-    #                 off=A\B;
-    
-    #                 if any(abs(off)<0.5)
-    #                     i_=i_+off(2);
-    #                     j_=j_+off(1);
-    #                     break;
-    #                 end
-                    
-    #                 i_=i_+round(off(2));
-    #                 j_=j_+round(off(1));
-    #             end
-    #         end
-    # end
-    
-    # if (i_>0.5) && (j_>0.5) && (i_<=size(m,1)+0.5) &&  (j_<=size(m,2)+0.5)
-    #     i=i_;
-    #     j=j_;
-    # end
-    
-    # i=i-wr-1;
-    # j=j-wr-1;
-    
-    # Hp2=Hs{2}*[p2 1]';
-    # Hp2=Hp2(1:2)'/Hp2(3); 
-    
-    # T=[1 0 j; 0 1 i; 0 0 1];
-    
-    # p2_new=Hs{2}\[(Hp2+[j i]) 1]';
-    # p2_new=p2_new(1:2)'/p2_new(3);
-    # p2_status=0;
-    
-    # p2_err=-abs(p2_err);
+    return pt1, pt2, Hs, val, T
 
 
 def go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_'):        
@@ -198,6 +95,10 @@ def go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_'):
 
 
 def refinement_init(im1, im2, Hidx, Hs, pt1, pt2, w=15, img_patches=False):
+    if Hidx is None:        
+        Hidx = torch.zeros(pt1.size()[0], device=device, dtype=torch.int)
+        Hs = [[torch.eye(3, device=device), torch.eye(3, device=device)]]
+
     mask = Hidx > -1
     pt1 = pt1[mask]
     pt2 = pt2[mask]
@@ -217,9 +118,10 @@ def refinement_init(im1, im2, Hidx, Hs, pt1, pt2, w=15, img_patches=False):
     return pt1, pt2, Hs
 
 
-def norm_corr(patch1, patch2):     
+def norm_corr(patch1, patch2, subpix=True):     
     w = patch2.size()[1]
     ww = w * w
+    r = (w - 1) / 2
     n = patch1.size()[0]
     
     with torch.no_grad():
@@ -239,17 +141,32 @@ def norm_corr(patch1, patch2):
         cc = conv__(patch1.unsqueeze(0)).squeeze()
 
     nc = ((ww * cc) - (m1 * m2.reshape(n, 1, 1))) / torch.sqrt(s1 * s2.reshape(n, 1, 1))   
+    nc.flatten()[~torch.isfinite(nc.flatten())] = -torch.inf
 
-    # max not in the border
-    w_2 = w - 2
-    uidx = torch.arange(1, w - 1)
-    tmp = uidx.unsqueeze(0).repeat(w_2, 1)
-    vidx = tmp.permute(1, 0)  * w + tmp
+    idx = nc.reshape(n, ww).max(dim=1)
+    offset = (torch.vstack((idx[1] % w, torch.div(idx[1], w, rounding_mode='trunc')))).permute(1, 0).to(torch.float)
+    
+    if subpix:    
+        t = ((offset > 0) & ( offset < w - 1)).all(dim=1).to(torch.float)
+        tidx = (torch.tensor([-1, 0, 1], device=device).unsqueeze(0) * t.unsqueeze(1)).squeeze()
+    
+        tx = offset[:, 0].unsqueeze(1) + tidx
+        v = nc.flatten()[(torch.arange(n, device=device).unsqueeze(1) * ww + offset[:, 1].unsqueeze(1) * w + tx).to(torch.long).flatten()].reshape(n, 3)
+        sx = (v[:, 2] - v[:, 0]) / (2 * (2 * v[:, 1] - v[:, 0] - v[:, 2]))
+        sx[~sx.isfinite()] = 0
+    
+        ty = offset[:, 1].unsqueeze(1) + tidx
+        v = nc.flatten()[(torch.arange(n, device=device).unsqueeze(1) * ww + ty * w + offset[:, 0].unsqueeze(1)).to(torch.long).flatten()].reshape(n, 3)
+        sy = (v[:, 2] - v[:, 0]) / (2 * (2 * v[:, 1] - v[:, 0] - v[:, 2]))
+        sy[~sy.isfinite()] = 0
+        
+        offset[:, 0] = offset[:, 0] + sx
+        offset[:, 1] = offset[:, 1] + sy
 
-    idx = torch.abs(nc.reshape(n, -1)[:, vidx.flatten()]).reshape(n, w_2**2).max(dim=1)
-    offset = (torch.vstack((idx[1] % w_2, torch.div(idx[1], w_2, rounding_mode='trunc'))) - ((w_2 - 1) / 2)).permute(1, 0)
+    offset -= (r + 1)
 
     return offset, idx[0]
+
 
 def save_patch(patch, grid=[40, 50], save_prefix='patch_', save_suffix='.png', normalize=False):
 
@@ -1358,8 +1275,21 @@ if __name__ == '__main__':
     #     mihoo = torch.load(miho_pt)
 
     w = 15
-    
-    pt1_, pt2_, Hs_ = refinement_init(mihoo.im1, mihoo.im2, mihoo.Hidx, mihoo.Hs, mihoo.pt1, mihoo.pt2, w=15, img_patches=True)        
-    pt1__, pt2__, Hs__, val = refinement_norm_corr(mihoo.im1, mihoo.im2, Hs_, pt1_, pt2_, w=15, ref_image=['both'], img_patches=True)   
+
+    # mihoo.Hidx[:] = 0
+    # mihoo.Hs[0][0] = torch.eye(3, device=device)
+    # mihoo.Hs[0][1] = torch.eye(3, device=device)
+    # mihoo.pt1 = mihoo.pt1.round()
+    # mihoo.pt2 = mihoo.pt1 + test_idx
+    # pt1_, pt2_, Hs_ = refinement_init(mihoo.im1, mihoo.im1, mihoo.Hidx, mihoo.Hs, mihoo.pt1, mihoo.pt2, w=w, img_patches=True)    
+    # pt1__, pt2__, Hs__, val = refinement_norm_corr(mihoo.im1, mihoo.im1, Hs_, pt1_, pt2_, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+ 
+    start = time.time()   
+ 
+    pt1_, pt2_, Hs_ = refinement_init(mihoo.im1, mihoo.im2, mihoo.Hidx, mihoo.Hs, mihoo.pt1, mihoo.pt2, w=w, img_patches=True)        
+    pt1__, pt2__, Hs__, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, Hs_, pt1_, pt2_, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+
+    end = time.time()
+    print("Elapsed = %s" % (end - start))
     
     mihoo.show_clustering()
