@@ -6,6 +6,8 @@ import scipy.io as sio
 import warnings
 import torch
 import torchvision.transforms as transforms
+import argparse
+from pathlib import Path
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 EPS_ = torch.finfo(torch.float32).eps
@@ -569,7 +571,7 @@ def get_error(pt1, pt2, H, sidx):
 
 
 def sampler4_par(n_par, m):
-    nn = n_par.size()[0]
+    nn = n_par.size()[0]  
 
     n_par = n_par.repeat(m)
 
@@ -603,7 +605,7 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
         sidx_ = torch.zeros((4,), dtype=torch.int32, device=device)
         return H1, H2, iidx, oidx, vidx, sidx_
     
-    min_iter = min(min_iter, n*(n-1)*(n-2)*(n-3) / 12)
+    min_iter = int(min(min_iter, n*(n-1)*(n-2)*(n-3) / 12))
 
     vidx = torch.zeros((n, buffers), dtype=torch.bool, device=device)
     midx = torch.zeros((n, buffers+1), dtype=torch.bool, device=device)
@@ -1230,15 +1232,28 @@ class miho:
 
 if __name__ == '__main__':
 
-    img1 = 'data/im1.png'
-    img2 = 'data/im2_rot.png'
-    match_file = 'data/matches_rot.mat'
+    parser = argparse.ArgumentParser(description="Miho. Example usage: python ./miho_buffered_rot_patch_pytorch.py data/im1.png data/im2.png data/matches.mat matlab")
+    parser.add_argument("im1", help="Path to the image 1.")
+    parser.add_argument("im2", help="Path to the image 2.")
+    parser.add_argument("matches", help="Path to matches file.")
+    args = parser.parse_args()
+
+    img1 = args.im1
+    img2 = args.im2
+    match_file = args.matches
+    file_type = Path(match_file).suffix
 
     im1 = Image.open(img1)
     im2 = Image.open(img2)
 
-    m12 = sio.loadmat(match_file, squeeze_me=True)
-    m12 = m12['matches'][m12['midx'] > 0, :]
+    if file_type == ".mat":
+        m12 = sio.loadmat(match_file, squeeze_me=True)
+        print(m12['matches'].shape)
+        m12 = m12['matches'][m12['midx'] > 0, :]
+        print(m12)
+    if file_type == ".txt":
+        m12 = np.loadtxt(match_file) 
+        print(m12)
     # m12 = m12['matches']
 
     start = time.time()
