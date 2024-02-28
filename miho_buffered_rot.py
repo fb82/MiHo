@@ -275,7 +275,7 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
         sidx_ = np.zeros((4,), dtype=int)
         return H1, H2, iidx, oidx, vidx, sidx_
 
-    min_iter = min(min_iter, n*(n-1)*(n-2)*(n-3) / 12)
+    min_iter = min(min_iter, n*(n-1)*(n-2)*(n-3) // 12)
 
     vidx = np.zeros((n, buffers), dtype=bool)
     midx = np.zeros((n, buffers+1), dtype=bool)
