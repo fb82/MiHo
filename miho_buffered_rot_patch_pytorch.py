@@ -96,7 +96,7 @@ def go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_'):
     save_patch(patch2, save_prefix=save_prefix, save_suffix='_b.png')
 
 
-def refinement_init(im1, im2, Hidx, Hs, pt1, pt2, w=15, img_patches=False):
+def refinement_init(im1, im2, Hidx, Hs, pt1, pt2, mihoo, w=15, img_patches=False):
     if Hidx is None:        
         Hidx = torch.zeros(pt1.size()[0], device=device, dtype=torch.int)
         Hs = [[torch.eye(3, device=device), torch.eye(3, device=device)]]
@@ -1301,7 +1301,7 @@ if __name__ == '__main__':
  
     start = time.time()   
  
-    pt1_, pt2_, Hs_ = refinement_init(mihoo.im1, mihoo.im2, mihoo.Hidx, mihoo.Hs, mihoo.pt1, mihoo.pt2, w=w, img_patches=True)        
+    pt1_, pt2_, Hs_ = refinement_init(mihoo.im1, mihoo.im2, mihoo.Hidx, mihoo.Hs, mihoo.pt1, mihoo.pt2, mihoo, w=w, img_patches=True)        
     pt1__, pt2__, Hs__, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, Hs_, pt1_, pt2_, w=w, ref_image=['both'], subpix=True, img_patches=True)   
 
     end = time.time()
