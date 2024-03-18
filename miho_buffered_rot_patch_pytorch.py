@@ -6,12 +6,32 @@ import scipy.io as sio
 import warnings
 import torch
 import torchvision.transforms as transforms
+import kornia as K
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 EPS_ = torch.finfo(torch.float32).eps
 sqrt2 = np.sqrt(2)
 
 # test_idx = (torch.rand((2558, 2), device=device) * 29 - 14).round()    
+
+
+def laf2homo(kps):
+
+    c = kps[:, :, 0] + kps[:, :, 2]
+    x = kps[:, :, 1] + kps[:, :, 2]
+    y = kps[:, :, 2]
+    Hi = torch.zeros((kps.shape[0], 3, 3), device=device)
+    Hi[:, 0, 0] = x[:, 0] - c[:, 0] 
+    Hi[:, 1, 0] = x[:, 1] - c[:, 1] 
+    Hi[:, 0, 1] = y[:, 0] - c[:, 0] 
+    Hi[:, 1, 1] = y[:, 1] - c[:, 1] 
+    Hi[:, 0, 2] = c[:, 0] 
+    Hi[:, 1, 2] = c[:, 1] 
+    Hi[:, 2, 2] = 1 
+    H = torch.linalg.inv(Hi)
+    
+    return c, H
+
 
 def get_inverse(pt1, pt2, Hs):
     l = Hs.size()[0] 
@@ -1227,7 +1247,7 @@ class miho:
         else:
             warnings.warn("planar_clustering must run before!!!")
 
-
+    
 if __name__ == '__main__':
 
     img1 = 'data/im1.png'
@@ -1237,9 +1257,26 @@ if __name__ == '__main__':
     im1 = Image.open(img1)
     im2 = Image.open(img2)
 
-    m12 = sio.loadmat(match_file, squeeze_me=True)
-    m12 = m12['matches'][m12['midx'] > 0, :]
-    # m12 = m12['matches']
+    kornia_device='cpu'
+    detector = K.feature.KeyNetAffNetHardNet(upright=False, device=kornia_device)
+    kps1, _ , descs1 = detector.forward(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=kornia_device).unsqueeze(0))
+    kps2, _ , descs2 = detector.forward(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=kornia_device).unsqueeze(0))
+    dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.98)
+        
+    kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
+    kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
+    
+    pt1, H1 = laf2homo(kps1)
+    pt2, H2 = laf2homo(kps2)
+    
+    pt1_np = pt1.cpu().numpy()
+    pt2_np = pt2.cpu().numpy()
+    
+    # m12 = sio.loadmat(match_file, squeeze_me=True)
+    # m12 = m12['matches'][m12['midx'] > 0, :]
+    # # m12 = m12['matches']
+    # pt1_np = m12[:, :2]
+    # pt2_np = m12[:, 2:]
 
     start = time.time()
 
@@ -1258,8 +1295,8 @@ if __name__ == '__main__':
     # params['get_avg_hom']['min_plane_pts'] = 16
     # mihoo.update_params(params)
 
-    mihoo.planar_clustering(m12[:, :2], m12[:, 2:])
-    # mihoo.planar_clustering(m12[:, :2], m12[:, 2:])
+    mihoo.planar_clustering(pt1_np, pt2_np)
+    # mihoo.planar_clustering(pt1_np, pt2_np)
 
     end = time.time()
     print("Elapsed = %s" % (end - start))
