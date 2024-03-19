@@ -16,10 +16,10 @@ sqrt2 = np.sqrt(2)
 
 
 def laf2homo(kps):
-
     c = kps[:, :, 0] + kps[:, :, 2]
     x = kps[:, :, 1] + kps[:, :, 2]
     y = kps[:, :, 2]
+
     Hi = torch.zeros((kps.shape[0], 3, 3), device=device)
     Hi[:, 0, 0] = x[:, 0] - c[:, 0] 
     Hi[:, 1, 0] = x[:, 1] - c[:, 1] 
@@ -28,6 +28,7 @@ def laf2homo(kps):
     Hi[:, 0, 2] = c[:, 0] 
     Hi[:, 1, 2] = c[:, 1] 
     Hi[:, 2, 2] = 1 
+
     H = torch.linalg.inv(Hi)
     
     return c, H
