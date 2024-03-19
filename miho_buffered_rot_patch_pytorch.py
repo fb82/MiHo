@@ -17,21 +17,31 @@ sqrt2 = np.sqrt(2)
 
 def laf2homo(kps):
     c = kps[:, :, 0] + kps[:, :, 2]
-    x = kps[:, :, 1] + kps[:, :, 2]
-    y = kps[:, :, 2]
-
+    s = torch.sqrt(torch.abs(kps[:, 0, 0] * kps[:, 1, 1] - kps[:, 0, 1] * kps[:, 1, 0]))   
+    
     Hi = torch.zeros((kps.shape[0], 3, 3), device=device)
-    Hi[:, 0, 0] = x[:, 0] - c[:, 0] 
-    Hi[:, 1, 0] = x[:, 1] - c[:, 1] 
-    Hi[:, 0, 1] = y[:, 0] - c[:, 0] 
-    Hi[:, 1, 1] = y[:, 1] - c[:, 1] 
-    Hi[:, 0, 2] = c[:, 0] 
-    Hi[:, 1, 2] = c[:, 1] 
+    Hi[:, :2, :] = kps / s.reshape(s.shape[0], 1, 1)
     Hi[:, 2, 2] = 1 
 
     H = torch.linalg.inv(Hi)
     
     return c, H
+
+
+def refinement_laf(im1, im2, pt1=None, pt2=None, data1=None, data2=None, w=15, img_patches=True):
+    if data1 is None:
+        l = pt1.shape[0]
+        Hs = torch.eye(3, device=device).repeat(l*2, 1).reshape(l, 2, 3, 3)
+    else:
+        l = data1.shape[0]
+        pt1, H1 = laf2homo(data1)
+        pt2, H2 = laf2homo(data2)        
+        Hs = torch.cat((H1.unsqueeze(1), H2.unsqueeze(1)), 1)        
+    
+    if img_patches:
+        go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='laf_patch_')    
+  
+    return pt1, pt2, Hs
 
 
 def get_inverse(pt1, pt2, Hs):
@@ -115,7 +125,7 @@ def go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_'):
     save_patch(patch2, save_prefix=save_prefix, save_suffix='_b.png')
 
 
-def refinement_init(im1, im2, Hidx, Hs, pt1, pt2, w=15, img_patches=False):
+def refinement_miho(im1, im2, Hidx, Hs, pt1, pt2, Hs_laf, remove_bad=False, w=15, img_patches=False):
     if Hidx is None:        
         Hidx = torch.zeros(pt1.size()[0], device=device, dtype=torch.int)
         Hs = [[torch.eye(3, device=device), torch.eye(3, device=device)]]
@@ -134,7 +144,7 @@ def refinement_init(im1, im2, Hidx, Hs, pt1, pt2, w=15, img_patches=False):
     Hs = Hs[idx]
         
     if img_patches:
-        go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='init_patch_')
+        go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='miho_patch_')
     
     return pt1, pt2, Hs
 
@@ -1211,8 +1221,8 @@ class miho:
 
     def planar_clustering(self, pt1, pt2):
         """run MiHo"""
-        self.pt1 = torch.tensor(pt1, dtype=torch.float32, device=device)
-        self.pt2 = torch.tensor(pt2, dtype=torch.float32, device=device)
+        self.pt1 = pt1
+        self.pt2 = pt2
 
         Hdata, H1_pre, H2_pre = get_avg_hom(self.pt1, self.pt2, **self.params['get_avg_hom'])
         self.Hs = Hdata
@@ -1248,62 +1258,74 @@ class miho:
         else:
             warnings.warn("planar_clustering must run before!!!")
 
-    
+
 if __name__ == '__main__':
 
-    img1 = 'data/im1.png'
-    img2 = 'data/im2_rot.png'
-    match_file = 'data/matches_rot.mat'
+    # img1 = 'data/im1.png'
+    # img2 = 'data/im2_rot.png'
+    # match_file = 'data/matches_rot.mat'
+
+    img1 = 'data/dc0.png'
+    img2 = 'data/dc2.png'
+    
+    w = 15
 
     im1 = Image.open(img1)
     im2 = Image.open(img2)
 
+    # generate matches with kornia, laf included, check upright!
+    #
     kornia_device='cpu'
-    detector = K.feature.KeyNetAffNetHardNet(upright=False, device=kornia_device)
-    kps1, _ , descs1 = detector.forward(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=kornia_device).unsqueeze(0))
-    kps2, _ , descs2 = detector.forward(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=kornia_device).unsqueeze(0))
-    dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.98)
-        
+    detector = K.feature.KeyNetAffNetHardNet(upright=True, device=kornia_device)
+    kps1, _ , descs1 = detector(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=kornia_device).unsqueeze(0))
+    kps2, _ , descs2 = detector(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=kornia_device).unsqueeze(0))
+    dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.98)        
     kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
     kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
-    
-    pt1, H1 = laf2homo(kps1)
-    pt2, H2 = laf2homo(kps2)
-    
-    pt1_np = pt1.cpu().numpy()
-    pt2_np = pt2.cpu().numpy()
-    
+
+    # import from a match file with only kpts
+    #
     # m12 = sio.loadmat(match_file, squeeze_me=True)
     # m12 = m12['matches'][m12['midx'] > 0, :]
     # # m12 = m12['matches']
-    # pt1_np = m12[:, :2]
-    # pt2_np = m12[:, 2:]
-
-    start = time.time()
+    # pt1 = torch.tensor(m12[:, :2], dtype=torch.float32, device=device)
+    # pt2 = torch.tensor(m12[:, 2:], dtype=torch.float32, device=device)
 
     params = miho.all_params()
     params['get_avg_hom']['rot_check'] = True
     mihoo = miho(params)
 
-    # mihoo = miho(params)
-
+    # miho paramas examples
+    #
     # params = miho.all_params()
     # params['go_assign']['method'] = cluster_assign_base
     # params['go_assign']['method_args']['err_th'] = 16
     # mihoo = miho(params)
-
+    #
     # params = mihoo.get_current()
     # params['get_avg_hom']['min_plane_pts'] = 16
     # mihoo.update_params(params)
 
-    mihoo.planar_clustering(pt1_np, pt2_np)
-    # mihoo.planar_clustering(pt1_np, pt2_np)
-
-    end = time.time()
-    print("Elapsed = %s" % (end - start))
-
     mihoo.attach_images(im1, im2)
 
+    # offset kpt shift, for testing
+    #
+    # pt1 = pt1.round()
+    # pt2 = pt1 + test_idx
+    # pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im1, pt1=pt1, pt2=pt2, w=w, img_patches=True)    
+
+    pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=True)    
+    # pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, pt1=pt1, pt2=pt2, w=w, img_patches=True)    
+
+    ###
+    start = time.time()
+    
+    mihoo.planar_clustering(pt1, pt2)
+
+    end = time.time()
+    print("Elapsed = %s (MiHo clustering)" % (end - start))
+
+    # save MiHo
     # import pickle
     #
     # with open('miho.pt', 'wb') as file:
@@ -1311,21 +1333,22 @@ if __name__ == '__main__':
     #
     # with open('miho.pt', 'rb') as miho_pt:
     #     mihoo = torch.load(miho_pt)
-
-    w = 15
-
-    # mihoo.Hidx[:] = 0
-    # mihoo.Hs[0][0] = torch.eye(3, device=device)
-    # mihoo.Hs[0][1] = torch.eye(3, device=device)
-    # mihoo.pt1 = mihoo.pt1.round()
-    # mihoo.pt2 = mihoo.pt1 + test_idx
-    # pt1_, pt2_, Hs_ = refinement_init(mihoo.im1, mihoo.im1, mihoo.Hidx, mihoo.Hs, mihoo.pt1, mihoo.pt2, w=w, img_patches=True)    
-    # pt1__, pt2__, Hs__, val = refinement_norm_corr(mihoo.im1, mihoo.im1, Hs_, pt1_, pt2_, w=w, ref_image=['both'], subpix=True, img_patches=True)   
  
-    start = time.time()   
+    # inliers
+    good_matches = mihoo.Hidx > -1   
  
-    pt1_, pt2_, Hs_ = refinement_init(mihoo.im1, mihoo.im2, mihoo.Hidx, mihoo.Hs, mihoo.pt1, mihoo.pt2, w=w, img_patches=True)        
-    pt1__, pt2__, Hs__, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, Hs_, pt1_, pt2_, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    start = time.time()
+        
+    # laf -> ncc - offset kpt shift, for testing
+    #
+    # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im1, Hs_laf, pt1, pt2, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+            
+    # laf -> ncc
+    # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, Hs_laf, pt1, pt2, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    
+    # laf -> miho -> ncc    
+    pt1_, pt2_, Hs_miho = refinement_miho(mihoo.im1, mihoo.im2, mihoo.Hidx, mihoo.Hs, pt1, pt2, Hs_laf, remove_bad=False, w=w, img_patches=True)        
+    pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, Hs_miho, pt1_, pt2_, w=w, ref_image=['both'], subpix=True, img_patches=True)   
 
     end = time.time()
     print("Elapsed = %s" % (end - start))
