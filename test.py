@@ -262,16 +262,17 @@ if __name__ == '__main__':
         data[th_str]['inliers'] = []
 
         #for scene in list(pairs_per_scene.keys()):
-        for scene in ["scene0707_00", "scene0708_00"]:
+        for scene in ["scene0707_00"]: # ["scene0707_00", "scene0708_00"]
             with open(working_dir / scene / "pairs.txt", 'w') as pair_file:
                 for pair in pairs_per_scene[scene]:
                     pair_file.write(f'{pair[0]} {pair[1]}\n')
 
-            shutil.copytree(working_dir / scene / 'color', working_dir / scene / 'images', dirs_exist_ok=True)
+            #shutil.copytree(working_dir / scene / 'color', working_dir / scene / 'images', dirs_exist_ok=True)
 
             # Run DIM as library to extract and match features
             cli_params = {
                 "dir": f"{working_dir / scene}",
+                "images": working_dir / scene / 'color',
                 "pipeline": f"{pipeline}",
                 "strategy": "custom_pairs",
                 "pair_file": f"{working_dir / scene}/pairs.txt",
@@ -340,38 +341,13 @@ if __name__ == '__main__':
             images, keypoints = dbReturnKeypoints(database_path)
             images, raw_matches, matches = dbReturnMatches(database_path, min_num_matches=1)
 
-            ## Save matches in x1 y1 x2 y2 format
-            #p = subprocess.Popen([
-            #    "python", 
-            #    "./thirdparty/deep-image-matching/scripts/export_from_database.py", 
-            #    f"{working_dir / scene}/results_{pipeline}_custom_pairs_quality_high/database.db", 
-            #    "x1y1x2y2",
-            #    ])
-            #p.wait()
-
             for pair in pairs_per_scene[scene]:
                 img0, img1, pair_idx = pair[0], pair[1], pair[2]
-                #match_file1 = f"{working_dir / scene}/results_{pipeline}_custom_pairs_quality_high/matches/{Path(img0).stem}_{Path(img1).stem}.txt"
-                #match_file2 = f"{working_dir / scene}/results_{pipeline}_custom_pairs_quality_high/matches/{Path(img1).stem}_{Path(img0).stem}.txt"
                 pair01 = f"{Path(img0).name} {Path(img1).name}"
                 pair10 = f"{Path(img1).name} {Path(img0).name}"
-                #p = subprocess.Popen([
-                #    "python",
-                #    "./miho_buffered_rot_patch_pytorch.py",
-                #    f"{working_dir / scene}/images/{img0}",
-                #    f"{working_dir / scene}/images/{img1}",
-                #    f"{working_dir / scene}/results_{pipeline}_custom_pairs_quality_high/matches/{Path(img0).stem}_{Path(img1).stem}.txt",
-                #    ])
-                #p.wait()
 
                 im1 = Image.open(working_dir / scene / "images" / img0)            
                 im2 = Image.open(working_dir / scene / "images" / img1)
-                
-                #if os.path.exists(match_file1):
-                #    m12 = np.loadtxt(match_file1)
-                #if os.path.exists(match_file2):
-                #    m21 = np.loadtxt(match_file2)
-                #    m12 = m21[:, [2, 3, 0, 1]]
 
                 m01 = None
                 
@@ -388,15 +364,12 @@ if __name__ == '__main__':
                     k0 = keypoints[f"{Path(img0).name}"][m10[:,1],:]
                     m01 = np.hstack((k0,k1))
                 
-                #if os.path.exists(match_file1) or os.path.exists(match_file2):
                 if m01.any != None:
 
                     params = miho.all_params()
                     params['get_avg_hom']['rot_check'] = True
                     mihoo = miho(params)
                     mihoo.planar_clustering(m01[:, :2], m01[:, 2:])
-                    # Ransac
-                    # Comprimere i file txt!
                     mihoo.attach_images(im1, im2)
 
                     w = 15  

@@ -605,7 +605,8 @@ def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p
         sidx_ = torch.zeros((4,), dtype=torch.int32, device=device)
         return H1, H2, iidx, oidx, vidx, sidx_
     
-    min_iter = int(min(min_iter, n*(n-1)*(n-2)*(n-3) / 12))
+    #min_iter = int(min(min_iter, n*(n-1)*(n-2)*(n-3) / 12))
+    min_iter = min(min_iter, n * (n-1) * (n-2) * (n-3) // 12)
 
     vidx = torch.zeros((n, buffers), dtype=torch.bool, device=device)
     midx = torch.zeros((n, buffers+1), dtype=torch.bool, device=device)
