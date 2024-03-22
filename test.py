@@ -219,6 +219,7 @@ def error_auc(errors, thr):
 if __name__ == '__main__':
     
     # Input params
+    apply_miho = False
     angular_thresholds = [5, 10, 20]
     pixel_thr = 0.5
     pipeline = "superpoint+lightglue"
@@ -261,8 +262,8 @@ if __name__ == '__main__':
     data["results"]['inliers'] = []
     
     #for scene in list(pairs_per_scene.keys()):
-    #for scene in ["scene0707_00", "scene0708_00"]:
-    for scene in ["scene0707_00"]:
+    for scene in ["scene0707_00", "scene0708_00"]:
+    #for scene in ["scene0707_00"]:
         with open(working_dir / scene / "pairs.txt", 'w') as pair_file:
             for pair in pairs_per_scene[scene]:
                 pair_file.write(f'{pair[0]} {pair[1]}\n')
@@ -279,13 +280,13 @@ if __name__ == '__main__':
             "force": True,
             "camera_options": "../config/cameras.yaml",
             "openmvg": None,
+            "verbose": True,
         }
 
         config = Config(cli_params)
-        config.general["min_inliers_per_pair"] = 10
+        config.general["min_inliers_per_pair"] = 8
         config.general["gv_threshold"] = 1000 # 1000 pixel error threshold to disable DIM ransac, I can add an option to completly disable this step
         config.extractor["max_keypoints"] = 8000
-        config.matcher["filter_threshold"] = 0.1
         config.save()
 
         imgs_dir = config.general["image_dir"]
@@ -366,21 +367,21 @@ if __name__ == '__main__':
                 m01 = np.hstack((k0,k1))
                 
             if m01.shape[0] != 0:
-                params = miho.all_params()
-                params['get_avg_hom']['rot_check'] = True
-                mihoo = miho(params)
-                mihoo.planar_clustering(m01[:, :2], m01[:, 2:])
-                mihoo.attach_images(im1, im2)
+                if apply_miho:
+                    params = miho.all_params()
+                    params['get_avg_hom']['rot_check'] = True
+                    mihoo = miho(params)
+                    mihoo.planar_clustering(m01[:, :2], m01[:, 2:])
+                    mihoo.attach_images(im1, im2)
+                    w = 15  
+                    pt1_, pt2_, Hs_ = refinement_init(mihoo.im1, mihoo.im2, mihoo.Hidx, mihoo.Hs, mihoo.pt1, mihoo.pt2, mihoo, w=w, img_patches=False)        
+                    pt1__, pt2__, Hs__, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, Hs_, pt1_, pt2_, w=w, ref_image=['both'], subpix=True, img_patches=False)
+                    kp1, kp2 = pt1__.numpy(), pt2__.numpy()
+                else:
+                    kp1, kp2 = m01[:, :2], m01[:, 2:]
 
-                w = 15  
-
-                pt1_, pt2_, Hs_ = refinement_init(mihoo.im1, mihoo.im2, mihoo.Hidx, mihoo.Hs, mihoo.pt1, mihoo.pt2, mihoo, w=w, img_patches=False)        
-                pt1__, pt2__, Hs__, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, Hs_, pt1_, pt2_, w=w, ref_image=['both'], subpix=True, img_patches=False)
-
-                if (pt1__.shape[0] > 8):
-                    Rt = estimate_pose(
-                        pt1__.numpy(), pt2__.numpy(), K1[pair_idx], K2[pair_idx], pixel_thr)
-                        #m01[:, :2], m01[:, 2:], K1[pair_idx], K2[pair_idx], pixel_thr) # No miho
+                if (kp1.shape[0] > 8):
+                    Rt = estimate_pose(kp1, kp2, K1[pair_idx], K2[pair_idx], pixel_thr)
                 else:
                     Rt = None
 
@@ -401,21 +402,21 @@ if __name__ == '__main__':
                 data["results"]['inliers'].append(inliers)
 
 
-        aux = np.stack(
-            ([data["results"]['R_errs'], data["results"]['t_errs']]), axis=1)
-        max_Rt_err = np.max(aux, axis=1)
+    aux = np.stack(
+        ([data["results"]['R_errs'], data["results"]['t_errs']]), axis=1)
+    max_Rt_err = np.max(aux, axis=1)
 
-        tmp = np.concatenate((aux, np.expand_dims(
-            np.max(aux, axis=1), axis=1)), axis=1)
+    tmp = np.concatenate((aux, np.expand_dims(
+        np.max(aux, axis=1), axis=1)), axis=1)
 
-        for a in angular_thresholds:
-            #auc_R = error_auc(np.squeeze(data["results"]['R_errs']), a)
-            #auc_t = error_auc(np.squeeze(data["results"]['t_errs']), a)
-            #auc_max_Rt = error_auc(np.squeeze(max_Rt_err), a)
-            #data["results"]['pose_error_auc_@' +
-            #             str(a)] = np.asarray([auc_R, auc_t, auc_max_Rt])
+    for a in angular_thresholds:
+        #auc_R = error_auc(np.squeeze(data["results"]['R_errs']), a)
+        #auc_t = error_auc(np.squeeze(data["results"]['t_errs']), a)
+        #auc_max_Rt = error_auc(np.squeeze(max_Rt_err), a)
+        #data["results"]['pose_error_auc_@' +
+        #             str(a)] = np.asarray([auc_R, auc_t, auc_max_Rt])
 
-            print("scene", scene, 'pose_error_acc_@' + str(a), np.sum(tmp < a, axis=0)/np.shape(tmp)[0])
+        print("scene", scene, 'pose_error_acc_@' + str(a), np.sum(tmp < a, axis=0)/np.shape(tmp)[0])
 
 
 
