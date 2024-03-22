@@ -253,169 +253,169 @@ if __name__ == '__main__':
     
 
     # Setup DIM
-    for sac_th_idx in range(len(sac_th)):
-        th_str = 'th_'+str(sac_th[sac_th_idx])
-        #print(matcher+' '+str(pixel_thr)+' '+th_str)
-        data[th_str] = {}
-        data[th_str]['R_errs'] = []
-        data[th_str]['t_errs'] = []
-        data[th_str]['inliers'] = []
-
-        #for scene in list(pairs_per_scene.keys()):
-        for scene in ["scene0707_00"]: # ["scene0707_00", "scene0708_00"]
-            with open(working_dir / scene / "pairs.txt", 'w') as pair_file:
-                for pair in pairs_per_scene[scene]:
-                    pair_file.write(f'{pair[0]} {pair[1]}\n')
-
-            #shutil.copytree(working_dir / scene / 'color', working_dir / scene / 'images', dirs_exist_ok=True)
-
-            # Run DIM as library to extract and match features
-            cli_params = {
-                "dir": f"{working_dir / scene}",
-                "images": working_dir / scene / 'color',
-                "pipeline": f"{pipeline}",
-                "strategy": "custom_pairs",
-                "pair_file": f"{working_dir / scene}/pairs.txt",
-                "tiling": "none",
-                "skip_reconstruction": True,
-                "force": True,
-                "camera_options": "../config/cameras.yaml",
-                "openmvg": None,
-            }
-
-            config = Config(cli_params)
-            config.general["min_inliers_per_pair"] = 10
-            config.general["gv_threshold"] = 1000 # 1000 pixel error threshold to disable DIM ransac
-            config.extractor["max_keypoints"] = 1000
-            config.matcher["filter_threshold"] = 0.1
-            config.save()
-
-            imgs_dir = config.general["image_dir"]
-            output_dir = config.general["output_dir"]
-            matching_strategy = config.general["matching_strategy"]
-            extractor = config.extractor["name"]
-            matcher = config.matcher["name"]
-
-            img_matching = ImageMatching(
-                imgs_dir=imgs_dir,
-                output_dir=output_dir,
-                matching_strategy=matching_strategy,
-                local_features=extractor,
-                matching_method=matcher,
-                pair_file=config.general["pair_file"],
-                retrieval_option=config.general["retrieval"],
-                overlap=config.general["overlap"],
-                existing_colmap_model=config.general["db_path"],
-                custom_config=config.as_dict(),
-            )
-
-
-            pair_path = img_matching.generate_pairs()
-            feature_path = img_matching.extract_features()
-            match_path = img_matching.match_pairs(feature_path)
-
-            camera_options = {
-               'general' : {
-                "camera_model" : "pinhole", # ["simple-pinhole", "pinhole", "simple-radial", "opencv"]
-                "single_camera" : True,
-               },
-               'cam0' : {
-                    "camera_model" : "pinhole",
-                    "images" : "DSC_6468.JPG,DSC_6468.JPG",
-               },
-               'cam1' : {
-                    "camera_model" : "pinhole",
-                    "images" : "",
-               },
-            }
-
-            database_path = output_dir / "database.db"
-            export_to_colmap(
-                img_dir=imgs_dir,
-                feature_path=feature_path,
-                match_path=match_path,
-                database_path=database_path,
-                camera_options=camera_options,
-            )
-
-            images, keypoints = dbReturnKeypoints(database_path)
-            images, raw_matches, matches = dbReturnMatches(database_path, min_num_matches=1)
-
+    th_str = 'th_0'
+    #print(matcher+' '+str(pixel_thr)+' '+th_str)
+    data[th_str] = {}
+    data[th_str]['R_errs'] = []
+    data[th_str]['t_errs'] = []
+    data[th_str]['inliers'] = []
+    
+    #for scene in list(pairs_per_scene.keys()):
+    for scene in ["scene0707_00"]: # ["scene0707_00", "scene0708_00"]
+        with open(working_dir / scene / "pairs.txt", 'w') as pair_file:
             for pair in pairs_per_scene[scene]:
-                img0, img1, pair_idx = pair[0], pair[1], pair[2]
-                pair01 = f"{Path(img0).name} {Path(img1).name}"
-                pair10 = f"{Path(img1).name} {Path(img0).name}"
+                pair_file.write(f'{pair[0]} {pair[1]}\n')
 
-                im1 = Image.open(working_dir / scene / "images" / img0)            
-                im2 = Image.open(working_dir / scene / "images" / img1)
+        #shutil.copytree(working_dir / scene / 'color', working_dir / scene / 'images', dirs_exist_ok=True)
+            
+        # Run DIM as library to extract and match features
+        cli_params = {
+            "dir": f"{working_dir / scene}",
+            "images": working_dir / scene / 'color',
+            "pipeline": f"{pipeline}",
+            "strategy": "custom_pairs",
+            "pair_file": f"{working_dir / scene}/pairs.txt",
+            "tiling": "none",
+            "skip_reconstruction": True,
+            "force": True,
+            "camera_options": "../config/cameras.yaml",
+            "openmvg": None,
+        }
 
-                m01 = None
+        config = Config(cli_params)
+        config.general["min_inliers_per_pair"] = 10
+        config.general["gv_threshold"] = 1000 # 1000 pixel error threshold to disable DIM ransac
+        config.extractor["max_keypoints"] = 1000
+        config.matcher["filter_threshold"] = 0.1
+        config.save()
+
+        imgs_dir = config.general["image_dir"]
+        output_dir = config.general["output_dir"]
+        matching_strategy = config.general["matching_strategy"]
+        extractor = config.extractor["name"]
+        matcher = config.matcher["name"]
+
+        img_matching = ImageMatching(
+            imgs_dir=imgs_dir,
+            output_dir=output_dir,
+            matching_strategy=matching_strategy,
+            local_features=extractor,
+            matching_method=matcher,
+            pair_file=config.general["pair_file"],
+            retrieval_option=config.general["retrieval"],
+            overlap=config.general["overlap"],
+            existing_colmap_model=config.general["db_path"],
+            custom_config=config.as_dict(),
+        )
+
+
+        pair_path = img_matching.generate_pairs()
+        feature_path = img_matching.extract_features()
+        match_path = img_matching.match_pairs(feature_path)
+
+        camera_options = {
+           'general' : {
+            "camera_model" : "pinhole", # ["simple-pinhole", "pinhole", "simple-radial", "opencv"]
+            "single_camera" : True,
+           },
+           'cam0' : {
+                "camera_model" : "pinhole",
+                "images" : "DSC_6468.JPG,DSC_6468.JPG",
+           },
+           'cam1' : {
+                "camera_model" : "pinhole",
+                "images" : "",
+           },
+        }
+
+        database_path = output_dir / "database.db"
+        export_to_colmap(
+            img_dir=imgs_dir,
+            feature_path=feature_path,
+            match_path=match_path,
+            database_path=database_path,
+            camera_options=camera_options,
+        )
+
+        images, keypoints = dbReturnKeypoints(database_path)
+        images, raw_matches, matches = dbReturnMatches(database_path, min_num_matches=1)
+
+        for pair in pairs_per_scene[scene]:
+            img0, img1, pair_idx = pair[0], pair[1], pair[2]
+            pair01 = f"{Path(img0).name} {Path(img1).name}"
+            pair10 = f"{Path(img1).name} {Path(img0).name}"
+
+            im1 = Image.open(working_dir / scene / "images" / img0)            
+            im2 = Image.open(working_dir / scene / "images" / img1)
+
+            m01 = None
                 
-                if pair01 in list(matches.keys()):
-                    m01 = matches[pair01]
-                    k0 = keypoints[f"{Path(img0).name}"][m01[:,0],:]
-                    k1 = keypoints[f"{Path(img1).name}"][m01[:,1],:]
-                    #GeneratePlot(working_dir / scene / "images" / Path(img0), working_dir / scene / "images" / Path(img1), keypoints[f"{Path(img0).name}"], keypoints[f"{Path(img1).name}"], m01)
-                    m01 = np.hstack((k0,k1))
+            if pair01 in list(matches.keys()):
+                m01 = matches[pair01]
+                k0 = keypoints[f"{Path(img0).name}"][m01[:,0],:]
+                k1 = keypoints[f"{Path(img1).name}"][m01[:,1],:]
+                #GeneratePlot(working_dir / scene / "images" / Path(img0), working_dir / scene / "images" / Path(img1), keypoints[f"{Path(img0).name}"], keypoints[f"{Path(img1).name}"], m01)
+                m01 = np.hstack((k0,k1))
 
-                if pair10 in list(matches.keys()):
-                    m10 = matches[pair10]
-                    k1 = keypoints[f"{Path(img1).name}"][m10[:,0],:]
-                    k0 = keypoints[f"{Path(img0).name}"][m10[:,1],:]
-                    m01 = np.hstack((k0,k1))
+            if pair10 in list(matches.keys()):
+                m10 = matches[pair10]
+                k1 = keypoints[f"{Path(img1).name}"][m10[:,0],:]
+                k0 = keypoints[f"{Path(img0).name}"][m10[:,1],:]
+                m01 = np.hstack((k0,k1))
                 
-                if m01.any != None:
-
-                    params = miho.all_params()
-                    params['get_avg_hom']['rot_check'] = True
-                    mihoo = miho(params)
-                    mihoo.planar_clustering(m01[:, :2], m01[:, 2:])
-                    mihoo.attach_images(im1, im2)
-
-                    w = 15  
-
-                    pt1_, pt2_, Hs_ = refinement_init(mihoo.im1, mihoo.im2, mihoo.Hidx, mihoo.Hs, mihoo.pt1, mihoo.pt2, mihoo, w=w, img_patches=True)        
-                    pt1__, pt2__, Hs__, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, Hs_, pt1_, pt2_, w=w, ref_image=['both'], subpix=True, img_patches=True)
-
-                    if (pt1__.shape[0] > 8):
-                        Rt = estimate_pose(
-                            pt1__.numpy(), pt2__.numpy(), K1[pair_idx], K2[pair_idx], pixel_thr)
-                    else:
-                        Rt = None
+            if m01.any != None:
                 
+                params = miho.all_params()
+                params['get_avg_hom']['rot_check'] = True
+                mihoo = miho(params)
+                mihoo.planar_clustering(m01[:, :2], m01[:, 2:])
+                mihoo.attach_images(im1, im2)
+
+                w = 15  
+
+                pt1_, pt2_, Hs_ = refinement_init(mihoo.im1, mihoo.im2, mihoo.Hidx, mihoo.Hs, mihoo.pt1, mihoo.pt2, mihoo, w=w, img_patches=False)        
+                pt1__, pt2__, Hs__, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, Hs_, pt1_, pt2_, w=w, ref_image=['both'], subpix=True, img_patches=False)
+
+                if (pt1__.shape[0] > 8):
+                    Rt = estimate_pose(
+                        pt1__.numpy(), pt2__.numpy(), K1[pair_idx], K2[pair_idx], pixel_thr)
                 else:
                     Rt = None
 
-                if Rt is None:
-                    data[th_str]['R_errs'].append(np.inf)
-                    data[th_str]['t_errs'].append(np.inf)
-                    data[th_str]['inliers'].append(
-                        np.array([]).astype('bool'))
-                else:
-                    R, t, inliers = Rt
-                    t_err, R_err = relative_pose_error(
-                        R_gt[pair_idx], t_gt[pair_idx], R, t, ignore_gt_t_thr=0.0)
-                    data[th_str]['R_errs'].append(R_err)
-                    data[th_str]['t_errs'].append(t_err)
-                    data[th_str]['inliers'].append(inliers)
+            else:
+                Rt = None
+
+            if Rt is None:
+                data[th_str]['R_errs'].append(np.inf)
+                data[th_str]['t_errs'].append(np.inf)
+                data[th_str]['inliers'].append(
+                    np.array([]).astype('bool'))
+            else:
+                R, t, inliers = Rt
+                t_err, R_err = relative_pose_error(
+                    R_gt[pair_idx], t_gt[pair_idx], R, t, ignore_gt_t_thr=0.0)
+                data[th_str]['R_errs'].append(R_err)
+                data[th_str]['t_errs'].append(t_err)
+                data[th_str]['inliers'].append(inliers)
 
 
         aux = np.stack(
-            ([data[th_str]['R_errs'], data[th_str]['t_errs']]), axis=1)
+            ([data["th_0"]['R_errs'], data["th_0"]['t_errs']]), axis=1)
         max_Rt_err = np.max(aux, axis=1)
 
         tmp = np.concatenate((aux, np.expand_dims(
             np.max(aux, axis=1), axis=1)), axis=1)
 
         for a in angular_thresholds:
-            auc_R = error_auc(np.squeeze(data[th_str]['R_errs']), a)
-            auc_t = error_auc(np.squeeze(data[th_str]['t_errs']), a)
-            auc_max_Rt = error_auc(np.squeeze(max_Rt_err), a)
-            data[th_str]['pose_error_auc_@' +
-                         str(a)] = np.asarray([auc_R, auc_t, auc_max_Rt])
+            #auc_R = error_auc(np.squeeze(data["th_0"]['R_errs']), a)
+            #auc_t = error_auc(np.squeeze(data["th_0"]['t_errs']), a)
+            #auc_max_Rt = error_auc(np.squeeze(max_Rt_err), a)
+            #data[th_str]['pose_error_auc_@' +
+            #             str(a)] = np.asarray([auc_R, auc_t, auc_max_Rt])
 
-            data[th_str]['pose_error_acc_@' +
-                         str(a)] = np.sum(tmp < a, axis=0)/np.shape(tmp)[0]
+            print("scene", scene, 'pose_error_acc_@' + str(a), np.sum(tmp < a, axis=0)/np.shape(tmp)[0])
 
-    sio.savemat(osp.join('table_res', pipeline +'_'+ "scannet" +
-                '_pose_error_'+str(pixel_thr)+'.mat'), data, do_compression=True)
+
+
+    #sio.savemat(osp.join('table_res', pipeline +'_'+ "scannet" +
+    #            '_pose_error_'+str(pixel_thr)+'.mat'), data, do_compression=True)
