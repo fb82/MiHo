@@ -217,17 +217,22 @@ def error_auc(errors, thr):
 
 
 if __name__ == '__main__':
-
-    #matchers = ['disk', 'dkm', 'hz', 'hz_upright', 'keynet', 'keynet_upright', 'loftr', 'loftr_se',
-    #            'matchformer', 'quadtreeattention', 'rootsift', 'rootsift_upright', 'slime', 'slime_upright', 'superglue']
     
+    # Input params
     angular_thresholds = [5, 10, 20]
-    pixel_thr = 0.5 # ??? correct???
-    sac_th = [0, 5, 3, 2, 1]
-    data = sio.loadmat('img_test/scannet.mat', simplify_cells=True,
-                       matlab_compatible=True, chars_as_strings=True)
+    pixel_thr = 0.5
+    pipeline = "superpoint+lightglue"
+    path_to_GT = Path(r"/home/threedom/Desktop/SCANNET_DATA/scannet.mat")
+    working_dir = Path(r"/home/threedom/Desktop/SCANNET_DATA/DATA/")
 
 
+    # Load data
+    data = sio.loadmat(
+                    path_to_GT,
+                    simplify_cells=True,
+                    matlab_compatible=True,
+                    chars_as_strings=True
+                    )
     im1 = ["".join(data['im1'][i]).strip()
            for i in range(data['im1'].shape[0])]
     im2 = ["".join(data['im2'][i]).strip()
@@ -237,9 +242,6 @@ if __name__ == '__main__':
     R_gt = data['R']
     t_gt = data['T']
 
-
-    pipeline = "superpoint+lightglue"
-    working_dir = Path("./img_test/scannet_test_1500")
 
     # Store all the image pairs per scene
     pairs_per_scene = {}
@@ -253,20 +255,17 @@ if __name__ == '__main__':
     
 
     # Setup DIM
-    th_str = 'th_0'
-    #print(matcher+' '+str(pixel_thr)+' '+th_str)
-    data[th_str] = {}
-    data[th_str]['R_errs'] = []
-    data[th_str]['t_errs'] = []
-    data[th_str]['inliers'] = []
+    data["results"] = {}
+    data["results"]['R_errs'] = []
+    data["results"]['t_errs'] = []
+    data["results"]['inliers'] = []
     
     #for scene in list(pairs_per_scene.keys()):
-    for scene in ["scene0707_00"]: # ["scene0707_00", "scene0708_00"]
+    #for scene in ["scene0707_00", "scene0708_00"]:
+    for scene in ["scene0707_00"]:
         with open(working_dir / scene / "pairs.txt", 'w') as pair_file:
             for pair in pairs_per_scene[scene]:
                 pair_file.write(f'{pair[0]} {pair[1]}\n')
-
-        #shutil.copytree(working_dir / scene / 'color', working_dir / scene / 'images', dirs_exist_ok=True)
             
         # Run DIM as library to extract and match features
         cli_params = {
@@ -284,8 +283,8 @@ if __name__ == '__main__':
 
         config = Config(cli_params)
         config.general["min_inliers_per_pair"] = 10
-        config.general["gv_threshold"] = 1000 # 1000 pixel error threshold to disable DIM ransac
-        config.extractor["max_keypoints"] = 1000
+        config.general["gv_threshold"] = 1000 # 1000 pixel error threshold to disable DIM ransac, I can add an option to completly disable this step
+        config.extractor["max_keypoints"] = 8000
         config.matcher["filter_threshold"] = 0.1
         config.save()
 
@@ -328,6 +327,8 @@ if __name__ == '__main__':
            },
         }
 
+        # You can also read matches directly from h5 file, the advantage is that in a second moment the database.db can be imported to COLMAP
+        # to visualize matches
         database_path = output_dir / "database.db"
         export_to_colmap(
             img_dir=imgs_dir,
@@ -348,13 +349,14 @@ if __name__ == '__main__':
             im1 = Image.open(working_dir / scene / "images" / img0)            
             im2 = Image.open(working_dir / scene / "images" / img1)
 
-            m01 = None
+            m01 = np.empty((0,4))
                 
             if pair01 in list(matches.keys()):
                 m01 = matches[pair01]
                 k0 = keypoints[f"{Path(img0).name}"][m01[:,0],:]
                 k1 = keypoints[f"{Path(img1).name}"][m01[:,1],:]
                 #GeneratePlot(working_dir / scene / "images" / Path(img0), working_dir / scene / "images" / Path(img1), keypoints[f"{Path(img0).name}"], keypoints[f"{Path(img1).name}"], m01)
+                # To visualize matching just import database.db in COLMAP GUI
                 m01 = np.hstack((k0,k1))
 
             if pair10 in list(matches.keys()):
@@ -363,8 +365,7 @@ if __name__ == '__main__':
                 k0 = keypoints[f"{Path(img0).name}"][m10[:,1],:]
                 m01 = np.hstack((k0,k1))
                 
-            if m01.any != None:
-                
+            if m01.shape[0] != 0:
                 params = miho.all_params()
                 params['get_avg_hom']['rot_check'] = True
                 mihoo = miho(params)
@@ -379,6 +380,7 @@ if __name__ == '__main__':
                 if (pt1__.shape[0] > 8):
                     Rt = estimate_pose(
                         pt1__.numpy(), pt2__.numpy(), K1[pair_idx], K2[pair_idx], pixel_thr)
+                        #m01[:, :2], m01[:, 2:], K1[pair_idx], K2[pair_idx], pixel_thr) # No miho
                 else:
                     Rt = None
 
@@ -386,31 +388,31 @@ if __name__ == '__main__':
                 Rt = None
 
             if Rt is None:
-                data[th_str]['R_errs'].append(np.inf)
-                data[th_str]['t_errs'].append(np.inf)
-                data[th_str]['inliers'].append(
+                data["results"]['R_errs'].append(np.inf)
+                data["results"]['t_errs'].append(np.inf)
+                data["results"]['inliers'].append(
                     np.array([]).astype('bool'))
             else:
                 R, t, inliers = Rt
                 t_err, R_err = relative_pose_error(
                     R_gt[pair_idx], t_gt[pair_idx], R, t, ignore_gt_t_thr=0.0)
-                data[th_str]['R_errs'].append(R_err)
-                data[th_str]['t_errs'].append(t_err)
-                data[th_str]['inliers'].append(inliers)
+                data["results"]['R_errs'].append(R_err)
+                data["results"]['t_errs'].append(t_err)
+                data["results"]['inliers'].append(inliers)
 
 
         aux = np.stack(
-            ([data["th_0"]['R_errs'], data["th_0"]['t_errs']]), axis=1)
+            ([data["results"]['R_errs'], data["results"]['t_errs']]), axis=1)
         max_Rt_err = np.max(aux, axis=1)
 
         tmp = np.concatenate((aux, np.expand_dims(
             np.max(aux, axis=1), axis=1)), axis=1)
 
         for a in angular_thresholds:
-            #auc_R = error_auc(np.squeeze(data["th_0"]['R_errs']), a)
-            #auc_t = error_auc(np.squeeze(data["th_0"]['t_errs']), a)
+            #auc_R = error_auc(np.squeeze(data["results"]['R_errs']), a)
+            #auc_t = error_auc(np.squeeze(data["results"]['t_errs']), a)
             #auc_max_Rt = error_auc(np.squeeze(max_Rt_err), a)
-            #data[th_str]['pose_error_auc_@' +
+            #data["results"]['pose_error_auc_@' +
             #             str(a)] = np.asarray([auc_R, auc_t, auc_max_Rt])
 
             print("scene", scene, 'pose_error_acc_@' + str(a), np.sum(tmp < a, axis=0)/np.shape(tmp)[0])
