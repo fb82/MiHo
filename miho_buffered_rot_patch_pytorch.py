@@ -16,16 +16,16 @@ sqrt2 = np.sqrt(2)
 
 
 def laf2homo(kps):
-    c = kps[:, :, 0] + kps[:, :, 2]
+    c = kps[:, :, 2]
     s = torch.sqrt(torch.abs(kps[:, 0, 0] * kps[:, 1, 1] - kps[:, 0, 1] * kps[:, 1, 0]))   
     
     Hi = torch.zeros((kps.shape[0], 3, 3), device=device)
-    Hi[:, :2, :] = kps / s.reshape(s.shape[0], 1, 1)
+    Hi[:, :2, :] = kps / s.reshape(-1, 1, 1)
     Hi[:, 2, 2] = 1 
 
     H = torch.linalg.inv(Hi)
     
-    return c, H
+    return c, H, s
 
 
 def refinement_laf(im1, im2, pt1=None, pt2=None, data1=None, data2=None, w=15, img_patches=True):
@@ -34,8 +34,13 @@ def refinement_laf(im1, im2, pt1=None, pt2=None, data1=None, data2=None, w=15, i
         Hs = torch.eye(3, device=device).repeat(l*2, 1).reshape(l, 2, 3, 3)
     else:
         l = data1.shape[0]
-        pt1, H1 = laf2homo(data1)
-        pt2, H2 = laf2homo(data2)        
+        pt1, H1, s1 = laf2homo(data1)
+        pt2, H2, s2 = laf2homo(data2)
+
+        s = torch.sqrt(s1 * s2)       
+        H1[:, :2, :] = H1[:, :2, :] * (s / s1).reshape(-1, 1, 1)
+        H2[:, :2, :] = H2[:, :2, :] * (s / s2).reshape(-1, 1, 1)
+
         Hs = torch.cat((H1.unsqueeze(1), H2.unsqueeze(1)), 1)        
     
     if img_patches:
@@ -311,7 +316,7 @@ def get_error_duplex(H12, pt1, pt2, ptm, sidx_par):
     err = torch.maximum(torch.sum(err_m ** 2, dim=1), torch.sum(err_12 ** 2, dim=1))
     err[torch.logical_or(~torch.isfinite(err), ~mask)] = float('inf')
 
-    return torch.maximum(err[:l2], err[l2:]).squeeze()
+    return torch.maximum(err[:l2], err[l2:])
 
 
 def get_inlier_duplex(H12, pt1, pt2, ptm, sidx_par, th):
@@ -1261,12 +1266,12 @@ class miho:
 
 if __name__ == '__main__':
 
-    # img1 = 'data/im1.png'
-    # img2 = 'data/im2_rot.png'
+    img1 = 'data/im1.png'
+    img2 = 'data/im2_rot.png'
     # match_file = 'data/matches_rot.mat'
 
-    img1 = 'data/dc0.png'
-    img2 = 'data/dc2.png'
+    # img1 = 'data/dc0.png'
+    # img2 = 'data/dc0.png'
     
     w = 15
 
@@ -1275,11 +1280,11 @@ if __name__ == '__main__':
 
     # generate matches with kornia, laf included, check upright!
     #
-    kornia_device='cpu'
-    detector = K.feature.KeyNetAffNetHardNet(upright=True, device=kornia_device)
-    kps1, _ , descs1 = detector(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=kornia_device).unsqueeze(0))
-    kps2, _ , descs2 = detector(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=kornia_device).unsqueeze(0))
-    dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.98)        
+    with torch.inference_mode():
+        detector = K.feature.KeyNetAffNetHardNet(upright=False, device=device)
+        kps1, _ , descs1 = detector(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+        kps2, _ , descs2 = detector(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+        dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.98)        
     kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
     kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
 
