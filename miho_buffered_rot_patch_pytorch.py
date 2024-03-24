@@ -68,7 +68,7 @@ def get_inverse(pt1, pt2, Hs):
     return pt1_, pt2_, Hi, Hi1, Hi2
 
 
-def refinement_norm_corr(im1, im2, Hs, pt1, pt2, w=15, ref_image=[0, 1], subpix=True, img_patches=False, save_prefix='ncc_patch_'):    
+def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=[0, 1], subpix=True, img_patches=False, save_prefix='ncc_patch_'):    
     l = Hs.size()[0] 
         
     pt1_, pt2_, Hi, Hi1, Hi2 = get_inverse(pt1, pt2, Hs)    
@@ -130,28 +130,41 @@ def go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_'):
     save_patch(patch2, save_prefix=save_prefix, save_suffix='_b.png')
 
 
-def refinement_miho(im1, im2, Hidx, Hs, pt1, pt2, Hs_laf, remove_bad=False, w=15, img_patches=False):
-    if Hidx is None:        
-        Hidx = torch.zeros(pt1.size()[0], device=device, dtype=torch.int)
-        Hs = [[torch.eye(3, device=device), torch.eye(3, device=device)]]
+def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, img_patches=False):
+    l = pt1.shape[0]
+    idx = torch.ones(l, dtype=torch.bool, device=device)
 
-    mask = Hidx > -1
-    pt1 = pt1[mask]
-    pt2 = pt2[mask]
-    idx = Hidx[mask].type(torch.long)
-    
-    l = len(Hs)
+    if mihoo is None:
+        if Hs_laf is not None:
+            return pt1, pt2, Hs_laf, idx
+        else:
+            Hs = torch.eye(3, device=device).repeat(l*2, 1).reshape(l, 2, 3, 3)
+            return pt1, pt2, Hs, idx
+
     Hs = torch.zeros((l, 2, 3, 3), device=device)
     for i in range(l):
-        Hs[i, 0] = mihoo.Hs[i][0]
-        Hs[i, 1] = mihoo.Hs[i][1]
-    
-    Hs = Hs[idx]
+        ii = mihoo.Hidx[i]
+        if ii > -1:
+            Hs[i, 0] = mihoo.Hs[ii][0]
+            Hs[i, 1] = mihoo.Hs[ii][1]
+        elif Hs_laf is not None:
+            Hs[i, 0] = Hs_laf[i, 0]
+            Hs[i, 1] = Hs_laf[i, 1]
+        else:
+            Hs[i, 0] = torch.eye(3, device=device)
+            Hs[i, 1] = torch.eye(3, device=device)
+            
+    if remove_bad:
+        mask = mihoo.Hidx > -1
+        pt1 = pt1[mask]
+        pt2 = pt2[mask]
+        Hs = Hs[mask]
+        idx = mask
         
     if img_patches:
         go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='miho_patch_')
     
-    return pt1, pt2, Hs
+    return pt1, pt2, Hs, idx
 
 
 def norm_corr(patch1, patch2, subpix=True):     
@@ -1266,12 +1279,12 @@ class miho:
 
 if __name__ == '__main__':
 
-    img1 = 'data/im1.png'
-    img2 = 'data/im2_rot.png'
+    # img1 = 'data/im1.png'
+    # img2 = 'data/im2_rot.png'
     # match_file = 'data/matches_rot.mat'
 
-    # img1 = 'data/dc0.png'
-    # img2 = 'data/dc0.png'
+    img1 = 'data/dc0.png'
+    img2 = 'data/dc2.png'
     
     w = 15
 
@@ -1281,7 +1294,7 @@ if __name__ == '__main__':
     # generate matches with kornia, laf included, check upright!
     #
     with torch.inference_mode():
-        detector = K.feature.KeyNetAffNetHardNet(upright=False, device=device)
+        detector = K.feature.KeyNetAffNetHardNet(upright=True, device=device)
         kps1, _ , descs1 = detector(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
         kps2, _ , descs2 = detector(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
         dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.98)        
@@ -1338,24 +1351,24 @@ if __name__ == '__main__':
     #
     # with open('miho.pt', 'rb') as miho_pt:
     #     mihoo = torch.load(miho_pt)
- 
-    # inliers
-    good_matches = mihoo.Hidx > -1   
- 
+  
+    # MiHo inlier mask
+    good_matches = mihoo.Hidx > -1  
+  
     start = time.time()
         
     # laf -> ncc - offset kpt shift, for testing
     #
-    # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im1, Hs_laf, pt1, pt2, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True)   
             
     # laf -> ncc
-    # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, Hs_laf, pt1, pt2, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True)   
     
     # laf -> miho -> ncc    
-    pt1_, pt2_, Hs_miho = refinement_miho(mihoo.im1, mihoo.im2, mihoo.Hidx, mihoo.Hs, pt1, pt2, Hs_laf, remove_bad=False, w=w, img_patches=True)        
-    pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, Hs_miho, pt1_, pt2_, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    pt1_, pt2_, Hs_miho, inliers = refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=True, w=w, img_patches=True)        
+    pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True)   
 
     end = time.time()
-    print("Elapsed = %s" % (end - start))
+    print("Elapsed = %s (NCC refinement)" % (end - start))
     
     mihoo.show_clustering()
