@@ -76,7 +76,7 @@ def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=[0, 1], subpix=
     patch1 = patchify(im1, pt1_.squeeze(), Hi1, w*2)
     patch2 = patchify(im2, pt2_.squeeze(), Hi2, w*2)
 
-    uidx = torch.arange(w + 1, 3*w + 2)
+    uidx = torch.arange(w, 3*w + 1)
     tmp = uidx.unsqueeze(0).repeat(w*2 + 1, 1)
     vidx = tmp.permute(1, 0) * (w*4 + 1) + tmp
         
@@ -118,6 +118,99 @@ def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=[0, 1], subpix=
         go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix=save_prefix)
         
     return pt1, pt2, Hs, val, T
+
+
+def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, ref_image=[0, 1], subpix=True, img_patches=False, save_prefix='ncc_alternate_patch_'):    
+    l = Hs.size()[0] 
+        
+    pt1_, pt2_, Hi, Hi1, Hi2 = get_inverse(pt1, pt2, Hs)    
+                        
+    patch_val = torch.full((2, l), -1, device=device, dtype=torch.float)
+    patch_offset = torch.zeros(2, l, 2, device=device)
+    patch_t = torch.eye(3, device=device, dtype=torch.float).reshape(1, 1, 9).repeat(l, 2, 1).reshape(l, 2, 3, 3)
+
+    a = torch.tensor([-30, -15, 0, 15, 30], device=device) * np.pi / 180
+    s = torch.tensor([[10/14, 1], [10/12, 1], [1, 1], [1, 12/10], [1, 14/10]], device=device)
+
+    Ti = torch.eye(3, device=device, dtype=torch.float).reshape(1, 1, 9).repeat(l, 2, 1).reshape(l, 2, 3, 3)
+    Ti[:, 0, 0, 2] = pt1_[:, 0]
+    Ti[:, 0, 1, 2] = pt1_[:, 1]
+    Ti[:, 1, 0, 2] = pt2_[:, 0]
+    Ti[:, 1, 1, 2] = pt2_[:, 1]
+
+    T = torch.eye(3, device=device, dtype=torch.float).reshape(1, 1, 9).repeat(l, 2, 1).reshape(l, 2, 3, 3)
+    T[:, 0, 0, 2] = -pt1_[:, 0]
+    T[:, 0, 1, 2] = -pt1_[:, 1]
+    T[:, 1, 0, 2] = -pt2_[:, 0]
+    T[:, 1, 1, 2] = -pt2_[:, 1]
+
+    for i in torch.arange(a.shape[0]):
+        for j in torch.arange(s.shape[0]):
+            R = torch.eye(3, device=device)
+            R[0, 0] = torch.cos(a[i])
+            R[0, 1] = -torch.sin(a[i])
+            R[1, 0] = torch.sin(a[i])
+            R[1, 1] = torch.cos(a[i])
+
+            S = torch.eye(3, device=device)
+            S[0, 0] = s[j, 0]
+            S[1, 1] = s[j, 1]
+            
+            _, _, Hiu, Hi1u, Hi2u = get_inverse(pt1, pt2, Ti @ S @ R @ T @ Hs)    
+
+            if ('left' in ref_image) or ('both' in ref_image):
+                patch2 = patchify(im2, pt2_.squeeze(), Hi2, w*2)
+                patch1_small = patchify(im1, pt1_.squeeze(), Hi1u, w)
+        
+                patch_offset0, patch_val0 = norm_corr(patch2, patch1_small, subpix=subpix)
+
+                mask = patch_val0 > patch_val[0]                
+                patch_offset[0, mask] = patch_offset0[mask]
+                patch_val[0, mask] = patch_val0[mask]
+                patch_t[mask, 0] = Hi1u[mask]                
+        
+            if ('right' in ref_image) or ('both' in ref_image):
+                patch1 = patchify(im1, pt1_.squeeze(), Hi1, w*2)
+                patch2_small = patchify(im2, pt2_.squeeze(), Hi2u, w)  
+                
+                patch_offset1, patch_val1 = norm_corr(patch1, patch2_small, subpix=subpix)
+                
+                mask = patch_val1 > patch_val[1]                
+                patch_offset[1, mask] = patch_offset1[mask]
+                patch_val[1, mask] = patch_val1[mask]
+                patch_t[mask, 0] = Hi1u[mask]
+        
+    val, val_idx = patch_val.max(dim=0)
+    
+    zidx = (torch.arange(l, device=device) * 4 + (1 - val_idx) * 2).unsqueeze(1).repeat(1,2) + torch.tensor([0, 1], device=device)
+    patch_offset = patch_offset.permute(1, 0, 2).flatten()
+    patch_offset[zidx.flatten()] = 0
+    patch_offset = patch_offset.reshape(l, 2, 2)
+
+    pt1_ = pt1_ - patch_offset[:, 0]
+    pt2_ = pt2_ - patch_offset[:, 1]
+
+    Hiu = Hi
+    Hiu[val_idx==0, 0] = patch_t[val_idx==0, 0] 
+    Hiu[val_idx==1, 1] = patch_t[val_idx==1, 1] 
+    
+    Hsu = torch.linalg.inv(Hiu.reshape(l*2, 3, 3)).reshape(l, 2, 3, 3)        
+    
+    pt1 = Hiu[:, 0].bmm(torch.hstack((pt1_, torch.ones((pt1_.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
+    pt1 = pt1[:, :2] / pt1[:, 2].unsqueeze(-1)
+    pt2 = Hiu[:, 1].bmm(torch.hstack((pt2_, torch.ones((pt2_.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
+    pt2 = pt2[:, :2] / pt2[:, 2].unsqueeze(-1)
+    
+    T = torch.eye(3, device=device, dtype=torch.float).reshape(1, 1, 9).repeat(l, 2, 1).reshape(l*2, 9)
+    aux = patch_offset.reshape(l*2, 2)
+    T[:, 2] = -aux[:, 0]
+    T[:, 5] = -aux[:, 1]
+    T = T.reshape(l*2, 3, 3)
+    
+    if img_patches:
+        go_save_patches(im1, im2, pt1, pt2, Hsu, w, save_prefix=save_prefix)
+        
+    return pt1, pt2, Hsu, val, T
 
 
 def go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_'):        
@@ -213,6 +306,7 @@ def norm_corr(patch1, patch2, subpix=True):
         offset[:, 1] = offset[:, 1] + sy
 
     offset -= (r + 1)
+    offset[~torch.isfinite(idx[0])] = 0
 
     return offset, idx[0]
 
@@ -1279,12 +1373,12 @@ class miho:
 
 if __name__ == '__main__':
 
-    # img1 = 'data/im1.png'
-    # img2 = 'data/im2_rot.png'
+    img1 = 'data/im1.png'
+    img2 = 'data/im2_rot.png'
     # match_file = 'data/matches_rot.mat'
 
-    img1 = 'data/dc0.png'
-    img2 = 'data/dc2.png'
+    # img1 = 'data/dc0.png'
+    # img2 = 'data/dc2.png'
     
     w = 15
 
@@ -1294,7 +1388,7 @@ if __name__ == '__main__':
     # generate matches with kornia, laf included, check upright!
     #
     with torch.inference_mode():
-        detector = K.feature.KeyNetAffNetHardNet(upright=True, device=device)
+        detector = K.feature.KeyNetAffNetHardNet(upright=False, device=device)
         kps1, _ , descs1 = detector(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
         kps2, _ , descs2 = detector(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
         dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.98)        
@@ -1366,7 +1460,8 @@ if __name__ == '__main__':
     
     # laf -> miho -> ncc    
     pt1_, pt2_, Hs_miho, inliers = refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=True, w=w, img_patches=True)        
-    pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True)   
 
     end = time.time()
     print("Elapsed = %s (NCC refinement)" % (end - start))
