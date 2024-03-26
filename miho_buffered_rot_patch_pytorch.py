@@ -120,8 +120,11 @@ def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=[0, 1], subpix=
     return pt1, pt2, Hs, val, T
 
 
-def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, ref_image=[0, 1], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_'):    
+def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=[0, 1], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_'):    
     l = Hs.size()[0] 
+        
+    if w_big is None:
+        w_big = w * 2
         
     pt1_, pt2_, Hi, Hi1, Hi2 = get_inverse(pt1, pt2, Hs)    
                         
@@ -159,7 +162,7 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, ref_image=[0, 1
             _, _, Hiu, Hi1u, Hi2u = get_inverse(pt1, pt2, Ti @ S @ R @ T @ Hs)    
 
             if ('left' in ref_image) or ('both' in ref_image):
-                patch2 = patchify(im2, pt2_.squeeze(), Hi2, w*2)
+                patch2 = patchify(im2, pt2_.squeeze(), Hi2, w_big)
                 patch1_small = patchify(im1, pt1_.squeeze(), Hi1u, w)
         
                 patch_offset0, patch_val0 = norm_corr(patch2, patch1_small, subpix=subpix)
@@ -170,7 +173,7 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, ref_image=[0, 1
                 patch_t[mask, 0] = Hi1u[mask]                
         
             if ('right' in ref_image) or ('both' in ref_image):
-                patch1 = patchify(im1, pt1_.squeeze(), Hi1, w*2)
+                patch1 = patchify(im1, pt1_.squeeze(), Hi1, w_big)
                 patch2_small = patchify(im2, pt2_.squeeze(), Hi2u, w)  
                 
                 patch_offset1, patch_val1 = norm_corr(patch1, patch2_small, subpix=subpix)
