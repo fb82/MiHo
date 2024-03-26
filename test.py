@@ -261,9 +261,9 @@ if __name__ == '__main__':
     data["results"]['t_errs'] = []
     data["results"]['inliers'] = []
     
-    #for scene in list(pairs_per_scene.keys()):
-    for scene in ["scene0707_00", "scene0708_00"]:
-    #for scene in ["scene0707_00"]:
+    for scene in list(pairs_per_scene.keys()):
+    #for scene in ["scene0707_00", "scene0708_00", "scene0709_00", "scene0710_00", "scene0711_00", "scene0712_00", "scene0713_00", "scene0714_00", "scene0715_00"]:
+    #for scene in ["scene0710_00"]:
         with open(working_dir / scene / "pairs.txt", 'w') as pair_file:
             for pair in pairs_per_scene[scene]:
                 pair_file.write(f'{pair[0]} {pair[1]}\n')
@@ -347,8 +347,8 @@ if __name__ == '__main__':
             pair01 = f"{Path(img0).name} {Path(img1).name}"
             pair10 = f"{Path(img1).name} {Path(img0).name}"
 
-            im1 = Image.open(working_dir / scene / "images" / img0)            
-            im2 = Image.open(working_dir / scene / "images" / img1)
+            im1 = Image.open(working_dir / scene / "color" / img0)            
+            im2 = Image.open(working_dir / scene / "color" / img1)
 
             m01 = np.empty((0,4))
                 
