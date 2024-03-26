@@ -1394,9 +1394,8 @@ if __name__ == '__main__':
     im1 = Image.open(img1)
     im2 = Image.open(img2)
 
-    # generate matches with kornia, laf included, check upright!
+    # generate matches with kornia, LAF included, check upright!
     upright=False
-    #
     with torch.inference_mode():
         detector = K.feature.KeyNetAffNetHardNet(upright=upright, device=device)
         kps1, _ , descs1 = detector(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
@@ -1436,6 +1435,7 @@ if __name__ == '__main__':
     # pt2 = pt1 + test_idx
     # pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im1, pt1=pt1, pt2=pt2, w=w, img_patches=True)    
 
+    # data formatting 
     pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=True)    
     # pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, pt1=pt1, pt2=pt2, w=w, img_patches=True)    
 
@@ -1461,17 +1461,17 @@ if __name__ == '__main__':
   
     start = time.time()
         
-    # laf -> ncc - offset kpt shift, for testing
-    #
+    # offset kpt shift, for testing - LAF -> NCC | NCC+
     # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    # pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
             
-    # laf -> ncc
+    # LAF -> NCC | NCC+
     # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    # pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
     
-    # laf -> miho -> ncc | ncc plus   
+    # LAF -> MiHo -> NCC | NCC+   
     pt1_, pt2_, Hs_miho, inliers = refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, img_patches=True)        
     pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True)   
-    # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True)   
     pt1__p, pt2_p_, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
     
     end = time.time()
