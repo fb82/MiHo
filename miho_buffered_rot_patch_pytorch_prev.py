@@ -2,12 +2,11 @@ from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-# import scipy.io as sio
+import scipy.io as sio
 import warnings
 import torch
 import torchvision.transforms as transforms
 import kornia as K
-
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 EPS_ = torch.finfo(torch.float32).eps
@@ -731,7 +730,7 @@ def sampler4_par(n_par, m):
     return sidx.reshape(m, nn, 4)
 
 
-def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=500, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000):
+def ransac_middle(pt1, pt2, dd, th_in=7, th_out=15, max_iter=500, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000):
     n = pt1.shape[1]
 
     th_in = th_in ** 2
@@ -793,14 +792,7 @@ def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=50
             else:
                 break
 
-
-        dr = sidx.repeat(1, 1, 4).flatten()
-        dc = sidx.repeat_interleave(4, dim=2).flatten()
-        
-        dd_check = (((pt1[0, dr] - pt1[0, dc])**2 + (pt1[1, dr] - pt1[1, dc])**2 > th_grid**2) &
-                    ((pt2[0, dr] - pt2[0, dc])**2 + (pt2[1, dr] - pt2[1, dc])**2 > th_grid**2)).reshape(min_iter, c_par_sz, -1)
-
-        # dd_check = dd.flatten()[sidx.repeat((1, 1, 4)).flatten() * dd.size()[0] + sidx.repeat_interleave(4, dim=2).flatten()].reshape(min_iter, c_par_sz, -1)
+        dd_check = dd.flatten()[sidx.repeat((1, 1, 4)).flatten() * dd.size()[0] + sidx.repeat_interleave(4, dim=2).flatten()].reshape(min_iter, c_par_sz, -1)
         dd_good = torch.sum(dd_check, dim=-1) >= 12
 
         # good_sample_par = torch.zeros(c_par_sz, dtype=torch.bool, device=device)
@@ -956,55 +948,6 @@ def rot_best(pt1, pt2, n=4):
     return aux
 
 
-def rot_best_block(pt1, pt2, n=4, split_sz=2048):
-    # start = time.time()    
-    
-    n = int(n)
-    if n < 1:
-        n = 1
-    
-    # current MiHo formulation is translation invariant
-    pt1 = pt1[:2]
-    pt2 = pt2[:2]
-
-    sum_all_k = torch.zeros(4, device=device)
-
-    a = torch.arange(n) * 2 * np.pi / n
-    R = torch.stack((torch.stack((torch.cos(a), -torch.sin(a)), dim=1), torch.stack((torch.sin(a), torch.cos(a)), dim=1)), dim=1).to(device)    
-
-    pt1_blk = torch.split(pt1, split_sz, dim=1)
-    pt2_blk = torch.split(pt2, split_sz, dim=1)
-
-    for i in np.arange(len(pt1_blk)):
-        for j in np.arange(len(pt1_blk)):
-            d0 = dist2p(pt1_blk[i].t(), pt1_blk[j].t())
-            d2 = dist2p(pt2_blk[i].t(), pt2_blk[j].t())
-
-            pt2_i_ = torch.matmul(R, pt2_blk[i])
-            pt2_j_ = torch.matmul(R, pt2_blk[j])
-
-            ptm_i = (pt1_blk[i] + pt2_i_) / 2
-            ptm_j = (pt1_blk[j] + pt2_j_) / 2
-
-            d1 = dist2p_batch(ptm_i.permute(0, 2, 1), ptm_j.permute(0, 2, 1))
-    
-            # in_middle = (torch.sign(d0[None, :, :] - d1) * torch.sign(d1 - d2[None, :, :])) > 0    
-            in_middle = (torch.sign(d0 - d1) * torch.sign(d1 - d2)) > 0    
-
-            sum_all_k = sum_all_k + torch.sum(in_middle,(1, 2))    
-    # print(sum_all_k)
-    
-    best_i = torch.argmax(sum_all_k)
-    
-    aux = torch.eye(3).to(device)
-    aux[:2, :2] = R[best_i]
-               
-    # end = time.time()
-    # print("Elapsed rot_best time = %s" % (end - start))    
-    
-    return aux
-
-
 def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
                 max_fail_count=3, random_seed_init=123, th_grid=15,
                 rot_check=4):
@@ -1022,17 +965,15 @@ def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
     midx = torch.zeros(l, dtype=torch.bool, device=device)
     tidx = torch.zeros(l, dtype=torch.bool, device=device)
 
-    # d1 = dist2(pt1) > th_grid**2
-    # d2 = dist2(pt2) > th_grid**2
-    # dd = d1 & d2
+    d1 = dist2(pt1) > th_grid**2
+    d2 = dist2(pt2) > th_grid**2
+    dd = d1 & d2
 
     pt1 = torch.cat((pt1.t(), torch.ones(1, l, device=device)))
     pt2 = torch.cat((pt2.t(), torch.ones(1, l, device=device)))
 
     if rot_check > 1:
-        H2 = rot_best_block(pt1, pt2, rot_check)
-        # H2 = rot_best(pt1, pt2, rot_check)
-
+        H2 = rot_best(pt1, pt2, rot_check)
 
     fail_count = 0
     midx_sum = 0
@@ -1049,12 +990,11 @@ def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
         pt1_ = pt1[:, ~midx]
         pt2_ = pt2[:, ~midx]
 
-        # dd_ = dd[~midx, :][:, ~midx].to(device)
-        dd_ = None
+        dd_ = dd[~midx, :][:, ~midx].to(device)
 
         ssidx = ssidx[~midx, :]
 
-        H1_, H2_, iidx, oidx, ssidx, sidx_ = ransac_middle(pt1_, pt2_, dd_, th_grid, ssidx=ssidx, **ransac_middle_args)
+        H1_, H2_, iidx, oidx, ssidx, sidx_ = ransac_middle(pt1_, pt2_, dd_, ssidx=ssidx, **ransac_middle_args)
 
         sidx_ = sidx[~midx][sidx_]
 
@@ -1101,13 +1041,6 @@ def dist2_batch(pt):
     return d
 
 
-def dist2p_batch(pt1, pt2):
-    pt1 = pt1.type(torch.float32)
-    pt2 = pt2.type(torch.float32)
-    d = (pt1.unsqueeze(-1)[:, :, 0] - pt2.unsqueeze(1)[:, :, :, 0])**2 + (pt1.unsqueeze(-1)[:, :, 1] - pt2.unsqueeze(1)[:, :, :, 1])**2
-    return d
-
-
 def dist2(pt):
     pt = pt.type(torch.float32)
     d = (pt.unsqueeze(-1)[:, 0] - pt.unsqueeze(0)[:, :, 0])**2 + (pt.unsqueeze(-1)[:, 1] - pt.unsqueeze(0)[:, :, 1])**2
@@ -1115,20 +1048,10 @@ def dist2(pt):
     return d
 
 
-def dist2p(pt1, pt2):
-    pt1 = pt1.type(torch.float32)
-    pt2 = pt2.type(torch.float32)
-    d = (pt1.unsqueeze(-1)[:, 0] - pt2.unsqueeze(0)[:, :, 0])**2 + (pt1.unsqueeze(-1)[:, 1] - pt2.unsqueeze(0)[:, :, 1])**2
-    return d
-
-
 def cluster_assign_base(Hdata, pt1, pt2, H1_pre, H2_pre, **dummy_args):
     l = len(Hdata)
     n = Hdata[0][2].shape[0]
-    
-    if not((l>0) and (n>0)):
-        return torch.full((n, ), -1, dtype=torch.int, device=device)
-    
+
     inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
     for i in range(l):
         inl_mask[:, i] = Hdata[i][2]
@@ -1143,12 +1066,9 @@ def cluster_assign_base(Hdata, pt1, pt2, H1_pre, H2_pre, **dummy_args):
     return max_size_idx
 
 
-def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **dummy_args):    
+def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **dummy_args):
     l = len(Hdata)
     n = pt1.shape[0]
-
-    if not((l>0) and (n>0)):
-        return torch.full((n, ), -1, dtype=torch.int, device=device)
 
     pt1 = torch.vstack((pt1.T, torch.ones((1, n), device=device)))
     pt2 = torch.vstack((pt2.T, torch.ones((1, n), device=device)))
@@ -1221,9 +1141,6 @@ def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **du
 def cluster_assign_other(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15, **dummy_args):
     l = len(Hdata)
     n = pt1.shape[0]
-
-    if not((l>0) and (n>0)):
-        return torch.full((n, ), -1, dtype=torch.int, device=device)
 
     pt1 = torch.vstack((pt1.T, torch.ones((1, n), device=device)))
     pt2 = torch.vstack((pt2.T, torch.ones((1, n), device=device)))
@@ -1458,129 +1375,8 @@ class miho:
             warnings.warn("planar_clustering must run before!!!")
 
 
-import os
-import _pickle as cPickle
-import bz2
-import rich
-from rich.progress import (
-    BarColumn,
-    MofNCompleteColumn,
-    Progress,
-    TextColumn,
-    TimeElapsedColumn,
-    TimeRemainingColumn,
-)
-
-
-def megadepth_1500_list(ppath='bench_data/megadepth'):
-    npz_list = [i for i in os.listdir(ppath) if (os.path.splitext(i)[1] == '.npz')]
-
-    data = {'im1': [], 'im2': [], 'K1': [], 'K2': [], 'T': [], 'R': []}
-    for name in npz_list:
-        scene_info = np.load(os.path.join(ppath, name), allow_pickle=True)
-    
-        # Collect pairs
-        for pair_info in scene_info['pair_infos']:
-            (id1, id2), overlap, _ = pair_info
-            im1 = scene_info['image_paths'][id1].replace('Undistorted_SfM/', '')
-            im2 = scene_info['image_paths'][id2].replace('Undistorted_SfM/', '')                        
-            K1 = scene_info['intrinsics'][id1].astype(np.float32)
-            K2 = scene_info['intrinsics'][id2].astype(np.float32)
-    
-            # Compute relative pose
-            T1 = scene_info['poses'][id1]
-            T2 = scene_info['poses'][id2]
-            T12 = np.matmul(T2, np.linalg.inv(T1))
-    
-            data['im1'].append(im1);
-            data['im2'].append(im2);
-            data['K1'].append(K1);
-            data['K2'].append(K2);
-            data['T'].append(T12[:3, 3]);
-            data['R'].append(T12[:3, :3]);
-    
-    return data
-
-
-def scannet_1500_list(ppath='bench_data/scannet'):
-    intrinsic_path = 'intrinsics.npz'
-    npz_path = 'test.npz'
-    min_overlap_score = 0
-
-    data = np.load(os.path.join(ppath, npz_path))
-    data_names = data['name']
-    intrinsics = dict(np.load(os.path.join(ppath, intrinsic_path)))
-    rel_pose = data['rel_pose']
-    
-    data = {'im1': [], 'im2': [], 'K1': [], 'K2': [], 'T': [], 'R': []}
-    
-    for idx in range(data_names.shape[0]):
-        scene_name, scene_sub_name, stem_name_0, stem_name_1 = data_names[idx]
-        scene_name = f'scene{scene_name:04d}_{scene_sub_name:02d}'
-    
-        # read the grayscale image which will be resized to (1, 480, 640)
-        im1 = os.path.join(scene_name, 'color', f'{stem_name_0}.jpg')
-        im2 = os.path.join(scene_name, 'color', f'{stem_name_1}.jpg')
-        
-        # read the intrinsic of depthmap
-        K1 = intrinsics[scene_name]
-        K2 = intrinsics[scene_name]
-    
-        # pose    
-        T12 = np.concatenate((rel_pose[idx],np.asarray([0, 0, 0, 1.0]))).reshape(4,4)
-        
-        data['im1'].append(im1);
-        data['im2'].append(im2);
-        data['K1'].append(K1);
-        data['K2'].append(K2);    
-        data['T'].append(T12[:3, 3]);
-        data['R'].append(T12[:3, :3]);
-        
-    return data
-
-
-# Pickle a file and then compress it into a file with extension 
-def compressed_pickle(title, data):
-    with bz2.BZ2File(title + '.pbz2', 'w') as f: 
-        cPickle.dump(data, f)
-        
-
-# Load any compressed pickle file
-def decompress_pickle(file):
-    data = bz2.BZ2File(file, 'rb')
-    data = cPickle.load(data)
-    return data
-
-
-def progress_bar(text=''):
-    return Progress(
-        TextColumn(text + " [progress.percentage]{task.percentage:>3.0f}%"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TextColumn("•"),
-        TimeElapsedColumn(),
-        TextColumn("•"),
-        TimeRemainingColumn(),
-    )
-
-
 if __name__ == '__main__':
-    # Define custom progress bar
-        
-    data_file = 'bench_data/megadepth_scannet'
-    if not os.path.isfile(data_file + '.pbz2'):      
-        megadepth_data = megadepth_1500_list()
-        scannet_data = scannet_1500_list()
-        compressed_pickle(data_file, (megadepth_data, scannet_data))
-    else:
-        megadepth_data, scannet_data = decompress_pickle(data_file + '.pbz2')
-    
-    # Use custom progress bar
-    with progress_bar('800A') as p:
-        for i in p.track(range(1000)):
-            # Do something here
-            pass
-        
+
     img1 = 'data/im1.png'
     img2 = 'data/im2_rot.png'
     # match_file = 'data/matches_rot.mat'
