@@ -1716,7 +1716,7 @@ def setup_images(megadepth_data, scannet_data, data_file='bench_data/megadepth_s
 
 if __name__ == '__main__':
     # megadepth & scannet
-    bench_path = 'bench_data'   
+    bench_path = './miho_megadepth_scannet_bench_data'   
     bench_gt = 'gt_data'
     bench_im = 'imgs'
     bench_file = 'megadepth_scannet'
@@ -1725,18 +1725,17 @@ if __name__ == '__main__':
     megadepth_data, scannet_data, data_file = bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
     megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
 
-    n = len(megadepth_data['im1'])
-    res_path = os.path.join(bench_im, 'megadepth')
-
     pipe = [
         keynetaffnethardnet_module(upright=False, th=0.98),
         pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
         ]
-        
+
+    n = len(megadepth_data['im1'])
+    im_path = os.path.join(bench_im, 'megadepth')        
     with progress_bar('MegaDepth') as p:
         for i in p.track(range(n)):
-            im1 = os.path.join(bench_path, res_path, os.path.splitext(megadepth_data['im1'][i])[0])
-            im2 = os.path.join(bench_path, res_path, os.path.splitext(megadepth_data['im2'][i])[0])
+            im1 = os.path.join(bench_path, im_path, os.path.splitext(megadepth_data['im1'][i])[0])
+            im2 = os.path.join(bench_path, im_path, os.path.splitext(megadepth_data['im2'][i])[0])
 
             pipe_name_base = os.path.join(bench_path, bench_res, 'megadepth')
             for pipe_module in pipe:
@@ -1752,10 +1751,13 @@ if __name__ == '__main__':
                     
                 eval(pipe_module.eval_out())
                  
+
+    n = len(scannet_data['im1'])
+    im_path = os.path.join(bench_im, 'scannet')                                
     with progress_bar('ScanNet') as p:
         for i in p.track(range(n)):
-            im1 = os.path.join(bench_path, res_path, os.path.splitext(scannet_data['im1'][i])[0])
-            im2 = os.path.join(bench_path, res_path, os.path.splitext(scannet_data['im2'][i])[0])
+            im1 = os.path.join(bench_path, im_path, os.path.splitext(scannet_data['im1'][i])[0])
+            im2 = os.path.join(bench_path, im_path, os.path.splitext(scannet_data['im2'][i])[0])
 
             pipe_name_base = os.path.join(bench_path, bench_res, 'scannet')
             for pipe_module in pipe:
