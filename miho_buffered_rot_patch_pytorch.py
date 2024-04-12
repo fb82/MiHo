@@ -1673,7 +1673,7 @@ class pydegensac_module:
 
     
     def eval_args(self):
-        return "pydegensac_mod(pt1.detach().cpu(), pt2.detach().cpu())"
+        return "pipe_module.run(pt1.detach().cpu(), pt2.detach().cpu())"
 
         
     def eval_out(self):
@@ -1749,7 +1749,7 @@ if __name__ == '__main__':
                     os.makedirs(os.path.dirname(pipe_f), exist_ok=True)                 
                     compressed_pickle(pipe_f, out_data)
                     
-                eval(pipe_module.eval_out())
+                exec(pipe_module.eval_out())
                  
 
     n = len(scannet_data['im1'])
