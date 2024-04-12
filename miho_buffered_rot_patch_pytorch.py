@@ -7,6 +7,7 @@ import warnings
 import torch
 import torchvision.transforms as transforms
 import kornia as K
+import pydegensac
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -1472,7 +1473,37 @@ from rich.progress import (
 )
 
 
-def megadepth_1500_list(ppath='bench_data/megadepth'):
+# Pickle a file and then compress it into a file with extension 
+def compressed_pickle(title, data, add_ext=False):
+    if add_ext:
+        ext = '.pbz2'
+    else:
+        ext = ''
+        
+    with bz2.BZ2File(title + ext, 'w') as f: 
+        cPickle.dump(data, f)
+        
+
+# Load any compressed pickle file
+def decompress_pickle(file):
+    data = bz2.BZ2File(file, 'rb')
+    data = cPickle.load(data)
+    return data
+
+
+def progress_bar(text=''):
+    return Progress(
+        TextColumn(text + " [progress.percentage]{task.percentage:>3.0f}%"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TextColumn("•"),
+        TimeElapsedColumn(),
+        TextColumn("•"),
+        TimeRemainingColumn(),
+    )
+
+
+def megadepth_1500_list(ppath='bench_data/gt_data/megadepth'):
     npz_list = [i for i in os.listdir(ppath) if (os.path.splitext(i)[1] == '.npz')]
 
     data = {'im1': [], 'im2': [], 'K1': [], 'K2': [], 'T': [], 'R': []}
@@ -1497,15 +1528,13 @@ def megadepth_1500_list(ppath='bench_data/megadepth'):
             data['K1'].append(K1);
             data['K2'].append(K2);
             data['T'].append(T12[:3, 3]);
-            data['R'].append(T12[:3, :3]);
-    
+            data['R'].append(T12[:3, :3]);    
     return data
 
 
-def scannet_1500_list(ppath='bench_data/scannet'):
+def scannet_1500_list(ppath='bench_data/gt_data/scannet'):
     intrinsic_path = 'intrinsics.npz'
     npz_path = 'test.npz'
-    min_overlap_score = 0
 
     data = np.load(os.path.join(ppath, npz_path))
     data_names = data['name']
@@ -1534,53 +1563,215 @@ def scannet_1500_list(ppath='bench_data/scannet'):
         data['K1'].append(K1);
         data['K2'].append(K2);    
         data['T'].append(T12[:3, 3]);
-        data['R'].append(T12[:3, :3]);
-        
+        data['R'].append(T12[:3, :3]);        
     return data
 
 
-# Pickle a file and then compress it into a file with extension 
-def compressed_pickle(title, data):
-    with bz2.BZ2File(title + '.pbz2', 'w') as f: 
-        cPickle.dump(data, f)
+def bench_init(bench_file='megadepth_scannet', bench_path='bench_data', bench_gt='gt_data'):
+    data_file = os.path.join(bench_path, 'megadepth_scannet' + '.pbz2')
+    if not os.path.isfile(data_file + '.pbz2'):      
+        megadepth_data = megadepth_1500_list(os.path.join(bench_path, bench_gt, 'megadepth'))
+        scannet_data = scannet_1500_list(os.path.join(bench_path, bench_gt, 'scannet'))
+        compressed_pickle(data_file, (megadepth_data, scannet_data))
+    else:
+        megadepth_data, scannet_data = decompress_pickle(data_file)
+    
+    return megadepth_data, scannet_data, data_file
+
+
+def resize_megadepth(im, res_path='imgs/megadepth', bench_path='bench_data'):
+    mod_im = os.path.join(bench_path, res_path, os.path.splitext(im)[0] + '.png')
+    ori_im= os.path.join(bench_path, 'megadepth_test_1500/Undistorted_SfM', im)
+
+    if os.path.isfile(mod_im):
+        return np.asarray(Image.open(ori_im).size) / np.asarray(Image.open(mod_im).size) 
+
+    img = Image.open(ori_im)
+    sz_ori = np.asarray(img.size)
+    sz_max = float(max(sz_ori))
+
+    if sz_max > 1200:
+        cf = 1200 / sz_max                    
+        sz_new = np.ceil(sz_ori * cf).astype(int) 
+        img = img.resize(sz_new, Image.Resampling.LANCZOS)
+        sc = sz_ori/sz_new
+        os.makedirs(os.path.dirname(mod_im), exist_ok=True)                 
+        img.save(mod_im)
+        return sc
+    else:
+        os.makedirs(os.path.dirname(mod_im), exist_ok=True)                 
+        img.save(mod_im)
+        return np.array([1., 1.])
+
+
+def resize_scannet(im, res_path='imgs/scannet', bench_path='bench_data'):
+    mod_im = os.path.join(bench_path, res_path, os.path.splitext(im)[0] + '.png')
+    ori_im= os.path.join(bench_path, 'scannet_test_1500', im)
+
+    if os.path.isfile(mod_im):
+        return np.asarray(Image.open(ori_im).size) / np.asarray(Image.open(mod_im).size) 
+
+    img = Image.open(ori_im)
+    sz_ori = np.asarray(img.size)
+
+    sz_new = np.asarray([640, 480]).astype(int) 
+    img = img.resize(sz_new, Image.Resampling.LANCZOS)
+    sc = sz_ori/sz_new
+    os.makedirs(os.path.dirname(mod_im), exist_ok=True)                 
+    img.save(mod_im)
+    return sc
+
+
+class keynetaffnethardnet_module:
+    def __init__(self, **args):
+        self.upright = False
+        self.th = 0.98        
         
+        for k, v in args.items():
+           setattr(self, k, v)
+        
+    def get_id(self):
+        return ('keynetaffnethardnet_upright_' + str(self.upright) + '_th_' + str(self.th)).lower()
 
-# Load any compressed pickle file
-def decompress_pickle(file):
-    data = bz2.BZ2File(file, 'rb')
-    data = cPickle.load(data)
-    return data
+    
+    def eval_args(self):
+        return "pipe_module.run(im1 + '.png', im2 + '.png')"
 
 
-def progress_bar(text=''):
-    return Progress(
-        TextColumn(text + " [progress.percentage]{task.percentage:>3.0f}%"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TextColumn("•"),
-        TimeElapsedColumn(),
-        TextColumn("•"),
-        TimeRemainingColumn(),
-    )
+    def eval_out(self):
+        return "pt1, pt2, kps1, kps2, Hs_laf = out_data"               
+
+
+    def run(self, *args):    
+        with torch.inference_mode():
+            detector = K.feature.KeyNetAffNetHardNet(upright=self.upright, device=device)
+            kps1, _ , descs1 = detector(K.io.load_image(args[0], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+            kps2, _ , descs2 = detector(K.io.load_image(args[1], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+            dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), self.th)        
+        
+        pt1 = None
+        pt2 = None
+        kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
+        kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
+        
+        pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)    
+    
+        return pt1, pt2, kps1, kps2, Hs_laf
+
+
+class pydegensac_module:
+    def __init__(self, **args):
+        self.px_th = 3
+        self.conf = 0.99
+        self.max_iters = 100000
+              
+        for k, v in args.items():
+           setattr(self, k, v)
+       
+    def get_id(self):
+        return ('pydegensac_th_' + str(self.px_th) + '_conf_' + str(self.conf) + '_max_iters_' + str(self.max_iters)).lower()
+
+    
+    def eval_args(self):
+        return "pydegensac_mod(pt1.detach().cpu(), pt2.detach().cpu())"
+
+        
+    def eval_out(self):
+        return "pt1, pt2, F, mask = out_data"
+    
+    
+    def run(self, *args):     
+        F, mask = pydegensac.findFundamentalMatrix(np.ascontiguousarray(args[0]), np.ascontiguousarray(args[1]), px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
+    
+        pt1 = args[0][mask]
+        pt2 = args[1][mask]
+            
+        return pt1, pt2, F, mask
+
+
+def setup_images(megadepth_data, scannet_data, data_file='bench_data/megadepth_scannet.pbz2', bench_path='bench_data', bench_imgs='imgs'):
+    if not ('im_pair_scale' in megadepth_data.keys()):        
+        n = len(megadepth_data['im1'])
+        im_pair_scale = np.zeros((n, 2, 2))
+        res_path = os.path.join(bench_imgs, 'megadepth')
+        with progress_bar('MegaDepth image setup') as p:
+            for i in p.track(range(n)):
+                im_pair_scale[i, 0] = resize_megadepth(megadepth_data['im1'][i], res_path, bench_path)
+                im_pair_scale[i, 1] = resize_megadepth(megadepth_data['im2'][i], res_path, bench_path)
+        megadepth_data['im_pair_scale'] = im_pair_scale
+
+        n = len(scannet_data['im1'])
+        im_pair_scale = np.zeros((n, 2, 2))
+        res_path = os.path.join(bench_imgs, 'scannet')
+        with progress_bar('ScanNet image setup') as p:
+            for i in p.track(range(n)):
+                im_pair_scale[i, 0] = resize_scannet(scannet_data['im1'][i], res_path, bench_path)
+                im_pair_scale[i, 1] = resize_scannet(scannet_data['im2'][i], res_path, bench_path)
+        scannet_data['im_pair_scale'] = im_pair_scale
+        
+        compressed_pickle(data_file, (megadepth_data, scannet_data))
+ 
+    return megadepth_data, scannet_data
 
 
 if __name__ == '__main__':
-    # Define custom progress bar
+    # megadepth & scannet
+    bench_path = 'bench_data'   
+    bench_gt = 'gt_data'
+    bench_im = 'imgs'
+    bench_file = 'megadepth_scannet'
+    bench_res = 'res'
+                
+    megadepth_data, scannet_data, data_file = bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
+    megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
+
+    n = len(megadepth_data['im1'])
+    res_path = os.path.join(bench_im, 'megadepth')
+
+    pipe = [
+        keynetaffnethardnet_module(upright=False, th=0.98),
+        pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+        ]
         
-    data_file = 'bench_data/megadepth_scannet'
-    if not os.path.isfile(data_file + '.pbz2'):      
-        megadepth_data = megadepth_1500_list()
-        scannet_data = scannet_1500_list()
-        compressed_pickle(data_file, (megadepth_data, scannet_data))
-    else:
-        megadepth_data, scannet_data = decompress_pickle(data_file + '.pbz2')
+    with progress_bar('MegaDepth') as p:
+        for i in p.track(range(n)):
+            im1 = os.path.join(bench_path, res_path, os.path.splitext(megadepth_data['im1'][i])[0])
+            im2 = os.path.join(bench_path, res_path, os.path.splitext(megadepth_data['im2'][i])[0])
+
+            pipe_name_base = os.path.join(bench_path, bench_res, 'megadepth')
+            for pipe_module in pipe:
+                pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
+                pipe_f = os.path.join(pipe_name_base, 'base', str(i) + '.pbz2')
+            
+                if os.path.isfile(pipe_f):
+                    out_data = decompress_pickle(pipe_f)
+                else:                      
+                    out_data = eval(pipe_module.eval_args())
+                    os.makedirs(os.path.dirname(pipe_f), exist_ok=True)                 
+                    compressed_pickle(pipe_f, out_data)
+                    
+                eval(pipe_module.eval_out())
+                 
+    with progress_bar('ScanNet') as p:
+        for i in p.track(range(n)):
+            im1 = os.path.join(bench_path, res_path, os.path.splitext(scannet_data['im1'][i])[0])
+            im2 = os.path.join(bench_path, res_path, os.path.splitext(scannet_data['im2'][i])[0])
+
+            pipe_name_base = os.path.join(bench_path, bench_res, 'scannet')
+            for pipe_module in pipe:
+                pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
+                pipe_f = os.path.join(pipe_name_base, 'base', str(i) + '.pbz2')
+            
+                if os.path.isfile(pipe_f):
+                    out_data = decompress_pickle(pipe_f)
+                else:                      
+                    out_data = eval(pipe_module.eval_args())
+                    os.makedirs(os.path.dirname(pipe_f), exist_ok=True)                 
+                    compressed_pickle(pipe_f, out_data)
+                    
+                eval(pipe_module.eval_out())
+
     
-    # Use custom progress bar
-    with progress_bar('800A') as p:
-        for i in p.track(range(1000)):
-            # Do something here
-            pass
-        
     img1 = 'data/im1.png'
     img2 = 'data/im2_rot.png'
     # match_file = 'data/matches_rot.mat'
