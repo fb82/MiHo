@@ -1716,7 +1716,7 @@ def setup_images(megadepth_data, scannet_data, data_file='bench_data/megadepth_s
 
 if __name__ == '__main__':
     # megadepth & scannet
-    bench_path = './miho_megadepth_scannet_bench_data'   
+    bench_path = '../miho_megadepth_scannet_bench_data'   
     bench_gt = 'gt_data'
     bench_im = 'imgs'
     bench_file = 'megadepth_scannet'
