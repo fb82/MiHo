@@ -596,6 +596,84 @@ def compute_homography_duplex(pt1, pt2, ptm, sidx_par):
     return H12, sv
 
 
+def compute_homography(pts1, pts2, sidx_par):
+    if sidx_par.dtype != torch.bool:
+        l0 = sidx_par.size()[0]
+        l1 = sidx_par.size()[1]
+        
+        pt1_par = pt1[:, sidx_par.flatten()].reshape(3, l0, l1).permute(1, 0, 2)
+        pt2_par = pt2[:, sidx_par.flatten()].reshape(3, l0, l1).permute(1, 0, 2)
+    else:
+        l0 = 1
+        l1 = sidx_par.sum()
+        
+        pt1_par = pt1[:, sidx_par].reshape(3, l0, l1).permute(1, 0, 2)
+        pt2_par = pt2[:, sidx_par].reshape(3, l0, l1).permute(1, 0, 2)
+
+    c1 = torch.mean(pt1_par[:, :2], dim=2)
+    c2 = torch.mean(pt2_par[:, :2], dim=2)
+
+    norm_diff_1 = torch.sqrt(torch.sum((pt1_par[:, :2] - c1.unsqueeze(2))**2, dim=1))
+    norm_diff_2 = torch.sqrt(torch.sum((pt2_par[:, :2] - c2.unsqueeze(2))**2, dim=1))
+
+    s1 = sqrt2 / (torch.mean(norm_diff_1, dim=1) + EPS_)
+    s2 = sqrt2 / (torch.mean(norm_diff_2, dim=1) + EPS_)
+
+    T1 = torch.zeros((l0, 3, 3), dtype=torch.float32, device=device)
+    T1[:, 0, 0] = s1
+    T1[:, 1, 1] = s1        
+    T1[:, 2, 2] = 1
+    T1[:, 0, 2] = -c1[:, 0] * s1
+    T1[:, 1, 2] = -c1[:, 1] * s1
+
+    T2 = torch.zeros((l0, 3, 3), dtype=torch.float32, device=device)
+    T2[:, 0, 0] = 1/s2
+    T2[:, 1, 1] = 1/s2
+    T2[:, 2, 2] = 1
+    T2[:, 0, 2] = c2[:, 0]
+    T2[:, 1, 2] = c2[:, 1]
+
+    p1x = s1.unsqueeze(1) * (pt1_par[:, 0] - c1[:, 0].unsqueeze(1))
+    p1y = s1.unsqueeze(1) * (pt1_par[:, 1] - c1[:, 1].unsqueeze(1))
+
+    p2x = s2.unsqueeze(1) * (pt2_par[:, 0] - c2[:, 0].unsqueeze(1))
+    p2y = s2.unsqueeze(1) * (pt2_par[:, 1] - c2[:, 1].unsqueeze(1))
+
+    A = torch.zeros((l0, l1*3, 9), dtype=torch.float32, device=device)
+
+    A[:, :l1, 3] = -p1x
+    A[:, :l1, 4] = -p1y
+    A[:, :l1, 5] = -1
+
+    A[:, :l1, 6] = torch.mul(p2y, p1x)
+    A[:, :l1, 7] = torch.mul(p2y, p1y)
+    A[:, :l1, 8] = p2y
+
+    A[:, l1:2*l1, 0] = p1x
+    A[:, l1:2*l1, 1] = p1y
+    A[:, l1:2*l1, 2] = 1
+
+    A[:, l1:2*l1, 6] = -torch.mul(p2x, p1x)
+    A[:, l1:2*l1, 7] = -torch.mul(p2x, p1y)
+    A[:, l1:2*l1, 8] = -p2x
+
+    A[:, 2*l1:, 0] = -torch.mul(p2y, p1x)
+    A[:, 2*l1:, 1] = -torch.mul(p2y, p1y)
+    A[:, 2*l1:, 2] = -p2y
+
+    A[:, 2*l1:, 3] = torch.mul(p2x, p1x)
+    A[:, 2*l1:, 4] = torch.mul(p2x, p1y)
+    A[:, 2*l1:, 5] = p2x
+
+    _, D, V = torch.linalg.svd(A, full_matrices=True)
+    H12 = V[:, -1].reshape(l0, 3, 3).permute(0, 2, 1)
+    H12 = T2 @ H12 @ T1
+
+    sv = torch.amax(D[:, -2].reshape(2, l0), dim=0)
+
+    return H12, sv
+
+
 def data_normalize(pts):
     c = torch.mean(pts, dim=1)
     norm_diff = torch.sqrt((pts[0] - c[0])**2 + (pts[1] - c[1])**2)
@@ -616,31 +694,31 @@ def steps(pps, inl, p):
     return r
 
 
-def compute_homography(pts1, pts2):
-    T1 = data_normalize(pts1)
-    T2 = data_normalize(pts2)
+# def compute_homography(pts1, pts2):
+#     T1 = data_normalize(pts1)
+#     T2 = data_normalize(pts2)
 
-    npts1 = torch.matmul(T1, pts1)
-    npts2 = torch.matmul(T2, pts2)
+#     npts1 = torch.matmul(T1, pts1)
+#     npts2 = torch.matmul(T2, pts2)
 
-    l = npts1.shape[1]
-    A = torch.zeros((l*3, 9), dtype=torch.float32, device=device)
-    A[:l, 3:6] = -torch.mul(torch.tile(npts2[2], (3, 1)).t(), npts1.t())
-    A[:l, 6:] = torch.mul(torch.tile(npts2[1], (3, 1)).t(), npts1.t())
-    A[l:2*l, :3] = torch.mul(torch.tile(npts2[2], (3, 1)).t(), npts1.t())
-    A[l:2*l, 6:] = -torch.mul(torch.tile(npts2[0], (3, 1)).t(), npts1.t())
-    A[2*l:, :3] = -torch.mul(torch.tile(npts2[1], (3, 1)).t(), npts1.t())
-    A[2*l:, 3:6] = torch.mul(torch.tile(npts2[0], (3, 1)).t(), npts1.t())
+#     l = npts1.shape[1]
+#     A = torch.zeros((l*3, 9), dtype=torch.float32, device=device)
+#     A[:l, 3:6] = -torch.mul(torch.tile(npts2[2], (3, 1)).t(), npts1.t())
+#     A[:l, 6:] = torch.mul(torch.tile(npts2[1], (3, 1)).t(), npts1.t())
+#     A[l:2*l, :3] = torch.mul(torch.tile(npts2[2], (3, 1)).t(), npts1.t())
+#     A[l:2*l, 6:] = -torch.mul(torch.tile(npts2[0], (3, 1)).t(), npts1.t())
+#     A[2*l:, :3] = -torch.mul(torch.tile(npts2[1], (3, 1)).t(), npts1.t())
+#     A[2*l:, 3:6] = torch.mul(torch.tile(npts2[0], (3, 1)).t(), npts1.t())
 
-    try:
-        _, D, V = torch.linalg.svd(A, full_matrices=True)
-        H = V[-1, :].reshape(3, 3).T
-        H = torch.inverse(T2) @ H @ T1
-    except:
-        H = None
-        D = torch.zeros(9, dtype=torch.float32)
+#     try:
+#         _, D, V = torch.linalg.svd(A, full_matrices=True)
+#         H = V[-1, :].reshape(3, 3).T
+#         H = torch.inverse(T2) @ H @ T1
+#     except:
+#         H = None
+#         D = torch.zeros(9, dtype=torch.float32)
 
-    return H, D
+#     return H, D
 
 
 def get_inliers(pt1, pt2, H, ths, sidx):
@@ -1523,12 +1601,12 @@ def megadepth_1500_list(ppath='bench_data/gt_data/megadepth'):
             T2 = scene_info['poses'][id2]
             T12 = np.matmul(T2, np.linalg.inv(T1))
     
-            data['im1'].append(im1);
-            data['im2'].append(im2);
-            data['K1'].append(K1);
-            data['K2'].append(K2);
-            data['T'].append(T12[:3, 3]);
-            data['R'].append(T12[:3, :3]);    
+            data['im1'].append(im1)
+            data['im2'].append(im2)
+            data['K1'].append(K1)
+            data['K2'].append(K2)
+            data['T'].append(T12[:3, 3])
+            data['R'].append(T12[:3, :3])   
     return data
 
 
@@ -1558,12 +1636,12 @@ def scannet_1500_list(ppath='bench_data/gt_data/scannet'):
         # pose    
         T12 = np.concatenate((rel_pose[idx],np.asarray([0, 0, 0, 1.0]))).reshape(4,4)
         
-        data['im1'].append(im1);
-        data['im2'].append(im2);
-        data['K1'].append(K1);
-        data['K2'].append(K2);    
-        data['T'].append(T12[:3, 3]);
-        data['R'].append(T12[:3, :3]);        
+        data['im1'].append(im1)
+        data['im2'].append(im2)
+        data['K1'].append(K1)
+        data['K2'].append(K2)  
+        data['T'].append(T12[:3, 3])
+        data['R'].append(T12[:3, :3])     
     return data
 
 
