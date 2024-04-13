@@ -1,4 +1,5 @@
 from PIL import Image
+import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import time
@@ -1662,23 +1663,23 @@ def resize_megadepth(im, res_path='imgs/megadepth', bench_path='bench_data'):
     ori_im= os.path.join(bench_path, 'megadepth_test_1500/Undistorted_SfM', im)
 
     if os.path.isfile(mod_im):
-        return np.asarray(Image.open(ori_im).size) / np.asarray(Image.open(mod_im).size) 
+        return cv2.imread(ori_im).shape[:2][::-1] / cv2.imread(mod_im).shape[:2][::-1] 
 
-    img = Image.open(ori_im)
-    sz_ori = np.asarray(img.size)
+    img = cv2.imread(ori_im)
+    sz_ori = np.array(img.shape)[:2][::-1]
     sz_max = float(max(sz_ori))
 
     if sz_max > 1200:
         cf = 1200 / sz_max                    
         sz_new = np.ceil(sz_ori * cf).astype(int) 
-        img = img.resize(sz_new, Image.Resampling.LANCZOS)
+        img = cv2.resize(img, tuple(sz_new), interpolation=cv2.INTER_LANCZOS4)
         sc = sz_ori/sz_new
         os.makedirs(os.path.dirname(mod_im), exist_ok=True)                 
-        img.save(mod_im)
+        cv2.imwrite(mod_im, img)
         return sc
     else:
         os.makedirs(os.path.dirname(mod_im), exist_ok=True)                 
-        img.save(mod_im)
+        cv2.imwrite(mod_im, img)
         return np.array([1., 1.])
 
 
@@ -1687,16 +1688,16 @@ def resize_scannet(im, res_path='imgs/scannet', bench_path='bench_data'):
     ori_im= os.path.join(bench_path, 'scannet_test_1500', im)
 
     if os.path.isfile(mod_im):
-        return np.asarray(Image.open(ori_im).size) / np.asarray(Image.open(mod_im).size) 
+        return cv2.imread(ori_im).shape[:2][::-1] / cv2.imread(mod_im).shape[:2][::-1]
 
-    img = Image.open(ori_im)
-    sz_ori = np.asarray(img.size)
+    img = cv2.imread(ori_im)
+    sz_ori = np.array(img.shape)[:2][::-1]
 
-    sz_new = np.asarray([640, 480]).astype(int) 
-    img = img.resize(sz_new, Image.Resampling.LANCZOS)
+    sz_new = np.array([640, 480])
+    img = cv2.resize(img, tuple(sz_new), interpolation=cv2.INTER_LANCZOS4)
     sc = sz_ori/sz_new
     os.makedirs(os.path.dirname(mod_im), exist_ok=True)                 
-    img.save(mod_im)
+    cv2.imwrite(mod_im, img)
     return sc
 
 
@@ -1869,8 +1870,8 @@ if __name__ == '__main__':
     # NCC+ patch anisotropic scales
     scale=[[10/14, 1], [10/12, 1], [1, 1], [1, 12/10], [1, 14/10]]
 
-    im1 = Image.open(img1)
-    im2 = Image.open(img2)
+    im1 = cv2.cvtColor(cv2.imread(img1), cv2.COLOR_BGR2RGB)
+    im2 = cv2.cvtColor(cv2.imread(im2), cv2.COLOR_BGR2RGB)
 
     # generate matches with kornia, LAF included, check upright!
     upright=False
