@@ -597,7 +597,7 @@ def compute_homography_duplex(pt1, pt2, ptm, sidx_par):
     return H12, sv
 
 
-def compute_homography(pts1, pts2, sidx_par):
+def compute_homography_unduplex(pts1, pts2, sidx_par):
     if sidx_par.dtype != torch.bool:
         l0 = sidx_par.size()[0]
         l1 = sidx_par.size()[1]
@@ -695,31 +695,31 @@ def steps(pps, inl, p):
     return r
 
 
-# def compute_homography(pts1, pts2):
-#     T1 = data_normalize(pts1)
-#     T2 = data_normalize(pts2)
+def compute_homography(pts1, pts2):
+    T1 = data_normalize(pts1)
+    T2 = data_normalize(pts2)
 
-#     npts1 = torch.matmul(T1, pts1)
-#     npts2 = torch.matmul(T2, pts2)
+    npts1 = torch.matmul(T1, pts1)
+    npts2 = torch.matmul(T2, pts2)
 
-#     l = npts1.shape[1]
-#     A = torch.zeros((l*3, 9), dtype=torch.float32, device=device)
-#     A[:l, 3:6] = -torch.mul(torch.tile(npts2[2], (3, 1)).t(), npts1.t())
-#     A[:l, 6:] = torch.mul(torch.tile(npts2[1], (3, 1)).t(), npts1.t())
-#     A[l:2*l, :3] = torch.mul(torch.tile(npts2[2], (3, 1)).t(), npts1.t())
-#     A[l:2*l, 6:] = -torch.mul(torch.tile(npts2[0], (3, 1)).t(), npts1.t())
-#     A[2*l:, :3] = -torch.mul(torch.tile(npts2[1], (3, 1)).t(), npts1.t())
-#     A[2*l:, 3:6] = torch.mul(torch.tile(npts2[0], (3, 1)).t(), npts1.t())
+    l = npts1.shape[1]
+    A = torch.zeros((l*3, 9), dtype=torch.float32, device=device)
+    A[:l, 3:6] = -torch.mul(torch.tile(npts2[2], (3, 1)).t(), npts1.t())
+    A[:l, 6:] = torch.mul(torch.tile(npts2[1], (3, 1)).t(), npts1.t())
+    A[l:2*l, :3] = torch.mul(torch.tile(npts2[2], (3, 1)).t(), npts1.t())
+    A[l:2*l, 6:] = -torch.mul(torch.tile(npts2[0], (3, 1)).t(), npts1.t())
+    A[2*l:, :3] = -torch.mul(torch.tile(npts2[1], (3, 1)).t(), npts1.t())
+    A[2*l:, 3:6] = torch.mul(torch.tile(npts2[0], (3, 1)).t(), npts1.t())
 
-#     try:
-#         _, D, V = torch.linalg.svd(A, full_matrices=True)
-#         H = V[-1, :].reshape(3, 3).T
-#         H = torch.inverse(T2) @ H @ T1
-#     except:
-#         H = None
-#         D = torch.zeros(9, dtype=torch.float32)
+    try:
+        _, D, V = torch.linalg.svd(A, full_matrices=True)
+        H = V[-1, :].reshape(3, 3).T
+        H = torch.inverse(T2) @ H @ T1
+    except:
+        H = None
+        D = torch.zeros(9, dtype=torch.float32)
 
-#     return H, D
+    return H, D
 
 
 def get_inliers(pt1, pt2, H, ths, sidx):
@@ -1663,7 +1663,9 @@ def resize_megadepth(im, res_path='imgs/megadepth', bench_path='bench_data'):
     ori_im= os.path.join(bench_path, 'megadepth_test_1500/Undistorted_SfM', im)
 
     if os.path.isfile(mod_im):
-        return cv2.imread(ori_im).shape[:2][::-1] / cv2.imread(mod_im).shape[:2][::-1] 
+        # PIL does not load image, so it's faster to get only image size
+        return np.asarray(Image.open(ori_im).size) / np.asarray(Image.open(mod_im).size) 
+        # return np.array(cv2.imread(ori_im).shape)[:2][::-1] / np.array(cv2.imread(mod_im).shape)[:2][::-1]
 
     img = cv2.imread(ori_im)
     sz_ori = np.array(img.shape)[:2][::-1]
@@ -1688,7 +1690,9 @@ def resize_scannet(im, res_path='imgs/scannet', bench_path='bench_data'):
     ori_im= os.path.join(bench_path, 'scannet_test_1500', im)
 
     if os.path.isfile(mod_im):
-        return cv2.imread(ori_im).shape[:2][::-1] / cv2.imread(mod_im).shape[:2][::-1]
+        # PIL does not load image, so it's faster to get only image size
+        return np.asarray(Image.open(ori_im).size) / np.asarray(Image.open(mod_im).size) 
+        # return np.array(cv2.imread(ori_im).shape)[:2][::-1] / np.array(cv2.imread(mod_im).shape)[:2][::-1]
 
     img = cv2.imread(ori_im)
     sz_ori = np.array(img.shape)[:2][::-1]
@@ -1704,7 +1708,9 @@ def resize_scannet(im, res_path='imgs/scannet', bench_path='bench_data'):
 class keynetaffnethardnet_module:
     def __init__(self, **args):
         self.upright = False
-        self.th = 0.98        
+        self.th = 0.98
+        with torch.inference_mode():
+            self.detector = K.feature.KeyNetAffNetHardNet(upright=self.upright, device=device)
         
         for k, v in args.items():
            setattr(self, k, v)
@@ -1714,7 +1720,7 @@ class keynetaffnethardnet_module:
 
     
     def eval_args(self):
-        return "pipe_module.run(im1 + '.png', im2 + '.png')"
+        return "pipe_module.run(im1, im2)"
 
 
     def eval_out(self):
@@ -1723,9 +1729,8 @@ class keynetaffnethardnet_module:
 
     def run(self, *args):    
         with torch.inference_mode():
-            detector = K.feature.KeyNetAffNetHardNet(upright=self.upright, device=device)
-            kps1, _ , descs1 = detector(K.io.load_image(args[0], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
-            kps2, _ , descs2 = detector(K.io.load_image(args[1], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+            kps1, _ , descs1 = self.detector(K.io.load_image(args[0], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+            kps2, _ , descs2 = self.detector(K.io.load_image(args[1], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
             dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), self.th)        
         
         pt1 = None
@@ -1752,15 +1757,22 @@ class pydegensac_module:
 
     
     def eval_args(self):
-        return "pipe_module.run(pt1.detach().cpu(), pt2.detach().cpu())"
+        return "pipe_module.run(pt1, pt2)"
 
         
     def eval_out(self):
         return "pt1, pt2, F, mask = out_data"
     
     
-    def run(self, *args):     
-        F, mask = pydegensac.findFundamentalMatrix(np.ascontiguousarray(args[0]), np.ascontiguousarray(args[1]), px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
+    def run(self, *args):  
+        pt1 = args[0]
+        pt2 = args[1]
+        
+        if torch.is_tensor(pt1):
+            pt1 = pt1.detach().cpu()
+            pt2 = pt1.detach().cpu()
+            
+        F, mask = pydegensac.findFundamentalMatrix(np.ascontiguousarray(pt1), np.ascontiguousarray(pt2), px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
     
         pt1 = args[0][mask]
         pt2 = args[1][mask]
@@ -1813,8 +1825,8 @@ if __name__ == '__main__':
     im_path = os.path.join(bench_im, 'megadepth')        
     with progress_bar('MegaDepth') as p:
         for i in p.track(range(n)):
-            im1 = os.path.join(bench_path, im_path, os.path.splitext(megadepth_data['im1'][i])[0])
-            im2 = os.path.join(bench_path, im_path, os.path.splitext(megadepth_data['im2'][i])[0])
+            im1 = os.path.join(bench_path, im_path, os.path.splitext(megadepth_data['im1'][i])[0]) + '.png'
+            im2 = os.path.join(bench_path, im_path, os.path.splitext(megadepth_data['im2'][i])[0]) + '.png'
 
             pipe_name_base = os.path.join(bench_path, bench_res, 'megadepth')
             for pipe_module in pipe:
@@ -1850,7 +1862,7 @@ if __name__ == '__main__':
                     os.makedirs(os.path.dirname(pipe_f), exist_ok=True)                 
                     compressed_pickle(pipe_f, out_data)
                     
-                eval(pipe_module.eval_out())
+                exec(pipe_module.eval_out())
 
     
     img1 = 'data/im1.png'
