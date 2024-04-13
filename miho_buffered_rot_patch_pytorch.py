@@ -1847,8 +1847,8 @@ if __name__ == '__main__':
     im_path = os.path.join(bench_im, 'scannet')                                
     with progress_bar('ScanNet') as p:
         for i in p.track(range(n)):
-            im1 = os.path.join(bench_path, im_path, os.path.splitext(scannet_data['im1'][i])[0])
-            im2 = os.path.join(bench_path, im_path, os.path.splitext(scannet_data['im2'][i])[0])
+            im1 = os.path.join(bench_path, im_path, os.path.splitext(scannet_data['im1'][i])[0]) + '.png'
+            im2 = os.path.join(bench_path, im_path, os.path.splitext(scannet_data['im2'][i])[0]) + '.png'
 
             pipe_name_base = os.path.join(bench_path, bench_res, 'scannet')
             for pipe_module in pipe:
