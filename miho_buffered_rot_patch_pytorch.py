@@ -1882,8 +1882,8 @@ if __name__ == '__main__':
     # NCC+ patch anisotropic scales
     scale=[[10/14, 1], [10/12, 1], [1, 1], [1, 12/10], [1, 14/10]]
 
-    im1 = cv2.cvtColor(cv2.imread(img1), cv2.COLOR_BGR2RGB)
-    im2 = cv2.cvtColor(cv2.imread(im2), cv2.COLOR_BGR2RGB)
+    im1 = Image.open(img1)
+    im2 = Image.open(img2)
 
     # generate matches with kornia, LAF included, check upright!
     upright=False
