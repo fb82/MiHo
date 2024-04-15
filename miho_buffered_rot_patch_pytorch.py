@@ -1539,6 +1539,7 @@ class miho:
 
 
 import os
+import warnings
 import _pickle as cPickle
 import bz2
 import rich
@@ -1658,11 +1659,11 @@ def bench_init(bench_file='megadepth_scannet', bench_path='bench_data', bench_gt
     return megadepth_data, scannet_data, data_file
 
 
-def resize_megadepth(im, res_path='imgs/megadepth', bench_path='bench_data'):
+def resize_megadepth(im, res_path='imgs/megadepth', bench_path='bench_data', force=False):
     mod_im = os.path.join(bench_path, res_path, os.path.splitext(im)[0] + '.png')
     ori_im= os.path.join(bench_path, 'megadepth_test_1500/Undistorted_SfM', im)
 
-    if os.path.isfile(mod_im):
+    if os.path.isfile(mod_im) and not force:
         # PIL does not load image, so it's faster to get only image size
         return np.asarray(Image.open(ori_im).size) / np.asarray(Image.open(mod_im).size) 
         # return np.array(cv2.imread(ori_im).shape)[:2][::-1] / np.array(cv2.imread(mod_im).shape)[:2][::-1]
@@ -1685,11 +1686,11 @@ def resize_megadepth(im, res_path='imgs/megadepth', bench_path='bench_data'):
         return np.array([1., 1.])
 
 
-def resize_scannet(im, res_path='imgs/scannet', bench_path='bench_data'):
+def resize_scannet(im, res_path='imgs/scannet', bench_path='bench_data', force=False):
     mod_im = os.path.join(bench_path, res_path, os.path.splitext(im)[0] + '.png')
     ori_im= os.path.join(bench_path, 'scannet_test_1500', im)
 
-    if os.path.isfile(mod_im):
+    if os.path.isfile(mod_im) and not force:
         # PIL does not load image, so it's faster to get only image size
         return np.asarray(Image.open(ori_im).size) / np.asarray(Image.open(mod_im).size) 
         # return np.array(cv2.imread(ori_im).shape)[:2][::-1] / np.array(cv2.imread(mod_im).shape)[:2][::-1]
@@ -1785,7 +1786,7 @@ def setup_images(megadepth_data, scannet_data, data_file='bench_data/megadepth_s
         n = len(megadepth_data['im1'])
         im_pair_scale = np.zeros((n, 2, 2))
         res_path = os.path.join(bench_imgs, 'megadepth')
-        with progress_bar('MegaDepth image setup') as p:
+        with progress_bar('MegaDepth - image setup completion') as p:
             for i in p.track(range(n)):
                 im_pair_scale[i, 0] = resize_megadepth(megadepth_data['im1'][i], res_path, bench_path)
                 im_pair_scale[i, 1] = resize_megadepth(megadepth_data['im2'][i], res_path, bench_path)
@@ -1794,7 +1795,7 @@ def setup_images(megadepth_data, scannet_data, data_file='bench_data/megadepth_s
         n = len(scannet_data['im1'])
         im_pair_scale = np.zeros((n, 2, 2))
         res_path = os.path.join(bench_imgs, 'scannet')
-        with progress_bar('ScanNet image setup') as p:
+        with progress_bar('ScanNet - image setup completion') as p:
             for i in p.track(range(n)):
                 im_pair_scale[i, 0] = resize_scannet(scannet_data['im1'][i], res_path, bench_path)
                 im_pair_scale[i, 1] = resize_scannet(scannet_data['im2'][i], res_path, bench_path)
@@ -1805,6 +1806,184 @@ def setup_images(megadepth_data, scannet_data, data_file='bench_data/megadepth_s
     return megadepth_data, scannet_data
 
 
+def relative_pose_error(R_gt, t_gt, R, t, ignore_gt_t_thr=0.0):
+    # angle error between 2 vectors
+    # t_gt = T_0to1[:3, 3]
+    n = np.linalg.norm(t) * np.linalg.norm(t_gt)
+    t_err = np.rad2deg(np.arccos(np.clip(np.dot(t, t_gt) / n, -1.0, 1.0)))
+    t_err = np.minimum(t_err, 180 - t_err)  # handle E ambiguity
+    if np.linalg.norm(t_gt) < ignore_gt_t_thr:  # pure rotation is challenging
+        t_err = 0
+
+    # angle error between 2 rotation matrices
+    # R_gt = T_0to1[:3, :3]
+    cos = (np.trace(np.dot(R.T, R_gt)) - 1) / 2
+    cos = np.clip(cos, -1., 1.)  # handle numercial errors
+    R_err = np.rad2deg(np.abs(np.arccos(cos)))
+
+    return t_err, R_err
+
+
+def estimate_pose(kpts0, kpts1, K0, K1, thresh, conf=0.99999):
+    if len(kpts0) < 5:
+        return None
+    # normalize keypoints
+    kpts0 = (kpts0 - K0[[0, 1], [2, 2]][None]) / K0[[0, 1], [0, 1]][None]
+    kpts1 = (kpts1 - K1[[0, 1], [2, 2]][None]) / K1[[0, 1], [0, 1]][None]
+
+    # normalize ransac threshold
+    ransac_thr = thresh / np.mean([K0[0, 0], K1[1, 1], K0[0, 0], K1[1, 1]])
+
+    # compute pose with cv2
+    E, mask = cv2.findEssentialMat(
+        kpts0, kpts1, np.eye(3), threshold=ransac_thr, prob=conf, method=cv2.RANSAC)
+    if E is None:
+        print("\nE is None while trying to recover pose.\n")
+        return None
+
+    # recover pose from E
+    best_num_inliers = 0
+    ret = None
+    for _E in np.split(E, len(E) / 3):
+        n, R, t, _ = cv2.recoverPose(
+            _E, kpts0, kpts1, np.eye(3), 1e9, mask=mask)
+        if n > best_num_inliers:
+            ret = (R, t[:, 0], mask.ravel() > 0)
+            best_num_inliers = n
+
+    return ret
+
+
+def error_auc(errors, thr):
+    errors = [0] + sorted(errors)
+    recall = list(np.linspace(0, 1, len(errors)))
+
+    last_index = np.searchsorted(errors, thr)
+    y = recall[:last_index] + [recall[last_index-1]]
+    x = errors[:last_index] + [thr]
+    return np.trapz(y, x) / thr    
+
+
+def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', force=False):
+
+    n = len(dataset_data['im1'])
+    im_path = os.path.join(bench_im, dataset_name)        
+    with progress_bar(bar_name + ' - pipeline completion') as p:
+        for i in p.track(range(n)):
+            im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + '.png'
+            im2 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im2'][i])[0]) + '.png'
+
+            pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
+            for pipe_module in pipe:
+                pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
+                pipe_f = os.path.join(pipe_name_base, 'base', str(i) + '.pbz2')
+            
+                if os.path.isfile(pipe_f) and not force:
+                    out_data = decompress_pickle(pipe_f)
+                else:                      
+                    out_data = eval(pipe_module.eval_args())
+                    os.makedirs(os.path.dirname(pipe_f), exist_ok=True)                 
+                    compressed_pickle(pipe_f, out_data)
+                    
+                exec(pipe_module.eval_out())
+
+
+def eval_pipe(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to='res.pbz2', force=False):
+    warnings.filterwarnings("ignore", category=UserWarning)
+
+    angular_thresholds = [5, 10, 20]
+
+    K1 = dataset_data['K1']
+    K2 = dataset_data['K2']
+    R_gt = dataset_data['R']
+    t_gt = dataset_data['T']
+
+    if os.path.isfile(save_to):
+        eval_data = decompress_pickle(save_to)
+    else:
+        eval_data = {}
+        
+    for essential_th in essential_th_list:            
+        n = len(dataset_data['im1'])
+        
+        pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
+        pipe_name_base_small = ''
+        for pipe_module in pipe:
+            pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
+            pipe_name_base_small = os.path.join(pipe_name_base_small, pipe_module.get_id())
+
+            print(bar_name + ' evaluation with RANSAC essential matrix threshold ' + str(essential_th) + ' px')
+            print('Pipeline: ' + pipe_name_base_small)
+
+            if ((pipe_name_base + '_essential_th_list_' + str(essential_th)) in eval_data.keys()) and not force:
+                eval_data_ = eval_data[pipe_name_base + '_essential_th_list_' + str(essential_th)]                
+                for a in angular_thresholds:
+                    print(f"mAA@{str(a)} : {eval_data_['pose_error_acc_' + str(a)]}")
+                
+                continue
+                    
+            eval_data_ = {}
+            eval_data_['R_errs'] = []
+            eval_data_['t_errs'] = []
+            eval_data_['inliers'] = []
+                
+            with progress_bar('Completion') as p:
+                for i in p.track(range(n)):            
+                    pipe_f = os.path.join(pipe_name_base, 'base', str(i) + '.pbz2')
+                    
+                    if os.path.isfile(pipe_f):
+                        out_data = decompress_pickle(pipe_f)
+    
+                        pts1 = out_data[0]
+                        pts2 = out_data[1]
+                                                
+                        if torch.is_tensor(pts1):
+                            pts1 = pts1.detach().cpu().numpy()
+                            pts2 = pts2.detach().cpu().numpy()
+                        
+                        if not pts1.size:
+                            Rt = None
+
+                        else:
+                            scales = dataset_data['im_pair_scale'][i]
+                            
+                            pts1 = pts1 * scales[0]
+                            pts2 = pts2 * scales[1]
+                            
+                            Rt = estimate_pose(pts1, pts2, K1[i], K2[i], essential_th)
+                    else:
+                        Rt = None
+        
+                    if Rt is None:
+                        eval_data_['R_errs'].append(np.inf)
+                        eval_data_['t_errs'].append(np.inf)
+                        eval_data_['inliers'].append(np.array([]).astype('bool'))
+                    else:
+                        R, t, inliers = Rt
+                        t_err, R_err = relative_pose_error(R_gt[i], t_gt[i], R, t, ignore_gt_t_thr=0.0)
+                        eval_data_['R_errs'].append(R_err)
+                        eval_data_['t_errs'].append(t_err)
+                        eval_data_['inliers'].append(inliers)
+        
+                aux = np.stack(([eval_data_['R_errs'], eval_data_['t_errs']]), axis=1)
+                max_Rt_err = np.max(aux, axis=1)
+        
+                tmp = np.concatenate((aux, np.expand_dims(
+                    np.max(aux, axis=1), axis=1)), axis=1)
+        
+                for a in angular_thresholds:       
+                    auc_R = error_auc(np.squeeze(eval_data_['R_errs']), a)
+                    auc_t = error_auc(np.squeeze(eval_data_['t_errs']), a)
+                    auc_max_Rt = error_auc(np.squeeze(max_Rt_err), a)
+                    eval_data_['pose_error_auc_' + str(a)] = np.asarray([auc_R, auc_t, auc_max_Rt])
+                    eval_data_['pose_error_acc_' + str(a)] = np.sum(tmp < a, axis=0)/np.shape(tmp)[0]
+
+                    print(f"mAA@{str(a)} : {eval_data_['pose_error_acc_' + str(a)]}")
+
+            eval_data[pipe_name_base + '_essential_th_list_' + str(essential_th)] = eval_data_
+            compressed_pickle(save_to, eval_data)
+            
+
 if __name__ == '__main__':
     # megadepth & scannet
     bench_path = '../miho_megadepth_scannet_bench_data'   
@@ -1812,58 +1991,21 @@ if __name__ == '__main__':
     bench_im = 'imgs'
     bench_file = 'megadepth_scannet'
     bench_res = 'res'
-                
-    megadepth_data, scannet_data, data_file = bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
-    megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
+    save_to = os.path.join(bench_path, bench_res, 'res_')
 
     pipe = [
         keynetaffnethardnet_module(upright=False, th=0.98),
         pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
         ]
+                
+    megadepth_data, scannet_data, data_file = bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
+    megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
 
-    n = len(megadepth_data['im1'])
-    im_path = os.path.join(bench_im, 'megadepth')        
-    with progress_bar('MegaDepth') as p:
-        for i in p.track(range(n)):
-            im1 = os.path.join(bench_path, im_path, os.path.splitext(megadepth_data['im1'][i])[0]) + '.png'
-            im2 = os.path.join(bench_path, im_path, os.path.splitext(megadepth_data['im2'][i])[0]) + '.png'
+    run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
+    run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
 
-            pipe_name_base = os.path.join(bench_path, bench_res, 'megadepth')
-            for pipe_module in pipe:
-                pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
-                pipe_f = os.path.join(pipe_name_base, 'base', str(i) + '.pbz2')
-            
-                if os.path.isfile(pipe_f):
-                    out_data = decompress_pickle(pipe_f)
-                else:                      
-                    out_data = eval(pipe_module.eval_args())
-                    os.makedirs(os.path.dirname(pipe_f), exist_ok=True)                 
-                    compressed_pickle(pipe_f, out_data)
-                    
-                exec(pipe_module.eval_out())
-                 
-
-    n = len(scannet_data['im1'])
-    im_path = os.path.join(bench_im, 'scannet')                                
-    with progress_bar('ScanNet') as p:
-        for i in p.track(range(n)):
-            im1 = os.path.join(bench_path, im_path, os.path.splitext(scannet_data['im1'][i])[0]) + '.png'
-            im2 = os.path.join(bench_path, im_path, os.path.splitext(scannet_data['im2'][i])[0]) + '.png'
-
-            pipe_name_base = os.path.join(bench_path, bench_res, 'scannet')
-            for pipe_module in pipe:
-                pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
-                pipe_f = os.path.join(pipe_name_base, 'base', str(i) + '.pbz2')
-            
-                if os.path.isfile(pipe_f):
-                    out_data = decompress_pickle(pipe_f)
-                else:                      
-                    out_data = eval(pipe_module.eval_args())
-                    os.makedirs(os.path.dirname(pipe_f), exist_ok=True)                 
-                    compressed_pickle(pipe_f, out_data)
-                    
-                exec(pipe_module.eval_out())
-
+    eval_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2')
+    eval_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2')
     
     img1 = 'data/im1.png'
     img2 = 'data/im2_rot.png'
