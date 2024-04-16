@@ -2108,7 +2108,7 @@ if __name__ == '__main__':
     megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
 
     for i, pipe in enumerate(pipes):
-        print(f"--== Running pipeline {i}/{len(pipes)} ==--")
+        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")
         run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
         run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
 
