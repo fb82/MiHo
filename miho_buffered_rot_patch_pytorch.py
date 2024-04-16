@@ -465,7 +465,7 @@ def get_inlier_duplex(H12, pt1, pt2, ptm, sidx_par, th):
     err_ = err < th
 
     final_mask = mask & err_
-    return torch.logical_and(final_mask[:, :l2], final_mask[:, l2:]).squeeze()
+    return torch.logical_and(final_mask[:, :l2], final_mask[:, l2:]).squeeze(dim=0)
 
 
 def compute_homography_duplex(pt1, pt2, ptm, sidx_par):
