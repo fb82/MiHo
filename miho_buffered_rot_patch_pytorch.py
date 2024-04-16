@@ -1,6 +1,7 @@
 from PIL import Image
 import cv2
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 import time
 # import scipy.io as sio
@@ -10,7 +11,7 @@ import torchvision.transforms as transforms
 import kornia as K
 import pydegensac
 
-
+matplotlib.use('tkagg')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 EPS_ = torch.finfo(torch.float32).eps
 sqrt2 = np.sqrt(2)
@@ -1706,81 +1707,6 @@ def resize_scannet(im, res_path='imgs/scannet', bench_path='bench_data', force=F
     return sc
 
 
-class keynetaffnethardnet_module:
-    def __init__(self, **args):
-        self.upright = False
-        self.th = 0.98
-        with torch.inference_mode():
-            self.detector = K.feature.KeyNetAffNetHardNet(upright=self.upright, device=device)
-        
-        for k, v in args.items():
-           setattr(self, k, v)
-        
-    def get_id(self):
-        return ('keynetaffnethardnet_upright_' + str(self.upright) + '_th_' + str(self.th)).lower()
-
-    
-    def eval_args(self):
-        return "pipe_module.run(im1, im2)"
-
-
-    def eval_out(self):
-        return "pt1, pt2, kps1, kps2, Hs_laf = out_data"               
-
-
-    def run(self, *args):    
-        with torch.inference_mode():
-            kps1, _ , descs1 = self.detector(K.io.load_image(args[0], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
-            kps2, _ , descs2 = self.detector(K.io.load_image(args[1], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
-            dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), self.th)        
-        
-        pt1 = None
-        pt2 = None
-        kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
-        kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
-        
-        pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)    
-    
-        return pt1, pt2, kps1, kps2, Hs_laf
-
-
-class pydegensac_module:
-    def __init__(self, **args):
-        self.px_th = 3
-        self.conf = 0.99
-        self.max_iters = 100000
-              
-        for k, v in args.items():
-           setattr(self, k, v)
-       
-    def get_id(self):
-        return ('pydegensac_th_' + str(self.px_th) + '_conf_' + str(self.conf) + '_max_iters_' + str(self.max_iters)).lower()
-
-    
-    def eval_args(self):
-        return "pipe_module.run(pt1, pt2)"
-
-        
-    def eval_out(self):
-        return "pt1, pt2, F, mask = out_data"
-    
-    
-    def run(self, *args):  
-        pt1 = args[0]
-        pt2 = args[1]
-        
-        if torch.is_tensor(pt1):
-            pt1 = pt1.detach().cpu()
-            pt2 = pt1.detach().cpu()
-            
-        F, mask = pydegensac.findFundamentalMatrix(np.ascontiguousarray(pt1), np.ascontiguousarray(pt2), px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
-    
-        pt1 = args[0][mask]
-        pt2 = args[1][mask]
-            
-        return pt1, pt2, F, mask
-
-
 def setup_images(megadepth_data, scannet_data, data_file='bench_data/megadepth_scannet.pbz2', bench_path='bench_data', bench_imgs='imgs'):
     if not ('im_pair_scale' in megadepth_data.keys()):        
         n = len(megadepth_data['im1'])
@@ -1918,7 +1844,7 @@ def eval_pipe(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_dat
             if ((pipe_name_base + '_essential_th_list_' + str(essential_th)) in eval_data.keys()) and not force:
                 eval_data_ = eval_data[pipe_name_base + '_essential_th_list_' + str(essential_th)]                
                 for a in angular_thresholds:
-                    print(f"mAA@{str(a)} : {eval_data_['pose_error_acc_' + str(a)]}")
+                    print(f"mAA@{str(a)} : {eval_data_['pose_error_auc_' + str(a)]}")
                 
                 continue
                     
@@ -1978,11 +1904,158 @@ def eval_pipe(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_dat
                     eval_data_['pose_error_auc_' + str(a)] = np.asarray([auc_R, auc_t, auc_max_Rt])
                     eval_data_['pose_error_acc_' + str(a)] = np.sum(tmp < a, axis=0)/np.shape(tmp)[0]
 
-                    print(f"mAA@{str(a)} : {eval_data_['pose_error_acc_' + str(a)]}")
+                    print(f"mAA@{str(a)} : {eval_data_['pose_error_auc_' + str(a)]}")
 
             eval_data[pipe_name_base + '_essential_th_list_' + str(essential_th)] = eval_data_
             compressed_pickle(save_to, eval_data)
             
+
+class keynetaffnethardnet_module:
+    def __init__(self, **args):
+        self.upright = False
+        self.th = 0.99
+        with torch.inference_mode():
+            self.detector = K.feature.KeyNetAffNetHardNet(upright=self.upright, device=device)
+        
+        for k, v in args.items():
+           setattr(self, k, v)
+        
+        
+    def get_id(self):
+        return ('keynetaffnethardnet_upright_' + str(self.upright) + '_th_' + str(self.th)).lower()
+
+    
+    def eval_args(self):
+        return "pipe_module.run(im1, im2)"
+
+
+    def eval_out(self):
+        return "pt1, pt2, kps1, kps2, Hs = out_data"               
+
+
+    def run(self, *args):    
+        with torch.inference_mode():
+            kps1, _ , descs1 = self.detector(K.io.load_image(args[0], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+            kps2, _ , descs2 = self.detector(K.io.load_image(args[1], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+            dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), self.th)        
+        
+        pt1 = None
+        pt2 = None
+        kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
+        kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
+        
+        pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)    
+    
+        return pt1, pt2, kps1, kps2, Hs_laf
+
+
+class miho_module:
+    def __init__(self, **args):
+        self.miho = miho()
+        
+        for k, v in args.items():
+           setattr(self, k, v)
+        
+        
+    def get_id(self):
+        return ('miho_default').lower()
+
+    
+    def eval_args(self):
+        return "pipe_module.run(pt1, pt2, Hs)"
+
+
+    def eval_out(self):
+        return "pt1, pt2, Hs, inliers = out_data"               
+
+
+    def run(self, *args):
+        self.miho.planar_clustering(args[0], args[1])
+        
+        pt1, pt2, Hs_miho, inliers = refinement_miho(None, None, args[0], args[1], self.miho, args[2], remove_bad=True, img_patches=False)        
+            
+        return pt1, pt2, Hs_miho, inliers
+
+
+class ncc_module:
+    def __init__(self, **args):
+        self.w = 15;
+        self.angle = [-30, -15, 0, 15, 30]
+        self.scale = [[10/14, 1], [10/12, 1], [1, 1], [1, 12/10], [1, 14/10]]
+        self.subpix = True
+        self.w_big=None
+        self.ref_images = 'both'
+        
+        self.transform = transforms.Compose([
+            transforms.Grayscale(),
+            transforms.PILToTensor() 
+            ]) 
+        
+        for k, v in args.items():
+           setattr(self, k, v)
+        
+        
+    def get_id(self):
+        return ('nnc_subpix_' + str(self.subpix) + '_w_' + str(self.w) + '_w_big_' + str(self.w_big) + '_ref_images_' + str(self.ref_images) + '_scales_' +  str(len(self.scale)) + '_angles_' + str(len(self.scale))).lower()
+
+    
+    def eval_args(self):
+        return "pipe_module.run(pt1, pt2, Hs, im1, im2)"
+
+
+    def eval_out(self):
+        return "pt1, pt2, Hs, val, T = out_data"            
+
+
+    def run(self, *args):
+        im1 = Image.open(args[3])
+        im2 = Image.open(args[4])
+
+        im1 = self.transform(im1).type(torch.float16).to(device)
+        im2 = self.transform(im2).type(torch.float16).to(device)        
+        
+        pt1, pt2, Hs_ncc, val, T = refinement_norm_corr_alternate(im1, im2, args[0], args[1], args[2], w=self.w, w_big=self.w_big, ref_image=[self.ref_images], angle=self.angle, scale=self.scale, subpix=self.subpix, img_patches=False)   
+                    
+        return pt1, pt2, Hs_ncc, val, T
+
+
+class pydegensac_module:
+    def __init__(self, **args):
+        self.px_th = 3
+        self.conf = 0.99
+        self.max_iters = 100000
+              
+        for k, v in args.items():
+           setattr(self, k, v)
+       
+        
+    def get_id(self):
+        return ('pydegensac_th_' + str(self.px_th) + '_conf_' + str(self.conf) + '_max_iters_' + str(self.max_iters)).lower()
+
+    
+    def eval_args(self):
+        return "pipe_module.run(pt1, pt2)"
+
+        
+    def eval_out(self):
+        return "pt1, pt2, F, mask = out_data"
+    
+    
+    def run(self, *args):  
+        pt1 = args[0]
+        pt2 = args[1]
+        
+        if torch.is_tensor(pt1):
+            pt1 = pt1.detach().cpu()
+            pt2 = pt1.detach().cpu()
+            
+        F, mask = pydegensac.findFundamentalMatrix(np.ascontiguousarray(pt1), np.ascontiguousarray(pt2), px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
+    
+        pt1 = args[0][mask]
+        pt2 = args[1][mask]
+            
+        return pt1, pt2, F, mask
+
 
 if __name__ == '__main__':
     # megadepth & scannet
@@ -1993,19 +2066,44 @@ if __name__ == '__main__':
     bench_res = 'res'
     save_to = os.path.join(bench_path, bench_res, 'res_')
 
-    pipe = [
-        keynetaffnethardnet_module(upright=False, th=0.98),
-        pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+    pipes = [
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            miho_module(),
+            pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+        ],
+
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+        ],
+
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            ncc_module(),
+            pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+        ],
+
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            miho_module(),
+            ncc_module(),
+            pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
         ]
-                
+    ]
+               
     megadepth_data, scannet_data, data_file = bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
     megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
 
-    run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
-    run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
+    for i, pipe in enumerate(pipes):
+        print(f"--== Running pipe {i}/{len(pipes)} ==--")
+        run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
+        run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
 
-    eval_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2')
-    eval_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2')
+        eval_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2')
+        eval_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2')
+
+    # demo code
     
     img1 = 'data/im1.png'
     img2 = 'data/im2_rot.png'
@@ -2033,7 +2131,7 @@ if __name__ == '__main__':
         detector = K.feature.KeyNetAffNetHardNet(upright=upright, device=device)
         kps1, _ , descs1 = detector(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
         kps2, _ , descs2 = detector(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
-        dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.98)        
+        dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.99)        
     kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
     kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
 
