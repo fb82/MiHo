@@ -2049,10 +2049,14 @@ class pydegensac_module:
             pt1 = pt1.detach().cpu()
             pt2 = pt1.detach().cpu()
             
-        F, mask = pydegensac.findFundamentalMatrix(np.ascontiguousarray(pt1), np.ascontiguousarray(pt2), px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
+        if (np.ascontiguousarray(pt1).shape)[0] > 7:                        
+            F, mask = pydegensac.findFundamentalMatrix(np.ascontiguousarray(pt1), np.ascontiguousarray(pt2), px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
     
-        pt1 = args[0][mask]
-        pt2 = args[1][mask]
+            pt1 = args[0][mask]
+            pt2 = args[1][mask]            
+        else:            
+            F = None
+            mask = None
             
         return pt1, pt2, F, mask
 
