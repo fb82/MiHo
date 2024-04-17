@@ -18,8 +18,6 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 EPS_ = torch.finfo(torch.float32).eps
 sqrt2 = np.sqrt(2)
 
-# test_idx = (torch.rand((2558, 2), device=device) * 29 - 14).round()    
-
 
 def laf2homo(kps):
     c = kps[:, :, 2]
@@ -74,7 +72,7 @@ def get_inverse(pt1, pt2, Hs):
     return pt1_, pt2_, Hi, Hi1, Hi2
 
 
-def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=[0, 1], subpix=True, img_patches=False, save_prefix='ncc_patch_'):    
+def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right'], subpix=True, img_patches=False, save_prefix='ncc_patch_'):    
     l = Hs.size()[0] 
     
     if l==0:
@@ -129,7 +127,7 @@ def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=[0, 1], subpix=
     return pt1, pt2, Hs, val, T
 
 
-def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=[0, 1], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_'):    
+def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=['left', 'right'], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_'):    
     l = Hs.size()[0] 
     
     if l==0:
@@ -279,7 +277,6 @@ def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True
 def norm_corr(patch1, patch2, subpix=True):     
     w = patch2.size()[1]
     ww = w * w
-    r = (w - 1) / 2
     n = patch1.size()[0]
     
     with torch.no_grad():
@@ -301,27 +298,31 @@ def norm_corr(patch1, patch2, subpix=True):
     nc = ((ww * cc) - (m1 * m2.reshape(n, 1, 1))) / torch.sqrt(s1 * s2.reshape(n, 1, 1))   
     nc.flatten()[~torch.isfinite(nc.flatten())] = -torch.inf
 
-    idx = nc.reshape(n, ww).max(dim=1)
-    offset = (torch.vstack((idx[1] % w, torch.div(idx[1], w, rounding_mode='trunc')))).permute(1, 0).to(torch.float)
+    w_ = nc.shape[1]
+    ww_ = w_ * w_    
+    r = (w_ - 1) / 2
+
+    idx = nc.reshape(n, ww_).max(dim=1)
+    offset = (torch.vstack((idx[1] % w_, torch.div(idx[1], w_, rounding_mode='trunc')))).permute(1, 0).to(torch.float)
     
     if subpix:    
-        t = ((offset > 0) & ( offset < w - 1)).all(dim=1).to(torch.float)
+        t = ((offset > 0) & ( offset < w_ - 1)).all(dim=1).to(torch.float)
         tidx = (torch.tensor([-1, 0, 1], device=device).unsqueeze(0) * t.unsqueeze(1)).squeeze()
     
         tx = offset[:, 0].unsqueeze(1) + tidx
-        v = nc.flatten()[(torch.arange(n, device=device).unsqueeze(1) * ww + offset[:, 1].unsqueeze(1) * w + tx).to(torch.long).flatten()].reshape(n, 3)
+        v = nc.flatten()[(torch.arange(n, device=device).unsqueeze(1) * ww_ + offset[:, 1].unsqueeze(1) * w_ + tx).to(torch.long).flatten()].reshape(n, 3)
         sx = (v[:, 2] - v[:, 0]) / (2 * (2 * v[:, 1] - v[:, 0] - v[:, 2]))
         sx[~sx.isfinite()] = 0
     
         ty = offset[:, 1].unsqueeze(1) + tidx
-        v = nc.flatten()[(torch.arange(n, device=device).unsqueeze(1) * ww + ty * w + offset[:, 0].unsqueeze(1)).to(torch.long).flatten()].reshape(n, 3)
+        v = nc.flatten()[(torch.arange(n, device=device).unsqueeze(1) * ww_ + ty * w_ + offset[:, 0].unsqueeze(1)).to(torch.long).flatten()].reshape(n, 3)
         sy = (v[:, 2] - v[:, 0]) / (2 * (2 * v[:, 1] - v[:, 0] - v[:, 2]))
         sy[~sy.isfinite()] = 0
         
         offset[:, 0] = offset[:, 0] + sx
         offset[:, 1] = offset[:, 1] + sy
 
-    offset -= (r + 1)
+    offset -= r
     offset[~torch.isfinite(idx[0])] = 0
 
     return offset, idx[0]
@@ -2513,7 +2514,8 @@ if __name__ == '__main__':
 
     # *** NCC / NCC+ ***
     # window radius
-    w = 15
+    w = 10
+    w_big = 15
     # filter outliers by MiHo
     remove_bad=False
     # NCC+ patch angle offset
@@ -2559,11 +2561,18 @@ if __name__ == '__main__':
 
     mihoo.attach_images(im1, im2)
 
-    # offset kpt shift, for testing
-    #
+    # # offset kpt shift, for testing
+    # pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=False)    
     # pt1 = pt1.round()
+    # if w_big is None:
+    #     ww_big = w * 2
+    # else:
+    #     ww_big = w_big
+    # test_idx = (torch.rand((pt1.shape[0], 2), device=device) * (((ww_big-w) * 2) - 1) - (ww_big-w-1)).round()    
     # pt2 = pt1 + test_idx
     # pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im1, pt1=pt1, pt2=pt2, w=w, img_patches=True)    
+    # # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    # pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, w_big=w_big, ref_image=['both'], subpix=True, img_patches=True)   
 
     # data formatting 
     pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=True)    
