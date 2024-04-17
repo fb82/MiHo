@@ -1764,7 +1764,7 @@ def relative_pose_error(R_gt, t_gt, R, t, ignore_gt_t_thr=0.0):
     return t_err, R_err
 
 
-def estimate_pose(kpts0, kpts1, K0, K1, thresh, conf=0.99999):
+def estimate_pose(kpts0, kpts1, K0, K1, thresh, conf=0.99999, max_iters=10000):
     if len(kpts0) < 5:
         return None
     # normalize keypoints
@@ -1776,7 +1776,7 @@ def estimate_pose(kpts0, kpts1, K0, K1, thresh, conf=0.99999):
 
     # compute pose with cv2
     E, mask = cv2.findEssentialMat(
-        kpts0, kpts1, np.eye(3), threshold=ransac_thr, prob=conf, method=cv2.RANSAC)
+        kpts0, kpts1, np.eye(3), threshold=ransac_thr, prob=conf, method=cv2.RANSAC, maxIters=max_iters)
     if E is None:
         print("\nE is None while trying to recover pose.\n")
         return None
@@ -1828,7 +1828,7 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
                 exec(pipe_module.eval_out())
 
 
-def eval_pipe(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to='res.pbz2', force=False):
+def eval_pipe(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to='res.pbz2', force=False, use_scale=False):
     warnings.filterwarnings("ignore", category=UserWarning)
 
     angular_thresholds = [5, 10, 20]
@@ -1885,10 +1885,11 @@ def eval_pipe(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_dat
                             Rt = None
 
                         else:
-                            scales = dataset_data['im_pair_scale'][i]
+                            if use_scale:
+                                scales = dataset_data['im_pair_scale'][i]
                             
-                            pts1 = pts1 * scales[0]
-                            pts2 = pts2 * scales[1]
+                                pts1 = pts1 * scales[0]
+                                pts2 = pts2 * scales[1]
                             
                             Rt = estimate_pose(pts1, pts2, K1[i], K2[i], essential_th)
                     else:
@@ -1993,11 +1994,11 @@ class miho_module:
 
 class ncc_module:
     def __init__(self, **args):
-        self.w = 15
+        self.w = 10
+        self.w_big = 15
         self.angle = [-30, -15, 0, 15, 30]
         self.scale = [[10/14, 1], [10/12, 1], [1, 1], [1, 12/10], [1, 14/10]]
         self.subpix = True
-        self.w_big = None
         self.ref_images = 'both'
         
         self.transform = transforms.Compose([
@@ -2036,7 +2037,7 @@ class ncc_module:
 class pydegensac_module:
     def __init__(self, **args):
         self.px_th = 3
-        self.conf = 0.99
+        self.conf = 0.9999
         self.max_iters = 100000
               
         for k, v in args.items():
@@ -2088,25 +2089,25 @@ if __name__ == '__main__':
         [
             keynetaffnethardnet_module(upright=False, th=0.99),
             miho_module(),
-            pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+            pydegensac_module(px_th=3)
         ],
 
         [
             keynetaffnethardnet_module(upright=False, th=0.99),
-            pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+            pydegensac_module(px_th=3)
         ],
 
         [
             keynetaffnethardnet_module(upright=False, th=0.99),
             ncc_module(),
-            pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+            pydegensac_module(px_th=3)
         ],
 
         [
             keynetaffnethardnet_module(upright=False, th=0.99),
             miho_module(),
             ncc_module(),
-            pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+            pydegensac_module(px_th=3)
         ]
     ]
                
@@ -2118,8 +2119,8 @@ if __name__ == '__main__':
         run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
         run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
 
-        eval_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2')
-        eval_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2')
+        eval_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2', use_scale=True)
+        eval_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2', use_scale=False)
 
     # demo code
     
