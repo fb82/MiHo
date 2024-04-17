@@ -75,7 +75,10 @@ def get_inverse(pt1, pt2, Hs):
 
 def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=[0, 1], subpix=True, img_patches=False, save_prefix='ncc_patch_'):    
     l = Hs.size()[0] 
-        
+    
+    if l==0:
+        return pt1, pt2, Hs, torch.zeros(0, device=device), torch.zeros((0, 3, 3), device=device)
+            
     pt1_, pt2_, Hi, Hi1, Hi2 = get_inverse(pt1, pt2, Hs)    
                 
     patch1 = patchify(im1, pt1_.squeeze(), Hi1, w*2)
@@ -127,6 +130,9 @@ def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=[0, 1], subpix=
 
 def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=[0, 1], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_'):    
     l = Hs.size()[0] 
+    
+    if l==0:
+        return pt1, pt2, Hs, torch.zeros(0, device=device), torch.zeros((0, 3, 3), device=device)
         
     if w_big is None:
         w_big = w * 2
@@ -1987,11 +1993,11 @@ class miho_module:
 
 class ncc_module:
     def __init__(self, **args):
-        self.w = 15;
+        self.w = 15
         self.angle = [-30, -15, 0, 15, 30]
         self.scale = [[10/14, 1], [10/12, 1], [1, 1], [1, 12/10], [1, 14/10]]
         self.subpix = True
-        self.w_big=None
+        self.w_big = None
         self.ref_images = 'both'
         
         self.transform = transforms.Compose([
