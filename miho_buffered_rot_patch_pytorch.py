@@ -2443,6 +2443,49 @@ class gms_module:
         return pt1, pt2, Hs, mask
 
 
+import OANet.learnedmatcher_mod as OANet_matcher
+
+class oanet_module:
+    def __init__(self, **args):              
+        self.lm = OANet_matcher.LearnedMatcher('OANet/model_best.pth', inlier_threshold=1, use_ratio=0, use_mutual=0, corr_file=-1)        
+        
+        for k, v in args.items():
+           setattr(self, k, v)
+       
+        
+    def get_id(self):
+        return ('oanet').lower()
+
+    
+    def eval_args(self):
+        return "pipe_module.run(pt1, pt2, Hs)"
+
+        
+    def eval_out(self):
+        return "pt1, pt2, Hs, mask = out_data"
+    
+    
+    def run(self, *args):  
+        pt1 = np.ascontiguousarray(args[0].detach().cpu())
+        pt2 = np.ascontiguousarray(args[1].detach().cpu())
+                
+        l = pt1.shape[0]
+        
+        if l > 0:                
+            _, _, _, _, mask = self.lm.infer(pt1, pt2)
+                    
+            pt1 = args[0][mask]
+            pt2 = args[1][mask]            
+            Hs = args[2][mask]            
+        else:
+            pt1 = args[0]
+            pt2 = args[1]           
+            Hs = args[2]   
+            mask = []
+                        
+        return pt1, pt2, Hs, mask
+
+
 if __name__ == '__main__':
     # megadepth & scannet
     bench_path = '../miho_megadepth_scannet_bench_data'   
@@ -2488,7 +2531,20 @@ if __name__ == '__main__':
             gms_module(),
             ncc_module(),
             pydegensac_module(px_th=3)
-        ]
+        ],
+        
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            oanet_module(),
+            pydegensac_module(px_th=3)
+        ],
+        
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            oanet_module(),
+            ncc_module(),
+            pydegensac_module(px_th=3)
+        ]        
     ]
                
     megadepth_data, scannet_data, data_file = bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
