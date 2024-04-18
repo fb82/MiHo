@@ -56,18 +56,18 @@ def refinement_laf(im1, im2, pt1=None, pt2=None, data1=None, data2=None, w=15, i
 def get_inverse(pt1, pt2, Hs):
     l = Hs.size()[0] 
     Hs1, Hs2 = Hs.split(1, dim=1)
-    Hs1 = Hs1.squeeze()
-    Hs2 = Hs2.squeeze()
+    Hs1 = Hs1.squeeze(1)
+    Hs2 = Hs2.squeeze(1)
             
-    pt1_ = Hs1.bmm(torch.hstack((pt1, torch.ones((pt1.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
+    pt1_ = Hs1.bmm(torch.hstack((pt1, torch.ones((pt1.size()[0], 1), device=device))).unsqueeze(-1)).squeeze(-1)
     pt1_ = pt1_[:, :2] / pt1_[:, 2].unsqueeze(-1)
-    pt2_ = Hs2.bmm(torch.hstack((pt2, torch.ones((pt2.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
+    pt2_ = Hs2.bmm(torch.hstack((pt2, torch.ones((pt2.size()[0], 1), device=device))).unsqueeze(-1)).squeeze(-1)
     pt2_ = pt2_[:, :2] / pt2_[:, 2].unsqueeze(-1)
     
     Hi = torch.linalg.inv(Hs.reshape(l*2, 3, 3)).reshape(l, 2, 3, 3)    
     Hi1, Hi2 = Hi.split(1, dim=1)
-    Hi1 = Hi1.squeeze()
-    Hi2 = Hi2.squeeze()
+    Hi1 = Hi1.squeeze(1)
+    Hi2 = Hi2.squeeze(1)
     
     return pt1_, pt2_, Hi, Hi1, Hi2
 
@@ -172,8 +172,8 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
             _, _, Hiu, Hi1u, Hi2u = get_inverse(pt1, pt2, Ti @ S @ R @ T @ Hs)    
 
             if ('left' in ref_image) or ('both' in ref_image):
-                patch2 = patchify(im2, pt2_.squeeze(), Hi2, w_big)
-                patch1_small = patchify(im1, pt1_.squeeze(), Hi1u, w)
+                patch2 = patchify(im2, pt2_, Hi2, w_big)
+                patch1_small = patchify(im1, pt1_, Hi1u, w)
         
                 patch_offset0, patch_val0 = norm_corr(patch2, patch1_small, subpix=subpix)
 
@@ -183,8 +183,8 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
                 patch_t[mask, 0] = Hi1u[mask]                
         
             if ('right' in ref_image) or ('both' in ref_image):
-                patch1 = patchify(im1, pt1_.squeeze(), Hi1, w_big)
-                patch2_small = patchify(im2, pt2_.squeeze(), Hi2u, w)  
+                patch1 = patchify(im1, pt1_, Hi1, w_big)
+                patch2_small = patchify(im2, pt2_, Hi2u, w)  
                 
                 patch_offset1, patch_val1 = norm_corr(patch1, patch2_small, subpix=subpix)
                 
@@ -210,9 +210,9 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
     
     Hsu = torch.linalg.inv(Hiu.reshape(l*2, 3, 3)).reshape(l, 2, 3, 3)        
     
-    pt1 = Hiu[:, 0].bmm(torch.hstack((pt1_, torch.ones((pt1_.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
+    pt1 = Hiu[:, 0].bmm(torch.hstack((pt1_, torch.ones((pt1_.size()[0], 1), device=device))).unsqueeze(-1)).squeeze(-1)
     pt1 = pt1[:, :2] / pt1[:, 2].unsqueeze(-1)
-    pt2 = Hiu[:, 1].bmm(torch.hstack((pt2_, torch.ones((pt2_.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
+    pt2 = Hiu[:, 1].bmm(torch.hstack((pt2_, torch.ones((pt2_.size()[0], 1), device=device))).unsqueeze(-1)).squeeze(-1)
     pt2 = pt2[:, :2] / pt2[:, 2].unsqueeze(-1)
     
     T = torch.eye(3, device=device, dtype=torch.float).reshape(1, 1, 9).repeat(l, 2, 1).reshape(l*2, 9)
@@ -2489,7 +2489,6 @@ if __name__ == '__main__':
             ncc_module(),
             pydegensac_module(px_th=3)
         ]
-        
     ]
                
     megadepth_data, scannet_data, data_file = bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
