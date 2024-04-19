@@ -11,47 +11,24 @@ import torchvision.transforms as transforms
 import kornia as K
 import pydegensac
 
+from pprint import pprint
+import deep_image_matching as dim
+import yaml
+
+from src.pipelines.keynetaffnethardnet_module_fabio import keynetaffnethardnet_module_fabio
+from src.pipelines.keynetaffnethardnet_kornia_matcher_module import keynetaffnethardnet_kornia_matcher_module
+from src.pipelines.superpoint_lightglue_module import superpoint_lightglue_module
+from src.pipelines.superpoint_kornia_matcher_module import superpoint_kornia_matcher_module
+from src.pipelines.disk_lightglue_module import disk_lightglue_module
+from src.pipelines.aliked_lightglue_module import aliked_lightglue_module
+from src.pipelines.loftr_module import loftr_module
+
 matplotlib.use('tkagg')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 EPS_ = torch.finfo(torch.float32).eps
 sqrt2 = np.sqrt(2)
 
 # test_idx = (torch.rand((2558, 2), device=device) * 29 - 14).round()    
-
-
-def laf2homo(kps):
-    c = kps[:, :, 2]
-    s = torch.sqrt(torch.abs(kps[:, 0, 0] * kps[:, 1, 1] - kps[:, 0, 1] * kps[:, 1, 0]))   
-    
-    Hi = torch.zeros((kps.shape[0], 3, 3), device=device)
-    Hi[:, :2, :] = kps / s.reshape(-1, 1, 1)
-    Hi[:, 2, 2] = 1 
-
-    H = torch.linalg.inv(Hi)
-    
-    return c, H, s
-
-
-def refinement_laf(im1, im2, pt1=None, pt2=None, data1=None, data2=None, w=15, img_patches=True):
-    if data1 is None:
-        l = pt1.shape[0]
-        Hs = torch.eye(3, device=device).repeat(l*2, 1).reshape(l, 2, 3, 3)
-    else:
-        l = data1.shape[0]
-        pt1, H1, s1 = laf2homo(data1)
-        pt2, H2, s2 = laf2homo(data2)
-
-        s = torch.sqrt(s1 * s2)       
-        H1[:, :2, :] = H1[:, :2, :] * (s / s1).reshape(-1, 1, 1)
-        H2[:, :2, :] = H2[:, :2, :] * (s / s2).reshape(-1, 1, 1)
-
-        Hs = torch.cat((H1.unsqueeze(1), H2.unsqueeze(1)), 1)        
-    
-    if img_patches:
-        go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='laf_patch_')    
-  
-    return pt1, pt2, Hs
-
 
 def get_inverse(pt1, pt2, Hs):
     l = Hs.size()[0] 
@@ -1796,6 +1773,8 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
     im_path = os.path.join(bench_im, dataset_name)        
     with progress_bar(bar_name + ' - pipeline completion') as p:
         for i in p.track(range(n)):
+            #if i == 700:
+            #    break
             im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + '.png'
             im2 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im2'][i])[0]) + '.png'
 
@@ -1810,7 +1789,7 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
                     out_data = eval(pipe_module.eval_args())
                     os.makedirs(os.path.dirname(pipe_f), exist_ok=True)                 
                     compressed_pickle(pipe_f, out_data)
-                    
+
                 exec(pipe_module.eval_out())
 
 
@@ -1908,45 +1887,6 @@ def eval_pipe(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_dat
 
             eval_data[pipe_name_base + '_essential_th_list_' + str(essential_th)] = eval_data_
             compressed_pickle(save_to, eval_data)
-            
-
-class keynetaffnethardnet_module:
-    def __init__(self, **args):
-        self.upright = False
-        self.th = 0.99
-        with torch.inference_mode():
-            self.detector = K.feature.KeyNetAffNetHardNet(upright=self.upright, device=device)
-        
-        for k, v in args.items():
-           setattr(self, k, v)
-        
-        
-    def get_id(self):
-        return ('keynetaffnethardnet_upright_' + str(self.upright) + '_th_' + str(self.th)).lower()
-
-    
-    def eval_args(self):
-        return "pipe_module.run(im1, im2)"
-
-
-    def eval_out(self):
-        return "pt1, pt2, kps1, kps2, Hs = out_data"               
-
-
-    def run(self, *args):    
-        with torch.inference_mode():
-            kps1, _ , descs1 = self.detector(K.io.load_image(args[0], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
-            kps2, _ , descs2 = self.detector(K.io.load_image(args[1], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
-            dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), self.th)        
-        
-        pt1 = None
-        pt2 = None
-        kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
-        kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
-        
-        pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)    
-    
-        return pt1, pt2, kps1, kps2, Hs_laf
 
 
 class miho_module:
@@ -2071,29 +2011,48 @@ if __name__ == '__main__':
     save_to = os.path.join(bench_path, bench_res, 'res_')
 
     pipes = [
+
         [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            miho_module(),
+            keynetaffnethardnet_module_fabio(upright=False, th=0.99), # in the other added max keypoints number
             pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
         ],
 
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
-        ],
+        #[
+        #    superpoint_kornia_matcher_module(nmax_keypoints=4000, th=0.97),
+        #    pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+        #],
 
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            ncc_module(),
-            pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
-        ],
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=4000),
+        #    pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+        #],
 
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            miho_module(),
-            ncc_module(),
-            pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
-        ]
+        #[
+        #    keynetaffnethardnet_kornia_matcher_module(nmax_keypoints=4000, upright=False, th=0.99),
+        #    pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+        #],
+#
+        #[
+        #    disk_lightglue_module(nmax_keypoints=4000),
+        #    pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+        #],
+#
+        #[
+        #    aliked_lightglue_module(nmax_keypoints=4000),
+        #    pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+        #],
+
+        #[
+        #    loftr_module(pretrained='outdoor'),
+        #    pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+        #],
+
+        #[
+        #    keynetaffnethardnet_module(upright=False, th=0.99),
+        #    miho_module(),
+        #    ncc_module(),
+        #    pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+        #]
     ]
                
     megadepth_data, scannet_data, data_file = bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
@@ -2107,109 +2066,109 @@ if __name__ == '__main__':
         eval_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2')
         eval_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2')
 
-    # demo code
-    
-    img1 = 'data/im1.png'
-    img2 = 'data/im2_rot.png'
-    # match_file = 'data/matches_rot.mat'
-
-    # img1 = 'data/dc0.png'
-    # img2 = 'data/dc2.png'
-
-    # *** NCC / NCC+ ***
-    # window radius
-    w = 15
-    # filter outliers by MiHo
-    remove_bad=False
-    # NCC+ patch angle offset
-    angle=[-30, -15, 0, 15, 30]
-    # NCC+ patch anisotropic scales
-    scale=[[10/14, 1], [10/12, 1], [1, 1], [1, 12/10], [1, 14/10]]
-
-    im1 = Image.open(img1)
-    im2 = Image.open(img2)
-
-    # generate matches with kornia, LAF included, check upright!
-    upright=False
-    with torch.inference_mode():
-        detector = K.feature.KeyNetAffNetHardNet(upright=upright, device=device)
-        kps1, _ , descs1 = detector(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
-        kps2, _ , descs2 = detector(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
-        dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.99)        
-    kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
-    kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
-
-    # import from a match file with only kpts
+    ## demo code
     #
-    # m12 = sio.loadmat(match_file, squeeze_me=True)
-    # m12 = m12['matches'][m12['midx'] > 0, :]
-    # # m12 = m12['matches']
-    # pt1 = torch.tensor(m12[:, :2], dtype=torch.float32, device=device)
-    # pt2 = torch.tensor(m12[:, 2:], dtype=torch.float32, device=device)
-
-    params = miho.all_params()
-    params['get_avg_hom']['rot_check'] = True
-    mihoo = miho(params)
-
-    # miho paramas examples
+    #img1 = 'data/im1.png'
+    #img2 = 'data/im2_rot.png'
+    ## match_file = 'data/matches_rot.mat'
+#
+    ## img1 = 'data/dc0.png'
+    ## img2 = 'data/dc2.png'
+#
+    ## *** NCC / NCC+ ***
+    ## window radius
+    #w = 15
+    ## filter outliers by MiHo
+    #remove_bad=False
+    ## NCC+ patch angle offset
+    #angle=[-30, -15, 0, 15, 30]
+    ## NCC+ patch anisotropic scales
+    #scale=[[10/14, 1], [10/12, 1], [1, 1], [1, 12/10], [1, 14/10]]
+#
+    #im1 = Image.open(img1)
+    #im2 = Image.open(img2)
+#
+    ## generate matches with kornia, LAF included, check upright!
+    #upright=False
+    #with torch.inference_mode():
+    #    detector = K.feature.KeyNetAffNetHardNet(upright=upright, device=device)
+    #    kps1, _ , descs1 = detector(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+    #    kps2, _ , descs2 = detector(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+    #    dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.99)        
+    #kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
+    #kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
+#
+    ## import from a match file with only kpts
+    ##
+    ## m12 = sio.loadmat(match_file, squeeze_me=True)
+    ## m12 = m12['matches'][m12['midx'] > 0, :]
+    ## # m12 = m12['matches']
+    ## pt1 = torch.tensor(m12[:, :2], dtype=torch.float32, device=device)
+    ## pt2 = torch.tensor(m12[:, 2:], dtype=torch.float32, device=device)
+#
+    #params = miho.all_params()
+    #params['get_avg_hom']['rot_check'] = True
+    #mihoo = miho(params)
+#
+    ## miho paramas examples
+    ##
+    ## params = miho.all_params()
+    ## params['go_assign']['method'] = cluster_assign_base
+    ## params['go_assign']['method_args']['err_th'] = 16
+    ## mihoo = miho(params)
+    ##
+    ## params = mihoo.get_current()
+    ## params['get_avg_hom']['min_plane_pts'] = 16
+    ## mihoo.update_params(params)
+#
+    #mihoo.attach_images(im1, im2)
+#
+    ## offset kpt shift, for testing
+    ##
+    ## pt1 = pt1.round()
+    ## pt2 = pt1 + test_idx
+    ## pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im1, pt1=pt1, pt2=pt2, w=w, img_patches=True)    
+#
+    ## data formatting 
+    #pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=True)    
+    ## pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, pt1=pt1, pt2=pt2, w=w, img_patches=True)    
+#
+    ####
+    #start = time.time()
     #
-    # params = miho.all_params()
-    # params['go_assign']['method'] = cluster_assign_base
-    # params['go_assign']['method_args']['err_th'] = 16
-    # mihoo = miho(params)
+    #mihoo.planar_clustering(pt1, pt2)
+#
+    #end = time.time()
+    #print("Elapsed = %s (MiHo clustering)" % (end - start))
+#
+    ## save MiHo
+    ## import pickle
+    ##
+    ## with open('miho.pt', 'wb') as file:
+    ##     torch.save(mihoo, file)
+    ##
+    ## with open('miho.pt', 'rb') as miho_pt:
+    ##     mihoo = torch.load(miho_pt)
+  #
+    ## *** MiHo inlier mask ***
+    #good_matches = mihoo.Hidx > -1  
+  #
+    #start = time.time()
+    #    
+    ## offset kpt shift, for testing - LAF -> NCC | NCC+
+    ## pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    ## pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
+    #        
+    ## LAF -> NCC | NCC+
+    ## pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    ## pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
     #
-    # params = mihoo.get_current()
-    # params['get_avg_hom']['min_plane_pts'] = 16
-    # mihoo.update_params(params)
-
-    mihoo.attach_images(im1, im2)
-
-    # offset kpt shift, for testing
+    ## LAF -> MiHo -> NCC | NCC+   
+    #pt1_, pt2_, Hs_miho, inliers = refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, img_patches=True)        
+    #pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    #pt1__p, pt2_p_, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
     #
-    # pt1 = pt1.round()
-    # pt2 = pt1 + test_idx
-    # pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im1, pt1=pt1, pt2=pt2, w=w, img_patches=True)    
-
-    # data formatting 
-    pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=True)    
-    # pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, pt1=pt1, pt2=pt2, w=w, img_patches=True)    
-
-    ###
-    start = time.time()
-    
-    mihoo.planar_clustering(pt1, pt2)
-
-    end = time.time()
-    print("Elapsed = %s (MiHo clustering)" % (end - start))
-
-    # save MiHo
-    # import pickle
+    #end = time.time()
+    #print("Elapsed = %s (NCC refinement)" % (end - start))
     #
-    # with open('miho.pt', 'wb') as file:
-    #     torch.save(mihoo, file)
-    #
-    # with open('miho.pt', 'rb') as miho_pt:
-    #     mihoo = torch.load(miho_pt)
-  
-    # *** MiHo inlier mask ***
-    good_matches = mihoo.Hidx > -1  
-  
-    start = time.time()
-        
-    # offset kpt shift, for testing - LAF -> NCC | NCC+
-    # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True)   
-    # pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
-            
-    # LAF -> NCC | NCC+
-    # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True)   
-    # pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
-    
-    # LAF -> MiHo -> NCC | NCC+   
-    pt1_, pt2_, Hs_miho, inliers = refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, img_patches=True)        
-    pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True)   
-    pt1__p, pt2_p_, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
-    
-    end = time.time()
-    print("Elapsed = %s (NCC refinement)" % (end - start))
-    
-    mihoo.show_clustering()
+    #mihoo.show_clustering()
