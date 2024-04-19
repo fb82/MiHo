@@ -11,17 +11,19 @@ import kornia as K
 import pydegensac
 import math
 
+import OANet.learnedmatcher_mod as OANet_matcher
+
 # from pprint import pprint
 # import deep_image_matching as dim
 # import yaml
 
-# from src.pipelines.keynetaffnethardnet_module_fabio import keynetaffnethardnet_module_fabio
-# from src.pipelines.keynetaffnethardnet_kornia_matcher_module import keynetaffnethardnet_kornia_matcher_module
-# from src.pipelines.superpoint_lightglue_module import superpoint_lightglue_module
-# from src.pipelines.superpoint_kornia_matcher_module import superpoint_kornia_matcher_module
-# from src.pipelines.disk_lightglue_module import disk_lightglue_module
-# from src.pipelines.aliked_lightglue_module import aliked_lightglue_module
-# from src.pipelines.loftr_module import loftr_module
+from src.pipelines.keynetaffnethardnet_module_fabio import keynetaffnethardnet_module_fabio
+from src.pipelines.keynetaffnethardnet_kornia_matcher_module import keynetaffnethardnet_kornia_matcher_module
+from src.pipelines.superpoint_lightglue_module import superpoint_lightglue_module
+from src.pipelines.superpoint_kornia_matcher_module import superpoint_kornia_matcher_module
+from src.pipelines.disk_lightglue_module import disk_lightglue_module
+from src.pipelines.aliked_lightglue_module import aliked_lightglue_module
+from src.pipelines.loftr_module import loftr_module
 
 cv2.ocl.setUseOpenCL(False)
 matplotlib.use('tkagg')
@@ -1822,6 +1824,8 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
     im_path = os.path.join(bench_im, dataset_name)        
     with progress_bar(bar_name + ' - pipeline completion') as p:
         for i in p.track(range(n)):
+            #if i == 10:
+            #    break
             im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + '.png'
             im2 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im2'][i])[0]) + '.png'
 
@@ -2454,7 +2458,7 @@ class gms_module:
         return pt1, pt2, Hs, mask
 
 
-import OANet.learnedmatcher_mod as OANet_matcher
+
 
 class oanet_module:
     def __init__(self, **args):              
@@ -2515,6 +2519,18 @@ if __name__ == '__main__':
     save_to = os.path.join(bench_path, bench_res, 'res_')
 
     pipes = [
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=4000),
+        #    #superpoint_kornia_matcher_module(nmax_keypoints=4000, th=0.97),
+        #    #keynetaffnethardnet_kornia_matcher_module(nmax_keypoints=4000, upright=False, th=0.99),
+        #    #disk_lightglue_module(nmax_keypoints=4000),
+        #    #aliked_lightglue_module(nmax_keypoints=4000),
+        #    #loftr_module(pretrained='outdoor'),
+        #    #keynetaffnethardnet_module(upright=False, th=0.99),
+        #    miho_module(),
+        #    pydegensac_module(px_th=3)
+        #],
+
         [
             keynetaffnethardnet_module(upright=False, th=0.99),
             miho_module(),
@@ -2538,26 +2554,26 @@ if __name__ == '__main__':
             ncc_module(),
             pydegensac_module(px_th=3)
         ],
-        
+
         [
             keynetaffnethardnet_module(upright=False, th=0.99),
             gms_module(),
             pydegensac_module(px_th=3)
         ],
-        
+
         [
             keynetaffnethardnet_module(upright=False, th=0.99),
             gms_module(),
             ncc_module(),
             pydegensac_module(px_th=3)
         ],
-        
+
         [
             keynetaffnethardnet_module(upright=False, th=0.99),
             oanet_module(),
             pydegensac_module(px_th=3)
         ],
-        
+
         [
             keynetaffnethardnet_module(upright=False, th=0.99),
             oanet_module(),
