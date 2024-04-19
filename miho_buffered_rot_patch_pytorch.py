@@ -2461,8 +2461,22 @@ class gms_module:
 
 
 class oanet_module:
-    def __init__(self, **args):              
-        self.lm = OANet_matcher.LearnedMatcher('OANet/model_best.pth', inlier_threshold=1, use_ratio=0, use_mutual=0, corr_file=-1)        
+    def __init__(self, **args):  
+        oanet_dir = 'src/OANet'
+        model_file = os.path.join(oanet_dir, 'model_best.pth.tar.gz')
+        file_to_download = os.path.join(oanet_dir, 'sift-gl3d.tar.gz')    
+        if not os.path.isfile(model_file):    
+            url = "https://drive.google.com/file/d/1JxXYuuSa_sS-IXbL-VzJs4OVrC9O0bXc/view?usp=drive_link"
+            gdown.download(url, file_to_download, fuzzy=True)
+    
+            with tarfile.open(file_to_download,"r") as tar_ref:
+                tar_ref.extract('gl3d/sift-4000/model_best.pth', path=oanet_dir)
+            
+            shutil.copy(os.path.join(oanet_dir, 'gl3d/sift-4000/model_best.pth'), model_file)
+            shutil.rmtree(os.path.join(oanet_dir, 'gl3d'))
+            os.remove(file_to_download)
+                
+        self.lm = OANet_matcher.LearnedMatcher(model_file, inlier_threshold=1, use_ratio=0, use_mutual=0, corr_file=-1)        
         
         for k, v in args.items():
            setattr(self, k, v)
@@ -2501,12 +2515,30 @@ class oanet_module:
         return pt1, pt2, Hs, mask
 
 
-def download_data():
-#   import gdown
-#    https://drive.google.com/file/d/12yKniNWebDHRTCwhBNJmxYMPgqYX3Nhv megadepth
-#    https://drive.google.com/file/d/1wtl-mNicxGlXZ-UQJxFnKuWPvvssQBwd scannet
-#    https://drive.google.com/file/d/1bZzlTAr5AsRGzBcBsQx_ULCW8GUPXc6f oanet
-    return 0
+def download_megadepth_scannet_data(bench_path ='bench_data'):   
+    os.makedirs(os.path.join(bench_path, 'downloads'), exist_ok=True)   
+
+    file_to_download = os.path.join(bench_path, 'downloads', 'megadepth_test_1500.tar')    
+    if not os.path.isfile(file_to_download):    
+        url = "https://drive.google.com/file/d/12yKniNWebDHRTCwhBNJmxYMPgqYX3Nhv/view?usp=drive_link"
+        gdown.download(url, file_to_download, fuzzy=True)
+    
+    out_dir = os.path.join(bench_path, 'megadepth_test_1500')
+    if not os.path.isdir(out_dir):    
+        with tarfile.open(file_to_download,"r") as tar_ref:
+            tar_ref.extractall(bench_path)
+    
+    file_to_download = os.path.join(bench_path, 'downloads', 'scannet_test_1500.tar')    
+    if not os.path.isfile(file_to_download):    
+        url = "https://drive.google.com/file/d/1wtl-mNicxGlXZ-UQJxFnKuWPvvssQBwd/view?usp=drive_link"
+        gdown.download(url, file_to_download, fuzzy=True)
+
+    out_dir = os.path.join(bench_path, 'scannet_test_1500')
+    if not os.path.isdir(out_dir):    
+        with tarfile.open(file_to_download,"r") as tar_ref:
+            tar_ref.extractall(bench_path)
+    
+    return
 
 
 if __name__ == '__main__':
