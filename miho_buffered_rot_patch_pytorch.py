@@ -4,12 +4,16 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import time
-# import scipy.io as sio
 import torch
 import torchvision.transforms as transforms
 import kornia as K
 import pydegensac
 import math
+import gdown
+import shutil
+import tarfile
+import zipfile
+# import scipy.io as sio
 
 import OANet.learnedmatcher_mod as OANet_matcher
 
@@ -17,13 +21,13 @@ import OANet.learnedmatcher_mod as OANet_matcher
 # import deep_image_matching as dim
 # import yaml
 
-from src.pipelines.keynetaffnethardnet_module_fabio import keynetaffnethardnet_module_fabio
-from src.pipelines.keynetaffnethardnet_kornia_matcher_module import keynetaffnethardnet_kornia_matcher_module
-from src.pipelines.superpoint_lightglue_module import superpoint_lightglue_module
-from src.pipelines.superpoint_kornia_matcher_module import superpoint_kornia_matcher_module
-from src.pipelines.disk_lightglue_module import disk_lightglue_module
-from src.pipelines.aliked_lightglue_module import aliked_lightglue_module
-from src.pipelines.loftr_module import loftr_module
+# from src.pipelines.keynetaffnethardnet_module_fabio import keynetaffnethardnet_module_fabio
+# from src.pipelines.keynetaffnethardnet_kornia_matcher_module import keynetaffnethardnet_kornia_matcher_module
+# from src.pipelines.superpoint_lightglue_module import superpoint_lightglue_module
+# from src.pipelines.superpoint_kornia_matcher_module import superpoint_kornia_matcher_module
+# from src.pipelines.disk_lightglue_module import disk_lightglue_module
+# from src.pipelines.aliked_lightglue_module import aliked_lightglue_module
+# from src.pipelines.loftr_module import loftr_module
 
 cv2.ocl.setUseOpenCL(False)
 matplotlib.use('tkagg')
@@ -1677,6 +1681,13 @@ def scannet_1500_list(ppath='bench_data/gt_data/scannet'):
 
 
 def bench_init(bench_file='megadepth_scannet', bench_path='bench_data', bench_gt='gt_data'):
+    download_megadepth_scannet_data(bench_path)
+    
+    out_dir = os.path.join(bench_path, 'gt_data')
+    if not os.path.isdir(out_dir):    
+        with zipfile.ZipFile('data/megadepth_scannet_gt_data.zip',"r") as zip_ref:
+            zip_ref.extractall(bench_path)    
+    
     data_file = os.path.join(bench_path, 'megadepth_scannet' + '.pbz2')
     if not os.path.isfile(data_file + '.pbz2'):      
         megadepth_data = megadepth_1500_list(os.path.join(bench_path, bench_gt, 'megadepth'))
@@ -2458,12 +2469,10 @@ class gms_module:
         return pt1, pt2, Hs, mask
 
 
-
-
 class oanet_module:
     def __init__(self, **args):  
-        oanet_dir = 'src/OANet'
-        model_file = os.path.join(oanet_dir, 'model_best.pth.tar.gz')
+        oanet_dir = 'OANet'
+        model_file = os.path.join(oanet_dir, 'model_best.pth')
         file_to_download = os.path.join(oanet_dir, 'sift-gl3d.tar.gz')    
         if not os.path.isfile(model_file):    
             url = "https://drive.google.com/file/d/1JxXYuuSa_sS-IXbL-VzJs4OVrC9O0bXc/view?usp=drive_link"
@@ -2518,7 +2527,7 @@ class oanet_module:
 def download_megadepth_scannet_data(bench_path ='bench_data'):   
     os.makedirs(os.path.join(bench_path, 'downloads'), exist_ok=True)   
 
-    file_to_download = os.path.join(bench_path, 'downloads', 'megadepth_test_1500.tar')    
+    file_to_download = os.path.join(bench_path, 'downloads', 'megadepth_test_1500.tar.gz')    
     if not os.path.isfile(file_to_download):    
         url = "https://drive.google.com/file/d/12yKniNWebDHRTCwhBNJmxYMPgqYX3Nhv/view?usp=drive_link"
         gdown.download(url, file_to_download, fuzzy=True)
@@ -2528,7 +2537,7 @@ def download_megadepth_scannet_data(bench_path ='bench_data'):
         with tarfile.open(file_to_download,"r") as tar_ref:
             tar_ref.extractall(bench_path)
     
-    file_to_download = os.path.join(bench_path, 'downloads', 'scannet_test_1500.tar')    
+    file_to_download = os.path.join(bench_path, 'downloads', 'scannet_test_1500.tar.gz')    
     if not os.path.isfile(file_to_download):    
         url = "https://drive.google.com/file/d/1wtl-mNicxGlXZ-UQJxFnKuWPvvssQBwd/view?usp=drive_link"
         gdown.download(url, file_to_download, fuzzy=True)
