@@ -1835,8 +1835,6 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
     im_path = os.path.join(bench_im, dataset_name)        
     with progress_bar(bar_name + ' - pipeline completion') as p:
         for i in p.track(range(n)):
-            #if i == 10:
-            #    break
             im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + '.png'
             im2 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im2'][i])[0]) + '.png'
 
