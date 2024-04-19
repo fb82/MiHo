@@ -1,2 +1,4 @@
 *.pdf
 *.png
+miho_megadepth_scannet_bench_data
+__pycache__
