@@ -5,53 +5,90 @@ import matplotlib
 import matplotlib.pyplot as plt
 import time
 # import scipy.io as sio
-import warnings
 import torch
 import torchvision.transforms as transforms
 import kornia as K
 import pydegensac
+import math
 
-from pprint import pprint
-import deep_image_matching as dim
-import yaml
+# from pprint import pprint
+# import deep_image_matching as dim
+# import yaml
 
-from src.pipelines.keynetaffnethardnet_module_fabio import keynetaffnethardnet_module_fabio
-from src.pipelines.keynetaffnethardnet_kornia_matcher_module import keynetaffnethardnet_kornia_matcher_module
-from src.pipelines.superpoint_lightglue_module import superpoint_lightglue_module
-from src.pipelines.superpoint_kornia_matcher_module import superpoint_kornia_matcher_module
-from src.pipelines.disk_lightglue_module import disk_lightglue_module
-from src.pipelines.aliked_lightglue_module import aliked_lightglue_module
-from src.pipelines.loftr_module import loftr_module
+# from src.pipelines.keynetaffnethardnet_module_fabio import keynetaffnethardnet_module_fabio
+# from src.pipelines.keynetaffnethardnet_kornia_matcher_module import keynetaffnethardnet_kornia_matcher_module
+# from src.pipelines.superpoint_lightglue_module import superpoint_lightglue_module
+# from src.pipelines.superpoint_kornia_matcher_module import superpoint_kornia_matcher_module
+# from src.pipelines.disk_lightglue_module import disk_lightglue_module
+# from src.pipelines.aliked_lightglue_module import aliked_lightglue_module
+# from src.pipelines.loftr_module import loftr_module
 
+cv2.ocl.setUseOpenCL(False)
 matplotlib.use('tkagg')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 EPS_ = torch.finfo(torch.float32).eps
 sqrt2 = np.sqrt(2)
 
-# test_idx = (torch.rand((2558, 2), device=device) * 29 - 14).round()    
+
+def laf2homo(kps):
+    c = kps[:, :, 2]
+    s = torch.sqrt(torch.abs(kps[:, 0, 0] * kps[:, 1, 1] - kps[:, 0, 1] * kps[:, 1, 0]))   
+    
+    Hi = torch.zeros((kps.shape[0], 3, 3), device=device)
+    Hi[:, :2, :] = kps / s.reshape(-1, 1, 1)
+    Hi[:, 2, 2] = 1 
+
+    H = torch.linalg.inv(Hi)
+    
+    return c, H, s
+
+
+def refinement_laf(im1, im2, pt1=None, pt2=None, data1=None, data2=None, w=15, img_patches=True):
+    if data1 is None:
+        l = pt1.shape[0]
+        Hs = torch.eye(3, device=device).repeat(l*2, 1).reshape(l, 2, 3, 3)
+    else:
+        l = data1.shape[0]
+        pt1, H1, s1 = laf2homo(data1)
+        pt2, H2, s2 = laf2homo(data2)
+
+        s = torch.sqrt(s1 * s2)       
+        H1[:, :2, :] = H1[:, :2, :] * (s / s1).reshape(-1, 1, 1)
+        H2[:, :2, :] = H2[:, :2, :] * (s / s2).reshape(-1, 1, 1)
+
+        Hs = torch.cat((H1.unsqueeze(1), H2.unsqueeze(1)), 1)        
+    
+    if img_patches:
+        go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='laf_patch_')    
+  
+    return pt1, pt2, Hs
+
 
 def get_inverse(pt1, pt2, Hs):
     l = Hs.size()[0] 
     Hs1, Hs2 = Hs.split(1, dim=1)
-    Hs1 = Hs1.squeeze()
-    Hs2 = Hs2.squeeze()
+    Hs1 = Hs1.squeeze(1)
+    Hs2 = Hs2.squeeze(1)
             
-    pt1_ = Hs1.bmm(torch.hstack((pt1, torch.ones((pt1.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
+    pt1_ = Hs1.bmm(torch.hstack((pt1, torch.ones((pt1.size()[0], 1), device=device))).unsqueeze(-1)).squeeze(-1)
     pt1_ = pt1_[:, :2] / pt1_[:, 2].unsqueeze(-1)
-    pt2_ = Hs2.bmm(torch.hstack((pt2, torch.ones((pt2.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
+    pt2_ = Hs2.bmm(torch.hstack((pt2, torch.ones((pt2.size()[0], 1), device=device))).unsqueeze(-1)).squeeze(-1)
     pt2_ = pt2_[:, :2] / pt2_[:, 2].unsqueeze(-1)
     
     Hi = torch.linalg.inv(Hs.reshape(l*2, 3, 3)).reshape(l, 2, 3, 3)    
     Hi1, Hi2 = Hi.split(1, dim=1)
-    Hi1 = Hi1.squeeze()
-    Hi2 = Hi2.squeeze()
+    Hi1 = Hi1.squeeze(1)
+    Hi2 = Hi2.squeeze(1)
     
     return pt1_, pt2_, Hi, Hi1, Hi2
 
 
-def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=[0, 1], subpix=True, img_patches=False, save_prefix='ncc_patch_'):    
+def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right'], subpix=True, img_patches=False, save_prefix='ncc_patch_'):    
     l = Hs.size()[0] 
-        
+    
+    if l==0:
+        return pt1, pt2, Hs, torch.zeros(0, device=device), torch.zeros((0, 3, 3), device=device)
+            
     pt1_, pt2_, Hi, Hi1, Hi2 = get_inverse(pt1, pt2, Hs)    
                 
     patch1 = patchify(im1, pt1_.squeeze(), Hi1, w*2)
@@ -101,8 +138,11 @@ def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=[0, 1], subpix=
     return pt1, pt2, Hs, val, T
 
 
-def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=[0, 1], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_'):    
+def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=['left', 'right'], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_'):    
     l = Hs.size()[0] 
+    
+    if l==0:
+        return pt1, pt2, Hs, torch.zeros(0, device=device), torch.zeros((0, 3, 3), device=device)
         
     if w_big is None:
         w_big = w * 2
@@ -143,8 +183,8 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
             _, _, Hiu, Hi1u, Hi2u = get_inverse(pt1, pt2, Ti @ S @ R @ T @ Hs)    
 
             if ('left' in ref_image) or ('both' in ref_image):
-                patch2 = patchify(im2, pt2_.squeeze(), Hi2, w_big)
-                patch1_small = patchify(im1, pt1_.squeeze(), Hi1u, w)
+                patch2 = patchify(im2, pt2_, Hi2, w_big)
+                patch1_small = patchify(im1, pt1_, Hi1u, w)
         
                 patch_offset0, patch_val0 = norm_corr(patch2, patch1_small, subpix=subpix)
 
@@ -154,8 +194,8 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
                 patch_t[mask, 0] = Hi1u[mask]                
         
             if ('right' in ref_image) or ('both' in ref_image):
-                patch1 = patchify(im1, pt1_.squeeze(), Hi1, w_big)
-                patch2_small = patchify(im2, pt2_.squeeze(), Hi2u, w)  
+                patch1 = patchify(im1, pt1_, Hi1, w_big)
+                patch2_small = patchify(im2, pt2_, Hi2u, w)  
                 
                 patch_offset1, patch_val1 = norm_corr(patch1, patch2_small, subpix=subpix)
                 
@@ -181,9 +221,9 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
     
     Hsu = torch.linalg.inv(Hiu.reshape(l*2, 3, 3)).reshape(l, 2, 3, 3)        
     
-    pt1 = Hiu[:, 0].bmm(torch.hstack((pt1_, torch.ones((pt1_.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
+    pt1 = Hiu[:, 0].bmm(torch.hstack((pt1_, torch.ones((pt1_.size()[0], 1), device=device))).unsqueeze(-1)).squeeze(-1)
     pt1 = pt1[:, :2] / pt1[:, 2].unsqueeze(-1)
-    pt2 = Hiu[:, 1].bmm(torch.hstack((pt2_, torch.ones((pt2_.size()[0], 1), device=device))).unsqueeze(-1)).squeeze()
+    pt2 = Hiu[:, 1].bmm(torch.hstack((pt2_, torch.ones((pt2_.size()[0], 1), device=device))).unsqueeze(-1)).squeeze(-1)
     pt2 = pt2[:, :2] / pt2[:, 2].unsqueeze(-1)
     
     T = torch.eye(3, device=device, dtype=torch.float).reshape(1, 1, 9).repeat(l, 2, 1).reshape(l*2, 9)
@@ -248,7 +288,6 @@ def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True
 def norm_corr(patch1, patch2, subpix=True):     
     w = patch2.size()[1]
     ww = w * w
-    r = (w - 1) / 2
     n = patch1.size()[0]
     
     with torch.no_grad():
@@ -270,27 +309,31 @@ def norm_corr(patch1, patch2, subpix=True):
     nc = ((ww * cc) - (m1 * m2.reshape(n, 1, 1))) / torch.sqrt(s1 * s2.reshape(n, 1, 1))   
     nc.flatten()[~torch.isfinite(nc.flatten())] = -torch.inf
 
-    idx = nc.reshape(n, ww).max(dim=1)
-    offset = (torch.vstack((idx[1] % w, torch.div(idx[1], w, rounding_mode='trunc')))).permute(1, 0).to(torch.float)
+    w_ = nc.shape[1]
+    ww_ = w_ * w_    
+    r = (w_ - 1) / 2
+
+    idx = nc.reshape(n, ww_).max(dim=1)
+    offset = (torch.vstack((idx[1] % w_, torch.div(idx[1], w_, rounding_mode='trunc')))).permute(1, 0).to(torch.float)
     
     if subpix:    
-        t = ((offset > 0) & ( offset < w - 1)).all(dim=1).to(torch.float)
+        t = ((offset > 0) & ( offset < w_ - 1)).all(dim=1).to(torch.float)
         tidx = (torch.tensor([-1, 0, 1], device=device).unsqueeze(0) * t.unsqueeze(1)).squeeze()
     
         tx = offset[:, 0].unsqueeze(1) + tidx
-        v = nc.flatten()[(torch.arange(n, device=device).unsqueeze(1) * ww + offset[:, 1].unsqueeze(1) * w + tx).to(torch.long).flatten()].reshape(n, 3)
+        v = nc.flatten()[(torch.arange(n, device=device).unsqueeze(1) * ww_ + offset[:, 1].unsqueeze(1) * w_ + tx).to(torch.long).flatten()].reshape(n, 3)
         sx = (v[:, 2] - v[:, 0]) / (2 * (2 * v[:, 1] - v[:, 0] - v[:, 2]))
         sx[~sx.isfinite()] = 0
     
         ty = offset[:, 1].unsqueeze(1) + tidx
-        v = nc.flatten()[(torch.arange(n, device=device).unsqueeze(1) * ww + ty * w + offset[:, 0].unsqueeze(1)).to(torch.long).flatten()].reshape(n, 3)
+        v = nc.flatten()[(torch.arange(n, device=device).unsqueeze(1) * ww_ + ty * w_ + offset[:, 0].unsqueeze(1)).to(torch.long).flatten()].reshape(n, 3)
         sy = (v[:, 2] - v[:, 0]) / (2 * (2 * v[:, 1] - v[:, 0] - v[:, 2]))
         sy[~sy.isfinite()] = 0
         
         offset[:, 0] = offset[:, 0] + sx
         offset[:, 1] = offset[:, 1] + sy
 
-    offset -= (r + 1)
+    offset -= r
     offset[~torch.isfinite(idx[0])] = 0
 
     return offset, idx[0]
@@ -417,8 +460,15 @@ def get_inlier_duplex(H12, pt1, pt2, ptm, sidx_par, th):
     
     ptm_reproj = torch.cat((torch.matmul(H12[:l2], pt1), torch.matmul(H12[l2:], pt2)), dim=0)
     sign_ptm = torch.sign(ptm_reproj[:, 2])
-
+    
+    # CUDA crash on bad matrices! ##########################
+    bad_matrix = ~(torch.isfinite(torch.linalg.cond(H12))) #
+    H12[bad_matrix] = torch.eye(3, device=device)          #
+    ########################################################
     pt12_reproj = torch.linalg.solve(H12, ptm.unsqueeze(0))
+    # CUDA crash on bad matrices! ##
+    pt12_reproj[bad_matrix, 2] = 0 #
+    ################################
     sign_pt12 = torch.sign(pt12_reproj[:, 2])
 
     idx_aux = torch.arange(l2*2, device=device).unsqueeze(1)*n + sidx_par.repeat(2,1)
@@ -1520,7 +1570,6 @@ import os
 import warnings
 import _pickle as cPickle
 import bz2
-import rich
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -1727,7 +1776,7 @@ def relative_pose_error(R_gt, t_gt, R, t, ignore_gt_t_thr=0.0):
     return t_err, R_err
 
 
-def estimate_pose(kpts0, kpts1, K0, K1, thresh, conf=0.99999):
+def estimate_pose(kpts0, kpts1, K0, K1, thresh, conf=0.99999, max_iters=10000):
     if len(kpts0) < 5:
         return None
     # normalize keypoints
@@ -1739,7 +1788,7 @@ def estimate_pose(kpts0, kpts1, K0, K1, thresh, conf=0.99999):
 
     # compute pose with cv2
     E, mask = cv2.findEssentialMat(
-        kpts0, kpts1, np.eye(3), threshold=ransac_thr, prob=conf, method=cv2.RANSAC)
+        kpts0, kpts1, np.eye(3), threshold=ransac_thr, prob=conf, method=cv2.RANSAC, maxIters=max_iters)
     if E is None:
         print("\nE is None while trying to recover pose.\n")
         return None
@@ -1773,8 +1822,6 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
     im_path = os.path.join(bench_im, dataset_name)        
     with progress_bar(bar_name + ' - pipeline completion') as p:
         for i in p.track(range(n)):
-            #if i == 700:
-            #    break
             im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + '.png'
             im2 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im2'][i])[0]) + '.png'
 
@@ -1789,11 +1836,11 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
                     out_data = eval(pipe_module.eval_args())
                     os.makedirs(os.path.dirname(pipe_f), exist_ok=True)                 
                     compressed_pickle(pipe_f, out_data)
-
+                    
                 exec(pipe_module.eval_out())
 
 
-def eval_pipe(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to='res.pbz2', force=False):
+def eval_pipe(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to='res.pbz2', force=False, use_scale=False):
     warnings.filterwarnings("ignore", category=UserWarning)
 
     angular_thresholds = [5, 10, 20]
@@ -1850,10 +1897,11 @@ def eval_pipe(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_dat
                             Rt = None
 
                         else:
-                            scales = dataset_data['im_pair_scale'][i]
+                            if use_scale:
+                                scales = dataset_data['im_pair_scale'][i]
                             
-                            pts1 = pts1 * scales[0]
-                            pts2 = pts2 * scales[1]
+                                pts1 = pts1 * scales[0]
+                                pts2 = pts2 * scales[1]
                             
                             Rt = estimate_pose(pts1, pts2, K1[i], K2[i], essential_th)
                     else:
@@ -1887,6 +1935,45 @@ def eval_pipe(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_dat
 
             eval_data[pipe_name_base + '_essential_th_list_' + str(essential_th)] = eval_data_
             compressed_pickle(save_to, eval_data)
+            
+
+class keynetaffnethardnet_module:
+    def __init__(self, **args):
+        self.upright = False
+        self.th = 0.99
+        with torch.inference_mode():
+            self.detector = K.feature.KeyNetAffNetHardNet(upright=self.upright, device=device)
+        
+        for k, v in args.items():
+           setattr(self, k, v)
+        
+        
+    def get_id(self):
+        return ('keynetaffnethardnet_upright_' + str(self.upright) + '_th_' + str(self.th)).lower()
+
+    
+    def eval_args(self):
+        return "pipe_module.run(im1, im2)"
+
+
+    def eval_out(self):
+        return "pt1, pt2, kps1, kps2, Hs = out_data"               
+
+
+    def run(self, *args):    
+        with torch.inference_mode():
+            kps1, _ , descs1 = self.detector(K.io.load_image(args[0], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+            kps2, _ , descs2 = self.detector(K.io.load_image(args[1], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+            dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), self.th)        
+        
+        pt1 = None
+        pt2 = None
+        kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
+        kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
+        
+        pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)    
+    
+        return pt1, pt2, kps1, kps2, Hs_laf
 
 
 class miho_module:
@@ -1919,11 +2006,11 @@ class miho_module:
 
 class ncc_module:
     def __init__(self, **args):
-        self.w = 15;
+        self.w = 10
+        self.w_big = None
         self.angle = [-30, -15, 0, 15, 30]
         self.scale = [[10/14, 1], [10/12, 1], [1, 1], [1, 12/10], [1, 14/10]]
         self.subpix = True
-        self.w_big=None
         self.ref_images = 'both'
         
         self.transform = transforms.Compose([
@@ -1962,7 +2049,7 @@ class ncc_module:
 class pydegensac_module:
     def __init__(self, **args):
         self.px_th = 3
-        self.conf = 0.99
+        self.conf = 0.9999
         self.max_iters = 100000
               
         for k, v in args.items():
@@ -1974,16 +2061,17 @@ class pydegensac_module:
 
     
     def eval_args(self):
-        return "pipe_module.run(pt1, pt2)"
+        return "pipe_module.run(pt1, pt2, Hs)"
 
         
     def eval_out(self):
-        return "pt1, pt2, F, mask = out_data"
+        return "pt1, pt2, Hs, F, mask = out_data"
     
     
     def run(self, *args):  
         pt1 = args[0]
         pt2 = args[1]
+        Hs = args[2]
         
         if torch.is_tensor(pt1):
             pt1 = pt1.detach().cpu()
@@ -1993,12 +2081,428 @@ class pydegensac_module:
             F, mask = pydegensac.findFundamentalMatrix(np.ascontiguousarray(pt1), np.ascontiguousarray(pt2), px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
     
             pt1 = args[0][mask]
-            pt2 = args[1][mask]            
+            pt2 = args[1][mask]     
+            Hs = args[2][mask]
         else:            
             F = None
             mask = None
             
-        return pt1, pt2, F, mask
+        return pt1, pt2, Hs, F, mask
+
+
+THRESHOLD_FACTOR = 6
+
+ROTATION_PATTERNS = [
+    [1, 2, 3,
+     4, 5, 6,
+     7, 8, 9],
+
+    [4, 1, 2,
+     7, 5, 3,
+     8, 9, 6],
+
+    [7, 4, 1,
+     8, 5, 2,
+     9, 6, 3],
+
+    [8, 7, 4,
+     9, 5, 1,
+     6, 3, 2],
+
+    [9, 8, 7,
+     6, 5, 4,
+     3, 2, 1],
+
+    [6, 9, 8,
+     3, 5, 7,
+     2, 1, 4],
+
+    [3, 6, 9,
+     2, 5, 8,
+     1, 4, 7],
+
+    [2, 3, 6,
+     1, 5, 9,
+     4, 7, 8]]
+
+
+class Size:
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+
+
+class GmsMatcher:
+    def __init__(self, kp1, kp2, m12):
+        self.kp1=kp1
+        self.kp2=kp2
+        self.m12=m12
+
+        self.scale_ratios = [1.0, 1.0 / 2, 1.0 / math.sqrt(2.0), math.sqrt(2.0), 2.0]
+        
+        # Normalized vectors of 2D points
+        self.normalized_points1 = []
+        self.normalized_points2 = []
+        # Matches - list of pairs representing numbers
+        self.matches = []
+        self.matches_number = 0
+        # Grid Size
+        self.grid_size_right = Size(0, 0)
+        self.grid_number_right = 0
+        # x      : left grid idx
+        # y      :  right grid idx
+        # value  : how many matches from idx_left to idx_right
+        self.motion_statistics = []
+
+        self.number_of_points_per_cell_left = []
+        # Inldex  : grid_idx_left
+        # Value   : grid_idx_right
+        self.cell_pairs = []
+
+        # Every Matches has a cell-pair
+        # first  : grid_idx_left
+        # second : grid_idx_right
+        self.match_pairs = []
+
+        # Inlier Mask for output
+        self.inlier_mask = []
+        self.grid_neighbor_right = []
+
+        # Grid initialize
+        self.grid_size_left = Size(20, 20)
+        self.grid_number_left = self.grid_size_left.width * self.grid_size_left.height
+
+        # Initialize the neihbor of left grid
+        self.grid_neighbor_left = np.zeros((self.grid_number_left, 9))
+
+#       self.descriptor = descriptor
+#       self.matcher = matcher
+        self.gms_matches = []
+        self.keypoints_image1 = []
+        self.keypoints_image2 = []
+
+    def empty_matches(self):
+        self.normalized_points1 = []
+        self.normalized_points2 = []
+        self.matches = []
+        self.gms_matches = []
+
+#   def compute_matches(self, img1, img2):
+    def compute_matches(self, sz1r, sz1c, sz2r, sz2c):
+        self.keypoints_image1=self.kp1
+        self.keypoints_image2=self.kp2
+
+#       self.keypoints_image1, descriptors_image1 = self.descriptor.detectAndCompute(img1, np.array([]))
+#       self.keypoints_image2, descriptors_image2 = self.descriptor.detectAndCompute(img2, np.array([]))
+                        
+#       size1 = Size(img1.shape[1], img1.shape[0])
+#       size2 = Size(img2.shape[1], img2.shape[0])
+
+        size1 = Size(sz1c, sz1r)
+        size2 = Size(sz2c, sz2r)
+
+        if self.gms_matches:
+            self.empty_matches()
+
+        all_matches=self.m12
+#       all_matches = self.matcher.match(descriptors_image1, descriptors_image2)
+                
+        self.normalize_points(self.keypoints_image1, size1, self.normalized_points1)
+        self.normalize_points(self.keypoints_image2, size2, self.normalized_points2)
+        self.matches_number = len(all_matches)
+        self.convert_matches(all_matches, self.matches)
+                
+        self.initialize_neighbours(self.grid_neighbor_left, self.grid_size_left)
+        
+        mask, num_inliers = self.get_inlier_mask(False, False)
+        # print('Found', num_inliers, 'matches')
+
+        for i in range(len(mask)):
+            if mask[i]:
+                self.gms_matches.append(all_matches[i])
+        return self.gms_matches, mask
+
+    # Normalize Key points to range (0-1)
+    def normalize_points(self, kp, size, npts):
+        for keypoint in kp:
+            npts.append((keypoint.pt[0] / size.width, keypoint.pt[1] / size.height))
+
+    # Convert OpenCV match to list of tuples
+    def convert_matches(self, vd_matches, v_matches):
+        for match in vd_matches:
+            v_matches.append((match.queryIdx, match.trainIdx))
+
+    def initialize_neighbours(self, neighbor, grid_size):
+        for i in range(neighbor.shape[0]):
+            neighbor[i] = self.get_nb9(i, grid_size)
+
+    def get_nb9(self, idx, grid_size):
+        nb9 = [-1 for _ in range(9)]
+        idx_x = idx % grid_size.width
+        idx_y = idx // grid_size.width
+
+        for yi in range(-1, 2):
+            for xi in range(-1, 2):
+                idx_xx = idx_x + xi
+                idx_yy = idx_y + yi
+
+                if idx_xx < 0 or idx_xx >= grid_size.width or idx_yy < 0 or idx_yy >= grid_size.height:
+                    continue
+                nb9[xi + 4 + yi * 3] = idx_xx + idx_yy * grid_size.width
+
+        return nb9
+
+    def get_inlier_mask(self, with_scale, with_rotation):
+        max_inlier = 0
+        self.set_scale(0)
+
+        if not with_scale and not with_rotation:
+            max_inlier = self.run(1)
+            return self.inlier_mask, max_inlier
+        elif with_scale and with_rotation:
+            vb_inliers = []
+            for scale in range(5):
+                self.set_scale(scale)
+                for rotation_type in range(1, 9):
+                    num_inlier = self.run(rotation_type)
+                    if num_inlier > max_inlier:
+                        vb_inliers = self.inlier_mask
+                        max_inlier = num_inlier
+
+            if vb_inliers != []:
+                return vb_inliers, max_inlier
+            else:
+                return self.inlier_mask, max_inlier
+        elif with_rotation and not with_scale:
+            vb_inliers = []
+            for rotation_type in range(1, 9):
+                num_inlier = self.run(rotation_type)
+                if num_inlier > max_inlier:
+                    vb_inliers = self.inlier_mask
+                    max_inlier = num_inlier
+
+            if vb_inliers != []:
+                return vb_inliers, max_inlier
+            else:
+                return self.inlier_mask, max_inlier
+        else:
+            vb_inliers = []
+            for scale in range(5):
+                self.set_scale(scale)
+                num_inlier = self.run(1)
+                if num_inlier > max_inlier:
+                    vb_inliers = self.inlier_mask
+                    max_inlier = num_inlier
+
+            if vb_inliers != []:
+                return vb_inliers, max_inlier
+            else:
+                return self.inlier_mask, max_inlier
+
+    def set_scale(self, scale):
+        self.grid_size_right.width = self.grid_size_left.width * self.scale_ratios[scale]
+        self.grid_size_right.height = self.grid_size_left.height * self.scale_ratios[scale]
+        self.grid_number_right = self.grid_size_right.width * self.grid_size_right.height
+
+        # Initialize the neighbour of right grid
+        self.grid_neighbor_right = np.zeros((int(self.grid_number_right), 9))
+        self.initialize_neighbours(self.grid_neighbor_right, self.grid_size_right)
+
+    def run(self, rotation_type):
+        self.inlier_mask = [False for _ in range(self.matches_number)]
+
+        # Initialize motion statistics
+        self.motion_statistics = np.zeros((int(self.grid_number_left), int(self.grid_number_right)))
+        self.match_pairs = [[0, 0] for _ in range(self.matches_number)]
+
+        for GridType in range(1, 5):
+            self.motion_statistics = np.zeros((int(self.grid_number_left), int(self.grid_number_right)))
+            self.cell_pairs = [-1 for _ in range(self.grid_number_left)]
+            self.number_of_points_per_cell_left = [0 for _ in range(self.grid_number_left)]
+
+            self.assign_match_pairs(GridType)
+            self.verify_cell_pairs(rotation_type)
+
+            # Mark inliers
+            for i in range(self.matches_number):
+                if self.cell_pairs[int(self.match_pairs[i][0])] == self.match_pairs[i][1]:
+                    self.inlier_mask[i] = True
+
+        return sum(self.inlier_mask)
+
+    def assign_match_pairs(self, grid_type):
+        for i in range(self.matches_number):
+            lp = self.normalized_points1[self.matches[i][0]]
+            rp = self.normalized_points2[self.matches[i][1]]
+            lgidx = self.match_pairs[i][0] = self.get_grid_index_left(lp, grid_type)
+
+            if grid_type == 1:
+                rgidx = self.match_pairs[i][1] = self.get_grid_index_right(rp)
+            else:
+                rgidx = self.match_pairs[i][1]
+
+            if lgidx < 0 or rgidx < 0:
+                continue
+            self.motion_statistics[int(lgidx)][int(rgidx)] += 1
+            self.number_of_points_per_cell_left[int(lgidx)] += 1
+
+    def get_grid_index_left(self, pt, type_of_grid):
+        x = pt[0] * self.grid_size_left.width
+        y = pt[1] * self.grid_size_left.height
+
+        if type_of_grid == 2:
+            x += 0.5
+        elif type_of_grid == 3:
+            y += 0.5
+        elif type_of_grid == 4:
+            x += 0.5
+            y += 0.5
+
+        x = math.floor(x)
+        y = math.floor(y)
+
+        if x >= self.grid_size_left.width or y >= self.grid_size_left.height:
+            return -1
+        return x + y * self.grid_size_left.width
+
+    def get_grid_index_right(self, pt):
+        x = int(math.floor(pt[0] * self.grid_size_right.width))
+        y = int(math.floor(pt[1] * self.grid_size_right.height))
+        return x + y * self.grid_size_right.width
+
+    def verify_cell_pairs(self, rotation_type):
+        current_rotation_pattern = ROTATION_PATTERNS[rotation_type - 1]
+
+        for i in range(self.grid_number_left):
+            if sum(self.motion_statistics[i]) == 0:
+                self.cell_pairs[i] = -1
+                continue
+            max_number = 0
+            for j in range(int(self.grid_number_right)):
+                value = self.motion_statistics[i]
+                if value[j] > max_number:
+                    self.cell_pairs[i] = j
+                    max_number = value[j]
+
+            idx_grid_rt = self.cell_pairs[i]
+            nb9_lt = self.grid_neighbor_left[i]
+            nb9_rt = self.grid_neighbor_right[idx_grid_rt]
+            score = 0
+            thresh = 0
+            numpair = 0
+
+            for j in range(9):
+                ll = nb9_lt[j]
+                rr = nb9_rt[current_rotation_pattern[j] - 1]
+                if ll == -1 or rr == -1:
+                    continue
+
+                score += self.motion_statistics[int(ll), int(rr)]
+                thresh += self.number_of_points_per_cell_left[int(ll)]
+                numpair += 1
+
+            thresh = THRESHOLD_FACTOR * math.sqrt(thresh/numpair)
+            if score < thresh:
+                self.cell_pairs[i] = -2
+
+
+class gms_module:
+    def __init__(self, **args):
+              
+        for k, v in args.items():
+           setattr(self, k, v)
+       
+        
+    def get_id(self):
+        return ('gms').lower()
+
+    
+    def eval_args(self):
+        return "pipe_module.run(pt1, pt2, im1, im2, Hs)"
+
+        
+    def eval_out(self):
+        return "pt1, pt2, Hs, mask = out_data"
+    
+    
+    def run(self, *args):  
+        pt1 = np.ascontiguousarray(args[0].detach().cpu())
+        pt2 = np.ascontiguousarray(args[1].detach().cpu())
+
+        sz1 = Image.open(args[2]).size
+        sz2 = Image.open(args[3]).size        
+                
+        l = pt1.shape[0]
+        
+        if l > 0:    
+            kpt1 = [cv2.KeyPoint(pt1[i, 0], pt1[i, 1], 1) for i in range(l)]
+            kpt2 = [cv2.KeyPoint(pt2[i, 0], pt2[i, 1], 1) for i in range(l)]
+            m12 = [cv2.DMatch(i, i, 0) for i in range(l)]    
+    
+            gms = GmsMatcher(kpt1, kpt2, m12)
+            _, mask = gms.compute_matches(sz1[1], sz1[0], sz2[1], sz2[0]);
+        
+            pt1 = args[0][mask]
+            pt2 = args[1][mask]            
+            Hs = args[4][mask]            
+        else:
+            pt1 = args[0]
+            pt2 = args[1]           
+            Hs = args[4]   
+            mask = []
+            
+        return pt1, pt2, Hs, mask
+
+
+import OANet.learnedmatcher_mod as OANet_matcher
+
+class oanet_module:
+    def __init__(self, **args):              
+        self.lm = OANet_matcher.LearnedMatcher('OANet/model_best.pth', inlier_threshold=1, use_ratio=0, use_mutual=0, corr_file=-1)        
+        
+        for k, v in args.items():
+           setattr(self, k, v)
+       
+        
+    def get_id(self):
+        return ('oanet').lower()
+
+    
+    def eval_args(self):
+        return "pipe_module.run(pt1, pt2, Hs)"
+
+        
+    def eval_out(self):
+        return "pt1, pt2, Hs, mask = out_data"
+    
+    
+    def run(self, *args):  
+        pt1 = np.ascontiguousarray(args[0].detach().cpu())
+        pt2 = np.ascontiguousarray(args[1].detach().cpu())
+                
+        l = pt1.shape[0]
+        
+        if l > 0:                
+            _, _, _, _, mask = self.lm.infer(pt1, pt2)
+                    
+            pt1 = args[0][mask]
+            pt2 = args[1][mask]            
+            Hs = args[2][mask]            
+        else:
+            pt1 = args[0]
+            pt2 = args[1]           
+            Hs = args[2]   
+            mask = []
+                        
+        return pt1, pt2, Hs, mask
+
+
+def download_data():
+#   import gdown
+#    https://drive.google.com/file/d/12yKniNWebDHRTCwhBNJmxYMPgqYX3Nhv megadepth
+#    https://drive.google.com/file/d/1wtl-mNicxGlXZ-UQJxFnKuWPvvssQBwd scannet
+#    https://drive.google.com/file/d/1bZzlTAr5AsRGzBcBsQx_ULCW8GUPXc6f oanet
+    return 0
 
 
 if __name__ == '__main__':
@@ -2011,164 +2515,179 @@ if __name__ == '__main__':
     save_to = os.path.join(bench_path, bench_res, 'res_')
 
     pipes = [
-
         [
-            keynetaffnethardnet_module_fabio(upright=False, th=0.99), # in the other added max keypoints number
-            pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            miho_module(),
+            pydegensac_module(px_th=3)
         ],
 
-        #[
-        #    superpoint_kornia_matcher_module(nmax_keypoints=4000, th=0.97),
-        #    pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
-        #],
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            pydegensac_module(px_th=3)
+        ],
 
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=4000),
-        #    pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
-        #],
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            ncc_module(),
+            pydegensac_module(px_th=3)
+        ],
 
-        #[
-        #    keynetaffnethardnet_kornia_matcher_module(nmax_keypoints=4000, upright=False, th=0.99),
-        #    pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
-        #],
-#
-        #[
-        #    disk_lightglue_module(nmax_keypoints=4000),
-        #    pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
-        #],
-#
-        #[
-        #    aliked_lightglue_module(nmax_keypoints=4000),
-        #    pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
-        #],
-
-        #[
-        #    loftr_module(pretrained='outdoor'),
-        #    pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
-        #],
-
-        #[
-        #    keynetaffnethardnet_module(upright=False, th=0.99),
-        #    miho_module(),
-        #    ncc_module(),
-        #    pydegensac_module(px_th=3, conf=0.99, max_iters=100000)
-        #]
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            miho_module(),
+            ncc_module(),
+            pydegensac_module(px_th=3)
+        ],
+        
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            gms_module(),
+            pydegensac_module(px_th=3)
+        ],
+        
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            gms_module(),
+            ncc_module(),
+            pydegensac_module(px_th=3)
+        ],
+        
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            oanet_module(),
+            pydegensac_module(px_th=3)
+        ],
+        
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            oanet_module(),
+            ncc_module(),
+            pydegensac_module(px_th=3)
+        ]        
     ]
                
     megadepth_data, scannet_data, data_file = bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
     megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
 
     for i, pipe in enumerate(pipes):
-        print(f"--== Running pipe {i}/{len(pipes)} ==--")
+        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")
         run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
         run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
 
-        eval_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2')
-        eval_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2')
+        eval_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2', use_scale=True)
+        eval_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2', use_scale=False)
 
-    ## demo code
+    # demo code
+    
+    img1 = 'data/im1.png'
+    img2 = 'data/im2_rot.png'
+    # match_file = 'data/matches_rot.mat'
+
+    # img1 = 'data/dc0.png'
+    # img2 = 'data/dc2.png'
+
+    # *** NCC / NCC+ ***
+    # window radius
+    w = 10
+    w_big = 15
+    # filter outliers by MiHo
+    remove_bad=False
+    # NCC+ patch angle offset
+    angle=[-30, -15, 0, 15, 30]
+    # NCC+ patch anisotropic scales
+    scale=[[10/14, 1], [10/12, 1], [1, 1], [1, 12/10], [1, 14/10]]
+
+    im1 = Image.open(img1)
+    im2 = Image.open(img2)
+
+    # generate matches with kornia, LAF included, check upright!
+    upright=False
+    with torch.inference_mode():
+        detector = K.feature.KeyNetAffNetHardNet(upright=upright, device=device)
+        kps1, _ , descs1 = detector(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+        kps2, _ , descs2 = detector(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+        dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.99)        
+    kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
+    kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
+
+    # import from a match file with only kpts
     #
-    #img1 = 'data/im1.png'
-    #img2 = 'data/im2_rot.png'
-    ## match_file = 'data/matches_rot.mat'
-#
-    ## img1 = 'data/dc0.png'
-    ## img2 = 'data/dc2.png'
-#
-    ## *** NCC / NCC+ ***
-    ## window radius
-    #w = 15
-    ## filter outliers by MiHo
-    #remove_bad=False
-    ## NCC+ patch angle offset
-    #angle=[-30, -15, 0, 15, 30]
-    ## NCC+ patch anisotropic scales
-    #scale=[[10/14, 1], [10/12, 1], [1, 1], [1, 12/10], [1, 14/10]]
-#
-    #im1 = Image.open(img1)
-    #im2 = Image.open(img2)
-#
-    ## generate matches with kornia, LAF included, check upright!
-    #upright=False
-    #with torch.inference_mode():
-    #    detector = K.feature.KeyNetAffNetHardNet(upright=upright, device=device)
-    #    kps1, _ , descs1 = detector(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
-    #    kps2, _ , descs2 = detector(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
-    #    dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.99)        
-    #kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
-    #kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
-#
-    ## import from a match file with only kpts
-    ##
-    ## m12 = sio.loadmat(match_file, squeeze_me=True)
-    ## m12 = m12['matches'][m12['midx'] > 0, :]
-    ## # m12 = m12['matches']
-    ## pt1 = torch.tensor(m12[:, :2], dtype=torch.float32, device=device)
-    ## pt2 = torch.tensor(m12[:, 2:], dtype=torch.float32, device=device)
-#
-    #params = miho.all_params()
-    #params['get_avg_hom']['rot_check'] = True
-    #mihoo = miho(params)
-#
-    ## miho paramas examples
-    ##
-    ## params = miho.all_params()
-    ## params['go_assign']['method'] = cluster_assign_base
-    ## params['go_assign']['method_args']['err_th'] = 16
-    ## mihoo = miho(params)
-    ##
-    ## params = mihoo.get_current()
-    ## params['get_avg_hom']['min_plane_pts'] = 16
-    ## mihoo.update_params(params)
-#
-    #mihoo.attach_images(im1, im2)
-#
-    ## offset kpt shift, for testing
-    ##
-    ## pt1 = pt1.round()
-    ## pt2 = pt1 + test_idx
-    ## pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im1, pt1=pt1, pt2=pt2, w=w, img_patches=True)    
-#
-    ## data formatting 
-    #pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=True)    
-    ## pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, pt1=pt1, pt2=pt2, w=w, img_patches=True)    
-#
-    ####
-    #start = time.time()
+    # m12 = sio.loadmat(match_file, squeeze_me=True)
+    # m12 = m12['matches'][m12['midx'] > 0, :]
+    # # m12 = m12['matches']
+    # pt1 = torch.tensor(m12[:, :2], dtype=torch.float32, device=device)
+    # pt2 = torch.tensor(m12[:, 2:], dtype=torch.float32, device=device)
+
+    params = miho.all_params()
+    params['get_avg_hom']['rot_check'] = True
+    mihoo = miho(params)
+
+    # miho paramas examples
     #
-    #mihoo.planar_clustering(pt1, pt2)
-#
-    #end = time.time()
-    #print("Elapsed = %s (MiHo clustering)" % (end - start))
-#
-    ## save MiHo
-    ## import pickle
-    ##
-    ## with open('miho.pt', 'wb') as file:
-    ##     torch.save(mihoo, file)
-    ##
-    ## with open('miho.pt', 'rb') as miho_pt:
-    ##     mihoo = torch.load(miho_pt)
-  #
-    ## *** MiHo inlier mask ***
-    #good_matches = mihoo.Hidx > -1  
-  #
-    #start = time.time()
-    #    
-    ## offset kpt shift, for testing - LAF -> NCC | NCC+
-    ## pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True)   
-    ## pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
-    #        
-    ## LAF -> NCC | NCC+
-    ## pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True)   
-    ## pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
+    # params = miho.all_params()
+    # params['go_assign']['method'] = cluster_assign_base
+    # params['go_assign']['method_args']['err_th'] = 16
+    # mihoo = miho(params)
     #
-    ## LAF -> MiHo -> NCC | NCC+   
-    #pt1_, pt2_, Hs_miho, inliers = refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, img_patches=True)        
-    #pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True)   
-    #pt1__p, pt2_p_, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
+    # params = mihoo.get_current()
+    # params['get_avg_hom']['min_plane_pts'] = 16
+    # mihoo.update_params(params)
+
+    mihoo.attach_images(im1, im2)
+
+    # # offset kpt shift, for testing
+    # pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=False)    
+    # pt1 = pt1.round()
+    # if w_big is None:
+    #     ww_big = w * 2
+    # else:
+    #     ww_big = w_big
+    # test_idx = (torch.rand((pt1.shape[0], 2), device=device) * (((ww_big-w) * 2) - 1) - (ww_big-w-1)).round()    
+    # pt2 = pt1 + test_idx
+    # pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im1, pt1=pt1, pt2=pt2, w=w, img_patches=True)    
+    # # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    # pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, w_big=w_big, ref_image=['both'], subpix=True, img_patches=True)   
+
+    # data formatting 
+    pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=True)    
+    # pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, pt1=pt1, pt2=pt2, w=w, img_patches=True)    
+
+    ###
+    start = time.time()
+    
+    mihoo.planar_clustering(pt1, pt2)
+
+    end = time.time()
+    print("Elapsed = %s (MiHo clustering)" % (end - start))
+
+    # save MiHo
+    # import pickle
     #
-    #end = time.time()
-    #print("Elapsed = %s (NCC refinement)" % (end - start))
+    # with open('miho.pt', 'wb') as file:
+    #     torch.save(mihoo, file)
     #
-    #mihoo.show_clustering()
+    # with open('miho.pt', 'rb') as miho_pt:
+    #     mihoo = torch.load(miho_pt)
+  
+    # *** MiHo inlier mask ***
+    good_matches = mihoo.Hidx > -1  
+  
+    start = time.time()
+        
+    # offset kpt shift, for testing - LAF -> NCC | NCC+
+    # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    # pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
+            
+    # LAF -> NCC | NCC+
+    # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    # pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
+    
+    # LAF -> MiHo -> NCC | NCC+   
+    pt1_, pt2_, Hs_miho, inliers = refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, img_patches=True)        
+    pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    pt1__p, pt2_p_, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
+    
+    end = time.time()
+    print("Elapsed = %s (NCC refinement)" % (end - start))
+    
+    mihoo.show_clustering()
