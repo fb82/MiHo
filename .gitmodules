@@ -1,0 +1,3 @@
+[submodule "thirdparty/deep-image-matching"]
+	path = thirdparty/deep-image-matching
+	url = https://github.com/3DOM-FBK/deep-image-matching.git
