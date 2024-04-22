@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import time
-# import scipy.io as sio
+import scipy.io as sio
 import torch
 import torchvision.transforms as transforms
 import kornia as K
@@ -443,6 +443,35 @@ def get_error_duplex(H12, pt1, pt2, ptm, sidx_par):
     return torch.maximum(err[:l2], err[l2:])
 
 
+def get_error_unduplex(H, pt1, pt2, sidx_par):
+    l2 = sidx_par.size()[0]        
+    n = pt1.size()[1]
+
+    pt2_ = torch.matmul(H, pt1)
+    sign_pt2_ = torch.sign(pt2_[:, 2])
+
+    pt1_ = torch.matmul(torch.inverse(H), pt2)
+    sign_pt1_ = torch.sign(pt1_[:, 2])
+
+    idx_aux = torch.arange(l2, device=device)*n + sidx_par[:, 0]
+
+    s2 = sign_pt2_.flatten()[idx_aux.flatten()].reshape(idx_aux.size())
+    s1 = sign_pt1_.flatten()[idx_aux.flatten()].reshape(idx_aux.size())
+
+    ss2 = s2.unsqueeze(1) == sign_pt2_
+    ss1 = s1.unsqueeze(1) == sign_pt1_
+
+    mask = torch.logical_and(ss2, ss1)
+
+    err2 = pt2_[:, :2] / pt2_[:, 2].unsqueeze(1) - pt2[:2]
+    err1 = pt1_[:, :2] / pt1_[:, 2].unsqueeze(1) - pt1[:2]
+
+    err = torch.maximum(torch.sum(err2 ** 2, dim=1), torch.sum(err1 ** 2, dim=1))
+    err[torch.logical_or(~torch.isfinite(err), ~mask)] = float('inf')
+
+    return err
+
+
 def get_inlier_duplex(H12, pt1, pt2, ptm, sidx_par, th):
     l2 = sidx_par.size()[0]        
     n = pt1.size()[1]
@@ -482,35 +511,6 @@ def get_inlier_duplex(H12, pt1, pt2, ptm, sidx_par, th):
 
     final_mask = mask & err_
     return torch.logical_and(final_mask[:, :l2], final_mask[:, l2:]).squeeze(dim=0)
-
-
-def get_error_unduplex(H, pt1, pt2, sidx_par):
-    l2 = sidx_par.size()[0]        
-    n = pt1.size()[1]
-
-    pt2_ = torch.matmul(H, pt1)
-    sign_pt2_ = torch.sign(pt2_[:, 2])
-
-    pt1_ = torch.matmul(torch.inverse(H), pt2)
-    sign_pt1_ = torch.sign(pt1_[:, 2])
-
-    idx_aux = torch.arange(l2, device=device)*n + sidx_par[:, 0]
-
-    s2 = sign_pt2_.flatten()[idx_aux.flatten()].reshape(idx_aux.size())
-    s1 = sign_pt1_.flatten()[idx_aux.flatten()].reshape(idx_aux.size())
-
-    ss2 = s2.unsqueeze(1) == sign_pt2_
-    ss1 = s1.unsqueeze(1) == sign_pt1_
-
-    mask = torch.logical_and(ss2, ss1)
-
-    err2 = pt2_[:, :2] / pt2_[:, 2].unsqueeze(1) - pt2[:2]
-    err1 = pt1_[:, :2] / pt1_[:, 2].unsqueeze(1) - pt1[:2]
-
-    err = torch.maximum(torch.sum(err2 ** 2, dim=1), torch.sum(err1 ** 2, dim=1))
-    err[torch.logical_or(~torch.isfinite(err), ~mask)] = float('inf')
-
-    return err
 
 
 def get_inlier_unduplex(H, pt1, pt2, sidx_par, th):
@@ -891,7 +891,7 @@ def sampler4_par(n_par, m):
     return sidx.reshape(m, nn, 4)
 
 
-def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=500, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000):
+def ransac_middle_duplex(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=500, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000):
     n = pt1.shape[1]
 
     th_in = th_in ** 2
@@ -1343,7 +1343,7 @@ def rot_best_block(pt1, pt2, n=4, split_sz=2048):
     return aux
 
 
-def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
+def get_avg_hom_duplex(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
                 max_fail_count=3, random_seed_init=123, th_grid=15,
                 rot_check=4):
 
@@ -1392,7 +1392,7 @@ def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
 
         ssidx = ssidx[~midx, :]
 
-        H1_, H2_, iidx, oidx, ssidx, sidx_ = ransac_middle(pt1_, pt2_, dd_, th_grid, ssidx=ssidx, **ransac_middle_args)
+        H1_, H2_, iidx, oidx, ssidx, sidx_ = ransac_middle_duplex(pt1_, pt2_, dd_, th_grid, ssidx=ssidx, **ransac_middle_args)
 
         sidx_ = sidx[~midx][sidx_]
 
@@ -1455,7 +1455,7 @@ def get_avg_hom_unduplex(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_p
     pt2 = torch.cat((pt2.t(), torch.ones(1, l, device=device)))
 
     if rot_check > 1:
-        H2 = rot_best_block(pt1, pt2, rot_check)
+        H = rot_best_block(pt1, pt2, rot_check)
         # H2 = rot_best(pt1, pt2, rot_check)
 
 
@@ -1467,7 +1467,7 @@ def get_avg_hom_unduplex(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_p
     pt1 = torch.matmul(H, pt1)
     pt1 = pt1 / pt1[2]
 
-    pt2 = torch.matmul(H2, pt2)
+    pt2 = torch.matmul(torch.inverse(H), pt2)
     pt2 = pt2 / pt2[2]
 
     while torch.sum(midx) < l - 4:
@@ -1794,7 +1794,7 @@ def show_fig(im1, im2, pt1, pt2, Hidx, tosave='miho_buffered_rot_pytorch_gpu.pdf
     plt.savefig(tosave, dpi = fig_dpi, bbox_inches='tight')
 
 
-def go_assign(Hdata, pt1, pt2, H1_pre, H2_pre, method=cluster_assign, method_args={}):
+def go_assign_duplex(Hdata, pt1, pt2, H1_pre, H2_pre, method=cluster_assign, method_args={}):
     return method(Hdata, pt1, pt2, H1_pre, H2_pre, **method_args)
 
 
@@ -1919,17 +1919,17 @@ class miho:
                 'show_clustering': show_clustering_params}
 
 
-    def planar_clustering(self, pt1, pt2):
+    def planar_clustering_duplex(self, pt1, pt2):
         """run MiHo"""
         self.pt1 = pt1
         self.pt2 = pt2
 
-        Hdata, H1_pre, H2_pre = get_avg_hom(self.pt1, self.pt2, **self.params['get_avg_hom'])
+        Hdata, H1_pre, H2_pre = get_avg_hom_duplex(self.pt1, self.pt2, **self.params['get_avg_hom'])
         self.Hs = Hdata
         self.H1_pre = H1_pre
         self.H2_pre = H2_pre
 
-        self.Hidx = go_assign(Hdata, self.pt1, self.pt2, H1_pre, H2_pre, **self.params['go_assign'])
+        self.Hidx = go_assign_duplex(Hdata, self.pt1, self.pt2, H1_pre, H2_pre, **self.params['go_assign'])
 
         return self.Hs, self.Hidx
     
@@ -2403,7 +2403,7 @@ class miho_module:
 
 
     def run(self, *args):
-        self.miho.planar_clustering(args[0], args[1])
+        self.miho.planar_clustering_duplex(args[0], args[1])
         
         pt1, pt2, Hs_miho, inliers = refinement_miho(None, None, args[0], args[1], self.miho, args[2], remove_bad=True, img_patches=False)        
             
@@ -2905,81 +2905,81 @@ class oanet_module:
 
 if __name__ == '__main__':
     # megadepth & scannet
-    bench_path = './miho_megadepth_scannet_bench_data'   
-    bench_gt = 'gt_data'
-    bench_im = 'imgs'
-    bench_file = 'megadepth_scannet'
-    bench_res = 'res'
-    save_to = os.path.join(bench_path, bench_res, 'res_')
+    # bench_path = './miho_megadepth_scannet_bench_data'   
+    # bench_gt = 'gt_data'
+    # bench_im = 'imgs'
+    # bench_file = 'megadepth_scannet'
+    # bench_res = 'res'
+    # save_to = os.path.join(bench_path, bench_res, 'res_')
 
-    pipes = [
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            miho_module(),
-            pydegensac_module(px_th=3)
-        ],
+    # pipes = [
+    #     [
+    #         keynetaffnethardnet_module(upright=False, th=0.99),
+    #         miho_module(),
+    #         pydegensac_module(px_th=3)
+    #     ],
 
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            pydegensac_module(px_th=3)
-        ],
+    #     [
+    #         keynetaffnethardnet_module(upright=False, th=0.99),
+    #         pydegensac_module(px_th=3)
+    #     ],
 
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            ncc_module(),
-            pydegensac_module(px_th=3)
-        ],
+    #     [
+    #         keynetaffnethardnet_module(upright=False, th=0.99),
+    #         ncc_module(),
+    #         pydegensac_module(px_th=3)
+    #     ],
 
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            miho_module(),
-            ncc_module(),
-            pydegensac_module(px_th=3)
-        ],
+    #     [
+    #         keynetaffnethardnet_module(upright=False, th=0.99),
+    #         miho_module(),
+    #         ncc_module(),
+    #         pydegensac_module(px_th=3)
+    #     ],
         
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            gms_module(),
-            pydegensac_module(px_th=3)
-        ],
+    #     [
+    #         keynetaffnethardnet_module(upright=False, th=0.99),
+    #         gms_module(),
+    #         pydegensac_module(px_th=3)
+    #     ],
         
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            gms_module(),
-            ncc_module(),
-            pydegensac_module(px_th=3)
-        ],
+    #     [
+    #         keynetaffnethardnet_module(upright=False, th=0.99),
+    #         gms_module(),
+    #         ncc_module(),
+    #         pydegensac_module(px_th=3)
+    #     ],
         
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            oanet_module(),
-            pydegensac_module(px_th=3)
-        ],
+    #     [
+    #         keynetaffnethardnet_module(upright=False, th=0.99),
+    #         oanet_module(),
+    #         pydegensac_module(px_th=3)
+    #     ],
         
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            oanet_module(),
-            ncc_module(),
-            pydegensac_module(px_th=3)
-        ]        
-    ]
+    #     [
+    #         keynetaffnethardnet_module(upright=False, th=0.99),
+    #         oanet_module(),
+    #         ncc_module(),
+    #         pydegensac_module(px_th=3)
+    #     ]        
+    # ]
                
-    megadepth_data, scannet_data, data_file = bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
-    megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
+    # megadepth_data, scannet_data, data_file = bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
+    # megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
 
-    for i, pipe in enumerate(pipes):
-        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")
-        run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
-        run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
+    # for i, pipe in enumerate(pipes):
+    #     print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")
+    #     run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
+    #     run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
 
-        eval_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2', use_scale=True)
-        eval_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2', use_scale=False)
+    #     eval_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2', use_scale=True)
+    #     eval_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2', use_scale=False)
 
     # demo code
     
     img1 = 'data/im1.png'
     img2 = 'data/im2_rot.png'
-    # match_file = 'data/matches_rot.mat'
+    match_file = 'data/matches_rot.mat'
 
     # img1 = 'data/dc0.png'
     # img2 = 'data/dc2.png'
@@ -2999,22 +2999,22 @@ if __name__ == '__main__':
     im2 = Image.open(img2)
 
     # generate matches with kornia, LAF included, check upright!
-    upright=False
-    with torch.inference_mode():
-        detector = K.feature.KeyNetAffNetHardNet(upright=upright, device=device)
-        kps1, _ , descs1 = detector(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
-        kps2, _ , descs2 = detector(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
-        dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.99)        
-    kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
-    kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
+    # upright=False
+    # with torch.inference_mode():
+    #     detector = K.feature.KeyNetAffNetHardNet(upright=upright, device=device)
+    #     kps1, _ , descs1 = detector(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+    #     kps2, _ , descs2 = detector(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+    #     dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.99)        
+    # kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
+    # kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
 
     # import from a match file with only kpts
     #
-    # m12 = sio.loadmat(match_file, squeeze_me=True)
-    # m12 = m12['matches'][m12['midx'] > 0, :]
+    m12 = sio.loadmat(match_file, squeeze_me=True)
+    m12 = m12['matches'][m12['midx'] > 0, :]
     # # m12 = m12['matches']
-    # pt1 = torch.tensor(m12[:, :2], dtype=torch.float32, device=device)
-    # pt2 = torch.tensor(m12[:, 2:], dtype=torch.float32, device=device)
+    pt1 = torch.tensor(m12[:, :2], dtype=torch.float32, device=device)
+    pt2 = torch.tensor(m12[:, 2:], dtype=torch.float32, device=device)
 
     params = miho.all_params()
     params['get_avg_hom']['rot_check'] = True
@@ -3047,7 +3047,7 @@ if __name__ == '__main__':
     # pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, w_big=w_big, ref_image=['both'], subpix=True, img_patches=True)   
 
     # data formatting 
-    pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=True)    
+    # pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=True)    
     # pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, pt1=pt1, pt2=pt2, w=w, img_patches=True)    
 
     ###
@@ -3081,9 +3081,9 @@ if __name__ == '__main__':
     # pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
     
     # LAF -> MiHo -> NCC | NCC+   
-    pt1_, pt2_, Hs_miho, inliers = refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, img_patches=True)        
-    pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True)   
-    pt1__p, pt2_p_, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
+    # pt1_, pt2_, Hs_miho, inliers = refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, img_patches=True)        
+    # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    # pt1__p, pt2_p_, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
     
     end = time.time()
     print("Elapsed = %s (NCC refinement)" % (end - start))
