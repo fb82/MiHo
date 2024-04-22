@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import time
-import scipy.io as sio
+# import scipy.io as sio
 import torch
 import torchvision.transforms as transforms
 import kornia as K
@@ -17,8 +17,6 @@ matplotlib.use('tkagg')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 EPS_ = torch.finfo(torch.float32).eps
 sqrt2 = np.sqrt(2)
-
-# test_idx = (torch.rand((2558, 2), device=device) * 29 - 14).round()    
 
 
 def laf2homo(kps):
@@ -2355,6 +2353,7 @@ class keynetaffnethardnet_module:
         for k, v in args.items():
            setattr(self, k, v)
         
+        
     def get_id(self):
         return ('keynetaffnethardnet_upright_' + str(self.upright) + '_th_' + str(self.th)).lower()
 
@@ -2462,6 +2461,7 @@ class pydegensac_module:
         for k, v in args.items():
            setattr(self, k, v)
        
+        
     def get_id(self):
         return ('pydegensac_th_' + str(self.px_th) + '_conf_' + str(self.conf) + '_max_iters_' + str(self.max_iters)).lower()
 
@@ -2493,7 +2493,7 @@ class pydegensac_module:
             F = None
             mask = None
             
-        return pt1, pt2, F, mask
+        return pt1, pt2, Hs, F, mask
 
 
 THRESHOLD_FACTOR = 6
@@ -2905,7 +2905,7 @@ class oanet_module:
 
 if __name__ == '__main__':
     # megadepth & scannet
-    bench_path = '../miho_megadepth_scannet_bench_data'   
+    bench_path = './miho_megadepth_scannet_bench_data'   
     bench_gt = 'gt_data'
     bench_im = 'imgs'
     bench_file = 'megadepth_scannet'
