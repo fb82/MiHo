@@ -3,6 +3,9 @@ import torch.nn as nn
 from .loss import batch_episym
 
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
 class PointCN(nn.Module):
     def __init__(self, channels, out_channels=None):
         nn.Module.__init__(self)
@@ -246,7 +249,7 @@ def batch_symeig(X):
         e, v = torch.linalg.eigh(X[batch_idx,:,:].squeeze(), UPLO='U')
         bv[batch_idx,:,:] = v
 
-    bv = bv.to('cuda')
+    bv = bv.to(device)
     return bv
 
 

@@ -4,6 +4,7 @@ import src.miho as miho
 import src.ncc as ncc
 import src.GMS.gms_custom as gms
 import src.OANet.learnedmatcher_custom as oanet
+import src.ACNe.acne_custom as acne
 import src.bench_utils as bench
 
 # from pprint import pprint
@@ -87,6 +88,20 @@ if __name__ == '__main__':
         [
             pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
             oanet.oanet_module(),
+            ncc.ncc_module(),
+            pipe_base.pydegensac_module(px_th=3)
+        ],
+
+
+        [
+            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+            acne.acne_module(),
+            pipe_base.pydegensac_module(px_th=3)
+        ],        
+        
+        [
+            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+            acne.acne_module(),
             ncc.ncc_module(),
             pipe_base.pydegensac_module(px_th=3)
         ]        

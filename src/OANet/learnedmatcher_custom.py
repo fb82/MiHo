@@ -6,6 +6,7 @@ import tarfile
 import shutil
 from collections import namedtuple
 from .oan_cuda import OANet
+from .oan_cuda import device as device_to_use
 
 
 class oanet_module:
@@ -64,7 +65,7 @@ class oanet_module:
 
 
 class LearnedMatcher(object):
-    def __init__(self, model_path, inlier_threshold=0, use_ratio=2, use_mutual=2, corr_file=-1, device='cuda'):
+    def __init__(self, model_path, inlier_threshold=0, use_ratio=2, use_mutual=2, corr_file=-1):
         self.default_config = {}
         self.default_config['net_channels'] = 128
         self.default_config['net_depth'] = 12
@@ -77,7 +78,7 @@ class LearnedMatcher(object):
         self.default_config = namedtuple("Config", self.default_config.keys())(*self.default_config.values())
 
         self.model = OANet(self.default_config)
-        self.device = device
+        self.device = device_to_use
 
         # print('load model from ' + model_path)
         checkpoint = torch.load(model_path,map_location=self.device)
