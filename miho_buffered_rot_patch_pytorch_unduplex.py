@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import time
-# import scipy.io as sio
+import scipy.io as sio
 import torch
 import torchvision.transforms as transforms
 import kornia as K
@@ -486,7 +486,7 @@ def get_inlier_duplex(H12, pt1, pt2, ptm, sidx_par, th):
     return torch.logical_and(final_mask[:, :l2], final_mask[:, l2:]).squeeze(dim=0)
 
 
-def get_error_duplex_unduplex(H, pt1, pt2, sidx_par):
+def get_error_unduplex(H, pt1, pt2, sidx_par):
     l2 = sidx_par.size()[0]        
     n = pt1.size()[1]
 
@@ -496,7 +496,7 @@ def get_error_duplex_unduplex(H, pt1, pt2, sidx_par):
     pt1_ = torch.matmul(torch.inverse(H), pt2)
     sign_pt1_ = torch.sign(pt1_[:, 2])
 
-    idx_aux = torch.arange(l2, device=device)*n + sidx_par
+    idx_aux = torch.arange(l2, device=device)*n + sidx_par[:, 0]
 
     s2 = sign_pt2_.flatten()[idx_aux.flatten()].reshape(idx_aux.size())
     s1 = sign_pt1_.flatten()[idx_aux.flatten()].reshape(idx_aux.size())
@@ -752,7 +752,7 @@ def compute_homography_unduplex(pt1, pt2, sidx_par):
     H12 = V[:, -1].reshape(l0, 3, 3).permute(0, 2, 1)
     H12 = T2 @ H12 @ T1
 
-    sv = torch.amax(D[:, -2].reshape(2, l0), dim=0)
+    sv = D[:, -2]
 
     return H12, sv
 
@@ -1191,6 +1191,8 @@ def ransac_middle_unduplex(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, ma
             
             sidx_i = sidx_par[i]
 
+            H_ = H[sort_idx[i]]
+
             updated_model = False
     
             midx[:, -1] = nidx
@@ -1224,7 +1226,7 @@ def ransac_middle_unduplex(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, ma
     
             if updated_model:
                 sum_midx = torch.sum(midx[:, 0])
-                best_model = H
+                best_model = H_
                 Nc = steps(4, sum_midx / n, p)
     
         if (c + par_run > Nc) and (c + par_run > min_iter):
@@ -1239,12 +1241,12 @@ def ransac_middle_unduplex(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, ma
 
         H, _ = compute_homography_unduplex(pt1, pt2, bidx)
 
-        iidx, oidx = get_inlier_unduplex(H, pt1, pt2, sidx_.unsqueeze(0), ths)                        
+        iidx, oidx = get_inlier_unduplex(H, pt1, pt2, sidx_.unsqueeze(0), ths)  
 
         if sum_midx > torch.sum(oidx):
             H = best_model
 
-            iidx, oidx = get_inlier_unduplex(best_model, pt1, pt2, sidx_.unsqueeze(0), ths)
+            iidx, oidx = get_inlier_unduplex(best_model.unsqueeze(0), pt1, pt2, sidx_.unsqueeze(0), ths)
     else:
         H = torch.tensor([], device=device)
 
@@ -1435,7 +1437,6 @@ def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
 def get_avg_hom_unduplex(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
                 max_fail_count=3, random_seed_init=123, th_grid=15,
                 rot_check=4):
-
     # set to 123 for debugging and profiling
     if random_seed_init is not None:
         torch.manual_seed(random_seed_init)
@@ -1672,18 +1673,17 @@ def cluster_assign_unduplex(Hdata, pt1, pt2, H_pre, median_th=5, err_th=15, **du
     #
     #     err[:, i] = torch.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
 
-    H12 = torch.zeros((l*2, 3, 3), device=device)
+    H = torch.zeros((l, 3, 3), device=device)
     sidx_par = torch.zeros((l, 4), device=device, dtype=torch.long)
     inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
 
     for i in range(l):
-        H12[i] = Hdata[i][0]
-        H12[i+l] = Hdata[i][1]
-        sidx_par[i] = Hdata[i][3]
+        H[i] = Hdata[i][0]
+        sidx_par[i] = Hdata[i][2]
 
-        inl_mask[:, i] = Hdata[i][2]
+        inl_mask[:, i] = Hdata[i][1]
 
-    err = get_error_duplex_unduplex(H12, pt1, pt2, sidx_par).permute(1,0)
+    err = get_error_unduplex(H, pt1, pt2, sidx_par).permute(1,0)
 
     # min error
     abs_err_min_val, abs_err_min_idx = torch.min(err, dim=1)
@@ -2905,75 +2905,75 @@ class oanet_module:
 
 if __name__ == '__main__':
     # megadepth & scannet
-    # bench_path = '../miho_megadepth_scannet_bench_data'   
-    # bench_gt = 'gt_data'
-    # bench_im = 'imgs'
-    # bench_file = 'megadepth_scannet'
-    # bench_res = 'res'
-    # save_to = os.path.join(bench_path, bench_res, 'res_')
+    bench_path = '../miho_megadepth_scannet_bench_data'   
+    bench_gt = 'gt_data'
+    bench_im = 'imgs'
+    bench_file = 'megadepth_scannet'
+    bench_res = 'res'
+    save_to = os.path.join(bench_path, bench_res, 'res_')
 
-    # pipes = [
-    #     [
-    #         keynetaffnethardnet_module(upright=False, th=0.99),
-    #         miho_module(),
-    #         pydegensac_module(px_th=3)
-    #     ],
+    pipes = [
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            miho_module(),
+            pydegensac_module(px_th=3)
+        ],
 
-    #     [
-    #         keynetaffnethardnet_module(upright=False, th=0.99),
-    #         pydegensac_module(px_th=3)
-    #     ],
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            pydegensac_module(px_th=3)
+        ],
 
-    #     [
-    #         keynetaffnethardnet_module(upright=False, th=0.99),
-    #         ncc_module(),
-    #         pydegensac_module(px_th=3)
-    #     ],
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            ncc_module(),
+            pydegensac_module(px_th=3)
+        ],
 
-    #     [
-    #         keynetaffnethardnet_module(upright=False, th=0.99),
-    #         miho_module(),
-    #         ncc_module(),
-    #         pydegensac_module(px_th=3)
-    #     ],
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            miho_module(),
+            ncc_module(),
+            pydegensac_module(px_th=3)
+        ],
         
-    #     [
-    #         keynetaffnethardnet_module(upright=False, th=0.99),
-    #         gms_module(),
-    #         pydegensac_module(px_th=3)
-    #     ],
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            gms_module(),
+            pydegensac_module(px_th=3)
+        ],
         
-    #     [
-    #         keynetaffnethardnet_module(upright=False, th=0.99),
-    #         gms_module(),
-    #         ncc_module(),
-    #         pydegensac_module(px_th=3)
-    #     ],
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            gms_module(),
+            ncc_module(),
+            pydegensac_module(px_th=3)
+        ],
         
-    #     [
-    #         keynetaffnethardnet_module(upright=False, th=0.99),
-    #         oanet_module(),
-    #         pydegensac_module(px_th=3)
-    #     ],
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            oanet_module(),
+            pydegensac_module(px_th=3)
+        ],
         
-    #     [
-    #         keynetaffnethardnet_module(upright=False, th=0.99),
-    #         oanet_module(),
-    #         ncc_module(),
-    #         pydegensac_module(px_th=3)
-    #     ]        
-    # ]
+        [
+            keynetaffnethardnet_module(upright=False, th=0.99),
+            oanet_module(),
+            ncc_module(),
+            pydegensac_module(px_th=3)
+        ]        
+    ]
                
-    # megadepth_data, scannet_data, data_file = bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
-    # megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
+    megadepth_data, scannet_data, data_file = bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
+    megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
 
-    # for i, pipe in enumerate(pipes):
-    #     print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")
-    #     run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
-    #     run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
+    for i, pipe in enumerate(pipes):
+        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")
+        run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
+        run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
 
-    #     eval_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2', use_scale=True)
-    #     eval_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2', use_scale=False)
+        eval_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2', use_scale=True)
+        eval_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2', use_scale=False)
 
     # demo code
     
