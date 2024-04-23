@@ -15,7 +15,7 @@ def build_graph(x_in, is_training, config, weight=None):
     x_in_shp = tf.shape(x_in)
 
     cur_input = x_in
-    print(cur_input.shape)
+    # print(cur_input.shape)
     idx_layer = 0
     numlayer = config.net_depth
     ksize = 1
@@ -40,7 +40,7 @@ def build_graph(x_in, is_training, config, weight=None):
             weight=weight,
             config=config,
         )
-        print(cur_input.shape)
+        # print(cur_input.shape)
         if weight_output is not None:
             vis_dict["attention {}".format(weight_output.name)] = weight_output
     for _ksize, _nchannel in zip(
@@ -62,7 +62,7 @@ def build_graph(x_in, is_training, config, weight=None):
                 config=config,
             )
             # Apply pooling if needed
-            print(cur_input.shape)
+            # print(cur_input.shape)
             if weight_output is not None:
                 vis_dict["attention_{}".format(weight_output.name)] = weight_output
 
@@ -122,7 +122,7 @@ def build_graph(x_in, is_training, config, weight=None):
         cur_input = tf.reshape(cur_input, (x_in_shp[0], x_in_shp[2]))
 
     logits = cur_input
-    print(cur_input.shape)
+    # print(cur_input.shape)
 
     return logits, vis_dict
 

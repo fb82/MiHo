@@ -1,10 +1,9 @@
 import os
-os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 
 import numpy as np
 import warnings
 from PIL import Image
+import zipfile
 
 from .demo_util import get_T_from_K, norm_points_with_T
 from .utils import norm_points
@@ -95,6 +94,13 @@ class NetworkTest(MyNetwork):
 class acne_module:
     def __init__(self, **args):
 
+        acne_dir = os.path.split(__file__)[0]
+        model_dir = os.path.join(acne_dir, 'logs')
+        file_to_unzip = "data/acne_weights.zip"
+        if not os.path.isdir(model_dir):    
+            with zipfile.ZipFile(file_to_unzip,"r") as zip_ref:
+                zip_ref.extractall(path=acne_dir)
+
         self.outdoor = True
 
         for k, v in args.items():
@@ -133,7 +139,7 @@ class acne_module:
            
         self.use_fundamental = config.use_fundamental # E:0, F:2.
     
-        # Instantiate warpper class
+        # Instantiate wrapper class
         self.net = NetworkTest(config, self.model_path)	
            
                
@@ -172,8 +178,7 @@ class acne_module:
                  [0, 0, 1]])
         
             # Prepare input. 
-            xs, T1, T2 = prepare_xs(
-                corrs, K1, K2, self.use_fundamental)
+            xs, T1, T2 = prepare_xs(corrs, K1, K2, self.use_fundamental)
             xs = np.array(xs).reshape(1, 1, -1, 4) # reconstruct a batch. Bx1xNx4
         
             # Compute Essential/Fundamental matrix

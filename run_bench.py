@@ -30,7 +30,7 @@ if __name__ == '__main__':
     save_to = os.path.join(bench_path, bench_res, 'res_')
 
     pipes = [
-        #[
+        # [
         #    superpoint_lightglue_module(nmax_keypoints=4000),
         #    # superpoint_kornia_matcher_module(nmax_keypoints=4000, th=0.97),
         #    # keynetaffnethardnet_kornia_matcher_module(nmax_keypoints=4000, upright=False, th=0.99),
@@ -40,7 +40,7 @@ if __name__ == '__main__':
         #    # keynetaffnethardnet_module(upright=False, th=0.99),
         #    miho_module(),
         #    pydegensac_module(px_th=3)
-        #],
+        # ],
 
         [
             pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),

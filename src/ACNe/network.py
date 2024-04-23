@@ -3,11 +3,14 @@
 import os
 import sys
 
+import logging 
+logging.disable(logging.WARNING) 
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
 import numpy as np
 # import tensorflow as tf
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
-tf.reset_default_graph()
 
 from parse import parse
 from tqdm import trange
@@ -17,7 +20,6 @@ import itertools
 from .tf_utils import pre_x_in, topk
 from .ops import tf_skew_symmetric 
 from .tests import test_process
-
 
 class MyNetwork(object):
     """Network class """
@@ -43,9 +45,7 @@ class MyNetwork(object):
         num_threads = os.getenv("OMP_NUM_THREADS", "")
         if num_threads != "":
             num_threads = int(num_threads)
-            print("limiting tensorflow to {} threads!".format(
-                num_threads
-            ))
+            # print("limiting tensorflow to {} threads!".format(num_threads))
             # Limit
             tfconfig = tf.ConfigProto(
                 intra_op_parallelism_threads=num_threads,
@@ -98,7 +98,7 @@ class MyNetwork(object):
             # Import correct build_graph function
             from .cvpr2020 import build_graph
             # Build graph
-            print("Building Graph")
+            # print("Building Graph")
             # Preprocessing input, currently doing nothing
             x_in = pre_x_in(self.x_in, self.config.pre_x_in)
             y_in = self.y_in
@@ -149,11 +149,11 @@ class MyNetwork(object):
                     xx[:, 0], xx[:, 1], tf.ones_like(xx[:, 0])
                 ], axis=1), (0, 2, 1))
                 self.fetch_vis["X"] = X[:, None]
-                print("X shape = {}".format(X.shape))
+                # print("X shape = {}".format(X.shape))
                 wX = tf.reshape(weights, (x_shp[0], x_shp[2], 1)) * X
-                print("wX shape = {}".format(wX.shape))
+                # print("wX shape = {}".format(wX.shape))
                 XwX = tf.matmul(tf.transpose(X, (0, 2, 1)), wX)
-                print("XwX shape = {}".format(XwX.shape))
+                # print("XwX shape = {}".format(XwX.shape))
 
                 # Recover essential matrix from self-adjoing eigen
                 e, v = tf.self_adjoint_eig(XwX)
@@ -187,7 +187,7 @@ class MyNetwork(object):
             # L2 loss
             for var in tf.trainable_variables():
                 if "weights" in var.name:
-                    print(var.name)
+                    # print(var.name)
                     tf.add_to_collection("l2_losses", tf.reduce_sum(var**2))
             l2_loss = tf.add_n(tf.get_collection("l2_losses"))
             tf.summary.scalar("l2_loss", l2_loss)
@@ -295,7 +295,7 @@ class MyNetwork(object):
                 classif_multi_logit = []
                 logit_attentions = tf.get_collection("logit_attention") #  Get logits for local attention
                 for logit_attention in logit_attentions:
-                    print("attention : {}".format(logit_attention.name))
+                    # print("attention : {}".format(logit_attention.name))
                     logit_i = tf.squeeze(logit_attention - th_logit, [1, 3])
                     gt_geod_d = y_in[:, :, 0]
                     is_pos = tf.cast(gt_geod_d < self.config.obj_geod_th, tf.float32)
@@ -429,7 +429,7 @@ class MyNetwork(object):
 
         """
 
-        print("Initializing...")
+        # print("Initializing...")
         self.sess.run(tf.global_variables_initializer())
         
         # ----------------------------------------
@@ -439,8 +439,7 @@ class MyNetwork(object):
         b_resume = latest_checkpoint is not None
         if b_resume:
             # Restore network
-            print("Restoring from {}...".format(
-                self.res_dir_tr))
+            # print("Restoring from {}...".format(self.res_dir_tr))
             self.saver_cur.restore(
                 self.sess,
                 latest_checkpoint
@@ -461,7 +460,7 @@ class MyNetwork(object):
                     "{best_va_res:e}\n", dump_res)
                 best_va_res_ours_ransac = dump_res["best_va_res"]
         else:
-            print("Starting from scratch...")
+            # print("Starting from scratch...")
             step = 0
             best_va_res = -1
             best_va_res_ours_ransac = -1
@@ -570,8 +569,8 @@ class MyNetwork(object):
             try:
                 res = self.sess.run(fetch, feed_dict=feed_dict)
             except (ValueError, tf.errors.InvalidArgumentError):
-                print("Backward pass had numerical errors. "
-                      "This training batch is skipped!")
+                # print("Backward pass had numerical errors. "
+                #      "This training batch is skipped!")
                 continue
             # Write summary and save current model
             if b_write_summary:
@@ -607,9 +606,7 @@ class MyNetwork(object):
                     self.res_dir_va, self.config, True)
                 # Higher the better
                 if va_res > best_va_res:
-                    print(
-                        "Saving best model with va_res = {}".format(
-                            va_res))
+                    # print("Saving best model with va_res = {}".format(va_res))
                     best_va_res = va_res
                     # Save best validation result
                     with open(self.va_res_file, "w") as ofp:
@@ -620,9 +617,7 @@ class MyNetwork(object):
                         write_meta_graph=False,
                     )
                 if va_res_ours_ransac > best_va_res_ours_ransac:
-                    print(
-                        "Saving best model with va_res_ours_ransac = {}".format(
-                            va_res_ours_ransac))
+                    # print("Saving best model with va_res_ours_ransac = {}".format(va_res_ours_ransac))
                     best_va_res_ours_ransac = va_res_ours_ransac
                     # Save best validation result
                     with open(self.va_res_file_ours_ransac, "w") as ofp:
@@ -638,13 +633,11 @@ class MyNetwork(object):
 
         # Check if model exists
         if not os.path.exists(self.save_file_best + ".index"):
-            print("Model File {} does not exist! Quiting".format(
-                self.save_file_best))
+            # print("Model File {} does not exist! Quiting".format(self.save_file_best))
             exit(1)
 
         # Restore model
-        print("Restoring from {}...".format(
-            self.save_file_best))
+        # print("Restoring from {}...".format(self.save_file_best))
         self.saver_best.restore(
             self.sess,
             self.save_file_best)
@@ -654,7 +647,7 @@ class MyNetwork(object):
         for test_mode in test_mode_list:
             score = self.last_logit
             if self.bool_use_weight_for_score:
-                print("score is from weights!")
+                # print("score is from weights!")
                 score = self.last_weights
             if self.config.weight_opt == "sigmoid_softmax":
                 score = [self.last_logit, self.logit_softmax, self.last_weights] 
