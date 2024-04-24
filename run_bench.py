@@ -4,20 +4,20 @@ import src.miho as miho
 import src.ncc as ncc
 import src.GMS.gms_custom as gms
 import src.OANet.learnedmatcher_custom as oanet
-import src.ACNe.acne_custom as acne
+#import src.ACNe.acne_custom as acne
 import src.bench_utils as bench
 
 # from pprint import pprint
 # import deep_image_matching as dim
 # import yaml
 
-# from src.pipelines.keynetaffnethardnet_module_fabio import keynetaffnethardnet_module_fabio
-# from src.pipelines.keynetaffnethardnet_kornia_matcher_module import keynetaffnethardnet_kornia_matcher_module
-# from src.pipelines.superpoint_lightglue_module import superpoint_lightglue_module
-# from src.pipelines.superpoint_kornia_matcher_module import superpoint_kornia_matcher_module
-# from src.pipelines.disk_lightglue_module import disk_lightglue_module
-# from src.pipelines.aliked_lightglue_module import aliked_lightglue_module
-# from src.pipelines.loftr_module import loftr_module
+#from src.pipelines.keynetaffnethardnet_module_fabio import keynetaffnethardnet_module_fabio
+#from src.DIM_modules.keynetaffnethardnet_kornia_matcher_module import keynetaffnethardnet_kornia_matcher_module
+#from src.DIM_modules.superpoint_lightglue_module import superpoint_lightglue_module
+#from src.DIM_modules.superpoint_kornia_matcher_module import superpoint_kornia_matcher_module
+#from src.DIM_modules.disk_lightglue_module import disk_lightglue_module
+#from src.DIM_modules.aliked_lightglue_module import aliked_lightglue_module
+#from src.DIM_modules.loftr_module import loftr_module
 
 
 if __name__ == '__main__':
@@ -30,17 +30,17 @@ if __name__ == '__main__':
     save_to = os.path.join(bench_path, bench_res, 'res_')
 
     pipes = [
-        # [
-        #    superpoint_lightglue_module(nmax_keypoints=4000),
-        #    # superpoint_kornia_matcher_module(nmax_keypoints=4000, th=0.97),
-        #    # keynetaffnethardnet_kornia_matcher_module(nmax_keypoints=4000, upright=False, th=0.99),
-        #    # disk_lightglue_module(nmax_keypoints=4000),
-        #    # aliked_lightglue_module(nmax_keypoints=4000),
-        #    # loftr_module(pretrained='outdoor'),
-        #    # keynetaffnethardnet_module(upright=False, th=0.99),
-        #    miho_module(),
-        #    pydegensac_module(px_th=3)
-        # ],
+        #[
+        #   superpoint_lightglue_module(nmax_keypoints=4000),
+        #   # superpoint_kornia_matcher_module(nmax_keypoints=4000, th=0.97),
+        #   # keynetaffnethardnet_kornia_matcher_module(nmax_keypoints=4000, upright=False, th=0.99),
+        #   # disk_lightglue_module(nmax_keypoints=4000),
+        #   # aliked_lightglue_module(nmax_keypoints=4000),
+        #   # loftr_module(pretrained='outdoor'),
+        #   # keynetaffnethardnet_module(upright=False, th=0.99),
+        #   miho.miho_module(),
+        #   pipe_base.pydegensac_module(px_th=3)
+        #],
 
         [
             pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
@@ -95,13 +95,13 @@ if __name__ == '__main__':
 
         [
             pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            acne.acne_module(),
+            #acne.acne_module(),
             pipe_base.pydegensac_module(px_th=3)
         ],        
         
         [
             pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            acne.acne_module(),
+            #acne.acne_module(),
             ncc.ncc_module(),
             pipe_base.pydegensac_module(px_th=3)
         ]        
