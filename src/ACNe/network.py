@@ -28,7 +28,7 @@ class MyNetwork(object):
 
         self.config = config
 
-        # Initialize thenosrflow session
+        # Initialize thensorflow session
         self._init_tensorflow()
 
         # Build the network

@@ -113,8 +113,8 @@ class acne_module:
             # Model of ACNe_F trained with indoor dataset.                      
              model_path = "logs/main.py---gcn_opt=reweight_vanilla_sigmoid_softmax---bn_opt=gn---weight_opt=sigmoid_softmax---loss_multi_logit=1---use_fundamental=2---data_name=oan_indoor/models-best"        
              
-        cne_dir = os.path.split(__file__)[0]
-        self.model_path = os.path.join(cne_dir, model_path)
+        acne_dir = os.path.split(__file__)[0]
+        self.model_path = os.path.join(acne_dir, model_path)
                            
         warnings.filterwarnings('ignore')
         config, unparsed = get_config()

@@ -11,13 +11,12 @@ import src.bench_utils as bench
 # import deep_image_matching as dim
 # import yaml
 
-# from src.pipelines.keynetaffnethardnet_module_fabio import keynetaffnethardnet_module_fabio
-# from src.pipelines.keynetaffnethardnet_kornia_matcher_module import keynetaffnethardnet_kornia_matcher_module
-# from src.pipelines.superpoint_lightglue_module import superpoint_lightglue_module
-# from src.pipelines.superpoint_kornia_matcher_module import superpoint_kornia_matcher_module
-# from src.pipelines.disk_lightglue_module import disk_lightglue_module
-# from src.pipelines.aliked_lightglue_module import aliked_lightglue_module
-# from src.pipelines.loftr_module import loftr_module
+# from src.DIM_modules.keynetaffnethardnet_kornia_matcher_module import keynetaffnethardnet_kornia_matcher_module
+# from src.DIM_modules.superpoint_lightglue_module import superpoint_lightglue_module
+# from src.DIM_modules.superpoint_kornia_matcher_module import superpoint_kornia_matcher_module
+# from src.DIM_modules.disk_lightglue_module import disk_lightglue_module
+# from src.DIM_modules.aliked_lightglue_module import aliked_lightglue_module
+# from src.DIM_modules.loftr_module import loftr_module
 
 
 if __name__ == '__main__':
@@ -29,6 +28,8 @@ if __name__ == '__main__':
     bench_res = 'res'
     save_to = os.path.join(bench_path, bench_res, 'res_')
 
+    # current deep pipelines are for outdoor !!!
+    acne_unique_module = acne.acne_module()
     pipes = [
         # [
         #    superpoint_lightglue_module(nmax_keypoints=4000),
@@ -38,8 +39,8 @@ if __name__ == '__main__':
         #    # aliked_lightglue_module(nmax_keypoints=4000),
         #    # loftr_module(pretrained='outdoor'),
         #    # keynetaffnethardnet_module(upright=False, th=0.99),
-        #    miho_module(),
-        #    pydegensac_module(px_th=3)
+        #    miho.miho_module(),
+        #    pipe_base.pydegensac_module(px_th=3)
         # ],
 
         [
@@ -95,13 +96,13 @@ if __name__ == '__main__':
 
         [
             pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            acne.acne_module(),
+            acne_unique_module,
             pipe_base.pydegensac_module(px_th=3)
         ],        
         
         [
             pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            acne.acne_module(),
+            acne_unique_module,
             ncc.ncc_module(),
             pipe_base.pydegensac_module(px_th=3)
         ]        
@@ -113,7 +114,9 @@ if __name__ == '__main__':
     for i, pipe in enumerate(pipes):
         print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")
         bench.run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
-        bench.run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
-
         bench.eval_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2', use_scale=True)
+
+    for i, pipe in enumerate(pipes):
+        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")
+        bench.run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
         bench.eval_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2', use_scale=False)
