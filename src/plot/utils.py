@@ -1,4 +1,4 @@
-# this module is from https://github.com/cvg/LightGlue
+# module from https://github.com/cvg/LightGlue
 
 import collections.abc as collections
 from pathlib import Path
