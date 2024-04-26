@@ -14,6 +14,11 @@ import src.ncc as ncc
 import src.plot.viz2d as viz
 import src.plot.utils as viz_utils
 
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+pipe_color = ['red', 'blue', 'lime', 'fuchsia', 'yellow']
+
+
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -441,19 +446,27 @@ def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data
             if os.path.isfile(pipe_img_save):
                 continue
             
-            is_refinement = np.asarray(is_refinement)
-            
-            # for j in range(len(pair_data)-1,0,-1):
-            #     if is_refinement[j]:
-            #         mask_prev = mask_prev + 1
-            #     else:
-            #         mask = pair_data[j][-1]
-            #         mask[mask] = mask[mask] + mask_prev
-            #         mask_prev = mask
-                            
             img1 = viz_utils.load_image(im1)
             img2 = viz_utils.load_image(im2)
-            fig, axes = viz.plot_images([img1, img2])    
-            viz.plot_matches(pair_data[0][0], pair_data[0][1], color="lime", lw=0.2, axes=axes)
+            fig, axes = viz.plot_images([img1, img2])              
+            
+            pt1 = pair_data[0][0]
+            pt2 = pair_data[0][1]
+            l = pt1.shape[0]
+            
+            idx = torch.arange(l, device=device)                            
+            clr = 0
+            for j in range(1, len(pair_data)):
+                if not is_refinement[j]:
+                    mask = pair_data[j][-1]
+                    mpt1 = pt1[idx[~mask]]
+                    mpt2 = pt2[idx[~mask]]
+                    viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes)
+                    clr = clr + 1
+                    idx = idx[mask]
+            mpt1 = pt1[idx]
+            mpt2 = pt2[idx]
+            viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes)            
+
             viz.save_plot(pipe_img_save)
             viz.close_plot(fig)
