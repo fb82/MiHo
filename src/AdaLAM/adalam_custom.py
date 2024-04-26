@@ -114,6 +114,6 @@ class adalam_module:
             pt2 = args[1][mask]     
             Hs = args[4][mask]
         else:            
-            mask = None
+            mask = []
             
         return pt1, pt2, Hs, mask

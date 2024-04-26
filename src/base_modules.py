@@ -52,13 +52,14 @@ class pydegensac_module:
         self.px_th = 3
         self.conf = 0.9999
         self.max_iters = 100000
+        self.mode = 'fundamental_matrix'
               
         for k, v in args.items():
            setattr(self, k, v)
        
         
     def get_id(self):
-        return ('pydegensac_th_' + str(self.px_th) + '_conf_' + str(self.conf) + '_max_iters_' + str(self.max_iters)).lower()
+        return ('pydegensac_' + self.mode + '_th_' + str(self.px_th) + '_conf_' + str(self.conf) + '_max_iters_' + str(self.max_iters)).lower()
 
     
     def eval_args(self):
@@ -77,15 +78,23 @@ class pydegensac_module:
         if torch.is_tensor(pt1):
             pt1 = pt1.detach().cpu()
             pt2 = pt1.detach().cpu()
+
+        F = None
+        mask = []
             
-        if (np.ascontiguousarray(pt1).shape)[0] > 7:                        
-            F, mask = pydegensac.findFundamentalMatrix(np.ascontiguousarray(pt1), np.ascontiguousarray(pt2), px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
-    
+        if self.mode == 'fundamental_matrix':           
+            if (np.ascontiguousarray(pt1).shape)[0] > 7:                        
+                F, mask = pydegensac.findFundamentalMatrix(np.ascontiguousarray(pt1), np.ascontiguousarray(pt2), px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
+        
             pt1 = args[0][mask]
             pt2 = args[1][mask]     
             Hs = args[2][mask]
-        else:            
-            F = None
-            mask = None
+        else:
+            if (np.ascontiguousarray(pt1).shape)[0] > 4:                        
+                F, mask = pydegensac.findHomography(np.ascontiguousarray(pt1), np.ascontiguousarray(pt2), px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
+                
+            pt1 = args[0][mask]
+            pt2 = args[1][mask]     
+            Hs = args[2][mask]            
             
         return pt1, pt2, Hs, F, mask
