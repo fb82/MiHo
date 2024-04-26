@@ -28,8 +28,6 @@ if __name__ == '__main__':
     bench_res = 'res'
     save_to = os.path.join(bench_path, bench_res, 'res_')
 
-    # current deep pipelines are for outdoor !!!
-    acne_unique_module = acne.acne_module()
     pipes = [
         # [
         #    superpoint_lightglue_module(nmax_keypoints=4000),
@@ -96,13 +94,13 @@ if __name__ == '__main__':
 
         [
             pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            acne_unique_module,
+            acne.acne_module(),
             pipe_base.pydegensac_module(px_th=3)
         ],        
         
         [
             pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            acne_unique_module,
+            acne.acne_module(),
             ncc.ncc_module(),
             pipe_base.pydegensac_module(px_th=3)
         ]        

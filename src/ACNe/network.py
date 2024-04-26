@@ -371,17 +371,23 @@ class MyNetwork(object):
         """Build the writers and savers"""
 
         # Create suffix automatically if not provided
-        suffix_tr = self.config.log_dir
-        if suffix_tr == "":
-            suffix_tr = "-".join(sys.argv)
-        suffix_te = self.config.test_log_dir
-        if suffix_te == "":
-            suffix_te = suffix_tr
+        # suffix_tr = self.config.log_dir
+        # if suffix_tr == "":
+        #     suffix_tr = "-".join(sys.argv)
+        # suffix_te = self.config.test_log_dir
+        # if suffix_te == "":
+        #     suffix_te = suffix_tr
+
+        ppath = os.path.join(os.path.split(__file__)[0], 'logs')
 
         # Directories for train/test
-        self.res_dir_tr = os.path.join(self.config.res_dir, suffix_tr)[:-3]
-        self.res_dir_va = os.path.join(self.config.res_dir, suffix_te)[:-3]
-        self.res_dir_te = os.path.join(self.config.res_dir, suffix_te)[:-3]
+        # self.res_dir_tr = os.path.join(self.config.res_dir, suffix_tr)[:-3]
+        # self.res_dir_va = os.path.join(self.config.res_dir, suffix_te)[:-3]
+        # self.res_dir_te = os.path.join(self.config.res_dir, suffix_te)[:-3]
+
+        self.res_dir_tr = ppath
+        self.res_dir_va = ppath
+        self.res_dir_te = ppath
 
         # Create summary writers
         if self.config.run_mode == "train":

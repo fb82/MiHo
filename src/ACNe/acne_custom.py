@@ -1,5 +1,6 @@
 import os
 
+import uuid
 import numpy as np
 import warnings
 from PIL import Image
@@ -9,6 +10,9 @@ from .demo_util import get_T_from_K, norm_points_with_T
 from .utils import norm_points
 from .network import MyNetwork
 from .config import get_config
+
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 
 
 def prepare_xs(xs, K1, K2, use_fundamental=0):
@@ -92,6 +96,9 @@ class NetworkTest(MyNetwork):
         
 
 class acne_module:
+    current_net = None
+    current_obj_id = None
+    
     def __init__(self, **args):
 
         acne_dir = os.path.split(__file__)[0]
@@ -112,37 +119,12 @@ class acne_module:
         else:
             # Model of ACNe_F trained with indoor dataset.                      
              model_path = "logs/main.py---gcn_opt=reweight_vanilla_sigmoid_softmax---bn_opt=gn---weight_opt=sigmoid_softmax---loss_multi_logit=1---use_fundamental=2---data_name=oan_indoor/models-best"        
+
+        self.acne_id = uuid.uuid4()
              
         acne_dir = os.path.split(__file__)[0]
         self.model_path = os.path.join(acne_dir, model_path)
                            
-        warnings.filterwarnings('ignore')
-        config, unparsed = get_config()
-    
-        paras = {
-            "CNe_E":{
-                "bn_opt":"bn"},
-            "ACNe_E":{
-                "gcn_opt":"reweight_vanilla_sigmoid_softmax",  "bn_opt":"gn",
-                "weight_opt":"sigmoid_softmax"},
-            "CNe_F":{
-                "bn_opt":"bn", "use_fundamental":2},
-            "ACNe_F":{
-                "gcn_opt":"reweight_vanilla_sigmoid_softmax",  "bn_opt":"gn",
-                "weight_opt":"sigmoid_softmax", "use_fundamental":2},
-        }
-    
-        para = paras["ACNe_F"]
-
-        for ki, vi in para.items():
-           setattr(config, ki, vi)
-           
-        self.use_fundamental = config.use_fundamental # E:0, F:2.
-    
-        # Instantiate wrapper class
-        self.net = NetworkTest(config, self.model_path)	
-           
-               
     def get_id(self):
         return ('acne_outdoor_' + str(self.outdoor)).lower()
 
@@ -156,6 +138,39 @@ class acne_module:
     
     
     def run(self, *args):  
+        if (acne_module.current_obj_id != self.acne_id):
+            if not (acne_module.current_obj_id is None):
+                acne_module.current_net.sess.close()
+                tf.reset_default_graph()
+
+            warnings.filterwarnings('ignore')
+            config, unparsed = get_config()
+        
+            paras = {
+                "CNe_E":{
+                    "bn_opt":"bn"},
+                "ACNe_E":{
+                    "gcn_opt":"reweight_vanilla_sigmoid_softmax",  "bn_opt":"gn",
+                    "weight_opt":"sigmoid_softmax"},
+                "CNe_F":{
+                    "bn_opt":"bn", "use_fundamental":2},
+                "ACNe_F":{
+                    "gcn_opt":"reweight_vanilla_sigmoid_softmax",  "bn_opt":"gn",
+                    "weight_opt":"sigmoid_softmax", "use_fundamental":2},
+            }
+        
+            para = paras["ACNe_F"]
+    
+            for ki, vi in para.items():
+               setattr(config, ki, vi)
+               
+            self.use_fundamental = config.use_fundamental # E:0, F:2.
+        
+            # Instantiate wrapper class
+            self.net = NetworkTest(config, self.model_path)
+            acne_module.current_net = self.net
+            acne_module.current_obj_id = self.acne_id
+            
         pt1 = np.ascontiguousarray(args[0].detach().cpu())
         pt2 = np.ascontiguousarray(args[1].detach().cpu())
 
