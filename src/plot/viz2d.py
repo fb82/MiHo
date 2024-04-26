@@ -1,4 +1,4 @@
-# this module is from https://github.com/cvg/LightGlue
+# module from https://github.com/cvg/LightGlue
 
 """
 image0 = load_image(images / "DSC_0411.JPG")
