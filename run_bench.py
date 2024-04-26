@@ -43,34 +43,34 @@ if __name__ == '__main__':
         #    pipe_base.pydegensac_module(px_th=3)
         # ],
 
-        # # pydegensac alternatives: magsac, poselib
-        # [
-        #     pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #     miho.miho_module(),
-        #     pipe_base.pydegensac_module(px_th=3)
-        # ],
+        # available RANSAC: pydegensac, magsac, poselib
+        [
+            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+            miho.miho_module(),
+            pipe_base.pydegensac_module(px_th=3)
+        ],
 
-        # [
-        #     pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #     pipe_base.pydegensac_module(px_th=3)
-        # ],
+        [
+            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+            pipe_base.pydegensac_module(px_th=3)
+        ],
 
-        # [
-        #     pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #     miho.miho_module(),
-        #     pipe_base.pydegensac_module(px_th=3)
-        # ],
+        [
+            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+            miho.miho_module(),
+            pipe_base.pydegensac_module(px_th=3)
+        ],
 
-        # [
-        #     pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #     pipe_base.pydegensac_module(px_th=3)
-        # ],
+        [
+            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+            pipe_base.pydegensac_module(px_th=3)
+        ],
 
-        # [
-        #     pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #     ncc.ncc_module(),
-        #     pipe_base.pydegensac_module(px_th=3)
-        # ],
+        [
+            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+            ncc.ncc_module(),
+            pipe_base.pydegensac_module(px_th=3)
+        ],
 
         [
             pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
@@ -136,13 +136,13 @@ if __name__ == '__main__':
     megadepth_data, scannet_data = bench.setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
 
     for i, pipe in enumerate(pipes):
-        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")
+        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
         bench.run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
         bench.eval_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2', use_scale=True)
-        # bench.show_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)
+        bench.show_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)
 
     for i, pipe in enumerate(pipes):
         print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")
         bench.run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
         bench.eval_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2', use_scale=False)
-        # bench.show_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)
+        bench.show_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)
