@@ -28,14 +28,14 @@ class keynetaffnethardnet_module:
 
 
     def eval_out(self):
-        return "pt1, pt2, kps1, kps2, Hs = out_data"               
+        return "pt1, pt2, kps1, kps2, Hs, val = out_data"               
 
 
     def run(self, *args):    
         with torch.inference_mode():
             kps1, _ , descs1 = self.detector(K.io.load_image(args[0], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
             kps2, _ , descs2 = self.detector(K.io.load_image(args[1], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
-            dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), self.th)        
+            val, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), self.th)        
         
         pt1 = None
         pt2 = None
@@ -44,7 +44,7 @@ class keynetaffnethardnet_module:
         
         pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)    
     
-        return pt1, pt2, kps1, kps2, Hs_laf
+        return pt1, pt2, kps1, kps2, Hs_laf, val
 
 
 class pydegensac_module:

@@ -5,6 +5,7 @@ import src.ncc as ncc
 import src.GMS.gms_custom as gms
 import src.OANet.learnedmatcher_custom as oanet
 import src.ACNe.acne_custom as acne
+import src.AdaLAM.adalam_custom as adalam
 import src.bench_utils as bench
 
 # from pprint import pprint
@@ -91,7 +92,6 @@ if __name__ == '__main__':
             pipe_base.pydegensac_module(px_th=3)
         ],
 
-
         [
             pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
             acne.acne_module(),
@@ -103,7 +103,20 @@ if __name__ == '__main__':
             acne.acne_module(),
             ncc.ncc_module(),
             pipe_base.pydegensac_module(px_th=3)
-        ]        
+        ],
+        
+        [
+            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+            adalam.adalam_module(),
+            pipe_base.pydegensac_module(px_th=3)
+        ],        
+       
+        [
+            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+            adalam.adalam_module(),
+            ncc.ncc_module(),
+            pipe_base.pydegensac_module(px_th=3)
+        ]            
     ]
                
     megadepth_data, scannet_data, data_file = bench.bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
