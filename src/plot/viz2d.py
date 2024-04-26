@@ -127,6 +127,8 @@ def plot_images(imgs, titles=None, cmaps="gray", dpi=100, pad=0.5, adaptive=True
         if titles:
             ax[i].set_title(titles[i])
     fig.tight_layout(pad=pad)
+    
+    return fig, ax
 
 
 def plot_keypoints(kpts, colors="lime", ps=4, axes=None, a=1.0):
@@ -230,3 +232,7 @@ def add_text(
 def save_plot(path, **kw):
     """Save the current figure without any white margin."""
     plt.savefig(path, bbox_inches="tight", pad_inches=0, **kw)
+
+
+def close_plot(fig):
+    plt.close(fig)

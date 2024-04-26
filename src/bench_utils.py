@@ -9,6 +9,10 @@ import os
 import warnings
 import _pickle as cPickle
 import bz2
+import src.ncc as ncc
+
+import src.plot.viz2d as viz
+import src.plot.utils as viz_utils
 
 from rich.progress import (
     BarColumn,
@@ -408,3 +412,48 @@ def download_megadepth_scannet_data(bench_path ='bench_data'):
             tar_ref.extractall(bench_path)
     
     return
+
+
+def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='plot', force=False):
+
+    n = len(dataset_data['im1'])
+    im_path = os.path.join(bench_im, dataset_name)        
+    with progress_bar(bar_name + ' - pipeline completion') as p:
+        for i in p.track(range(n)):
+            im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + '.png'
+            im2 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im2'][i])[0]) + '.png'
+                        
+            pair_data = []
+            is_refinement = []
+            
+            pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
+            pipe_img_save = os.path.join(bench_path, bench_plot, dataset_name)
+            for pipe_module in pipe:
+                is_refinement.append(isinstance(pipe_module,ncc.ncc_module))
+                pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
+                pipe_img_save = os.path.join(pipe_img_save, pipe_module.get_id())
+
+                pipe_f = os.path.join(pipe_name_base, 'base', str(i) + '.pbz2')            
+                pair_data.append(decompress_pickle(pipe_f))
+            
+            os.makedirs(pipe_img_save, exist_ok=True)
+            pipe_img_save = os.path.join(pipe_img_save, str(i) + '.png')
+            if os.path.isfile(pipe_img_save):
+                continue
+            
+            is_refinement = np.asarray(is_refinement)
+            
+            # for j in range(len(pair_data)-1,0,-1):
+            #     if is_refinement[j]:
+            #         mask_prev = mask_prev + 1
+            #     else:
+            #         mask = pair_data[j][-1]
+            #         mask[mask] = mask[mask] + mask_prev
+            #         mask_prev = mask
+                            
+            img1 = viz_utils.load_image(im1)
+            img2 = viz_utils.load_image(im2)
+            fig, axes = viz.plot_images([img1, img2])    
+            viz.plot_matches(pair_data[0][0], pair_data[0][1], color="lime", lw=0.2, axes=axes)
+            viz.save_plot(pipe_img_save)
+            viz.close_plot(fig)
