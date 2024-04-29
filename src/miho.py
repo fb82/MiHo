@@ -529,6 +529,7 @@ def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=50
             if (c + par_run > Nc) and (c + par_run > min_iter):
                 break
             else:
+                c += par_run
                 continue
                 
         nidx_par = get_inlier_duplex(H12, pt1, pt2, ptm, sidx_par, th)                        
