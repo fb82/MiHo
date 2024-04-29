@@ -119,7 +119,7 @@ if __name__ == '__main__':
         ],
         
         [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.9),
+            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
             adalam.adalam_module(),
             pipe_base.pydegensac_module(px_th=3)
         ],        
