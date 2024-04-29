@@ -34,34 +34,26 @@ class oanet_module:
     def get_id(self):
         return ('oanet').lower()
 
-    
-    def eval_args(self):
-        return "pipe_module.run(pt1, pt2, Hs)"
 
-        
-    def eval_out(self):
-        return "pt1, pt2, Hs, mask = out_data"
-    
-    
-    def run(self, *args):  
-        pt1 = np.ascontiguousarray(args[0].detach().cpu())
-        pt2 = np.ascontiguousarray(args[1].detach().cpu())
+    def run(self, **args):  
+        pt1 = np.ascontiguousarray(args['pt1'].detach().cpu())
+        pt2 = np.ascontiguousarray(args['pt2'].detach().cpu())
                 
         l = pt1.shape[0]
         
         if l > 0:                
             _, _, _, _, mask = self.lm.infer(pt1, pt2)
                     
-            pt1 = args[0][mask]
-            pt2 = args[1][mask]            
-            Hs = args[2][mask]            
+            pt1 = args['pt1'][mask]
+            pt2 = args['pt2'][mask]            
+            Hs = args['Hs'][mask]            
         else:
-            pt1 = args[0]
-            pt2 = args[1]           
-            Hs = args[2]   
+            pt1 = args['pt1']
+            pt2 = args['pt2']           
+            Hs = args['Hs']   
             mask = []
                         
-        return pt1, pt2, Hs, mask
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs, 'mask': mask}
 
 
 class LearnedMatcher(object):
@@ -138,4 +130,5 @@ class LearnedMatcher(object):
             y_ = y[inlier_idx[0]]              
         corr0 = kp1[matches[:, 0]]
         corr1 = kp2[matches[:, 1]]
+        
         return matches, corr0, corr1, y_, mask

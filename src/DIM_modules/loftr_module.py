@@ -79,30 +79,22 @@ class loftr_module:
     def get_id(self):
         return ('loftr').lower()
 
-    def eval_args(self):
-        return "pipe_module.run(im1, im2)"
 
-    def eval_out(self):
-        return "pt1, pt2, kps1, kps2, Hs = out_data"               
-
-    def run(self, *args):
+    def run(self, **args):
         with torch.inference_mode():
-            image0 = load_image_np(Path(args[0]))
-            image1 = load_image_np(Path(args[1]))
+            image0 = load_image_np(Path(args['im1']))
+            image1 = load_image_np(Path(args['im2']))
             # image0_ = resize_image(Quality.MEDIUM, image0)
             # image1_ = resize_image(Quality.MEDIUM, image1)
             timg0_ = frame2tensor(image0, device)
             timg1_ = frame2tensor(image1, device)
             input_dict = {"image0": timg0_, "image1": timg1_}
             correspondences = self.matcher(input_dict)
-            print(correspondences);quit()             
         
-        pt1 = None
-        pt2 = None
-        kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
-        kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
+        kps1 = correspondences["keypoints0"].squeeze().detach().to(device)
+        kps2 = correspondences["keypoints1"].squeeze().detach().to(device)
 
-        pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)
+        pt1, pt2, Hs_laf = refinement_laf(None, None, pt1=kps1, pt2=kps2, img_patches=False)
         # pt1, pt2, Hs_laf = refinement_laf(None, None, pt1=kps1, pt2=kps2, img_patches=False) # No refinement LAF!!!
 
-        return pt1, pt2, kps1, kps2, Hs_laf
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_laf}

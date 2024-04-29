@@ -25,18 +25,10 @@ class keynetaffnethardnet_module:
         return ('keynetaffnethardnet_upright_' + str(self.upright) + '_th_' + str(self.th)).lower()
 
     
-    def eval_args(self):
-        return "pipe_module.run(im1, im2)"
-
-
-    def eval_out(self):
-        return "pt1, pt2, kps1, kps2, Hs, val = out_data"               
-
-
-    def run(self, *args):    
+    def run(self, **args):    
         with torch.inference_mode():
-            kps1, _ , descs1 = self.detector(K.io.load_image(args[0], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
-            kps2, _ , descs2 = self.detector(K.io.load_image(args[1], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+            kps1, _ , descs1 = self.detector(K.io.load_image(args['im1'], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+            kps2, _ , descs2 = self.detector(K.io.load_image(args['im2'], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
             val, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), self.th)        
         
         pt1 = None
@@ -46,7 +38,7 @@ class keynetaffnethardnet_module:
         
         pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)    
     
-        return pt1, pt2, kps1, kps2, Hs_laf, val
+        return {'pt1': pt1, 'pt2': pt2, 'kp1': kps1, 'kp2': kps2, 'Hs': Hs_laf, 'val': val}
 
 
 class pydegensac_module:
@@ -63,19 +55,11 @@ class pydegensac_module:
     def get_id(self):
         return ('pydegensac_' + self.mode + '_th_' + str(self.px_th) + '_conf_' + str(self.conf) + '_max_iters_' + str(self.max_iters)).lower()
 
-    
-    def eval_args(self):
-        return "pipe_module.run(pt1, pt2, Hs)"
-
         
-    def eval_out(self):
-        return "pt1, pt2, Hs, F, mask = out_data"
-    
-    
-    def run(self, *args):  
-        pt1 = args[0]
-        pt2 = args[1]
-        Hs = args[2]
+    def run(self, **args):  
+        pt1 = args['pt1']
+        pt2 = args['pt2']
+        Hs = args['Hs']
         
         if torch.is_tensor(pt1):
             pt1 = np.ascontiguousarray(pt1.detach().cpu())
@@ -88,18 +72,18 @@ class pydegensac_module:
             if (pt1.shape)[0] > 7:                        
                 F, mask = pydegensac.findFundamentalMatrix(pt1, pt2, px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
         
-            pt1 = args[0][mask]
-            pt2 = args[1][mask]     
-            Hs = args[2][mask]
+            pt1 = args['pt1'][mask]
+            pt2 = args['pt2'][mask]     
+            Hs = args['Hs'][mask]
         else:
             if (pt1.shape)[0] > 3:                        
                 F, mask = pydegensac.findHomography(pt1, pt2, px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
                 
-            pt1 = args[0][mask]
-            pt2 = args[1][mask]     
-            Hs = args[2][mask]            
+            pt1 = args['pt1'][mask]
+            pt2 = args['pt2'][mask]     
+            Hs = args['Hs'][mask]            
             
-        return pt1, pt2, Hs, F, mask
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs, 'F': F, 'mask': mask}
 
 
 class magsac_module:
@@ -116,19 +100,11 @@ class magsac_module:
     def get_id(self):
         return ('opencv_magsac_' + self.mode + '_th_' + str(self.px_th) + '_conf_' + str(self.conf) + '_max_iters_' + str(self.max_iters)).lower()
 
-    
-    def eval_args(self):
-        return "pipe_module.run(pt1, pt2, Hs)"
-
         
-    def eval_out(self):
-        return "pt1, pt2, Hs, F, mask = out_data"
-    
-    
-    def run(self, *args):  
-        pt1 = args[0]
-        pt2 = args[1]
-        Hs = args[2]
+    def run(self, **args):  
+        pt1 = args['pt1']
+        pt2 = args['pt2']
+        Hs = args['Hs']
         
         if torch.is_tensor(pt1):
             pt1 = np.ascontiguousarray(pt1.detach().cpu())
@@ -143,20 +119,20 @@ class magsac_module:
                 
             mask = mask.squeeze(1) > 0
         
-            pt1 = args[0][mask]
-            pt2 = args[1][mask]     
-            Hs = args[2][mask]
+            pt1 = args['pt1'][mask]
+            pt2 = args['pt2'][mask]     
+            Hs = args['Hs'][mask]
         else:
             if (pt1.shape)[0] > 3:                        
                 F, mask = cv2.findHomography(pt1, pt2, cv2.USAC_MAGSAC, self.px_th, self.conf, self.max_iters)
 
             mask = mask.squeeze(1) > 0
                 
-            pt1 = args[0][mask]
-            pt2 = args[1][mask]     
-            Hs = args[2][mask]            
+            pt1 = args['pt1'][mask]
+            pt2 = args['pt2'][mask]     
+            Hs = args['Hs'][mask]            
             
-        return pt1, pt2, Hs, F, mask
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs, 'F': F, 'mask': mask}
 
 
 class poselib_module:
@@ -174,19 +150,11 @@ class poselib_module:
     def get_id(self):
         return ('poselib_' + self.mode + '_th_' + str(self.px_th) + '_conf_' + str(self.conf) + '_max_iters_' + str(self.max_iters) + '_min_iters_' + str(self.max_iters)).lower()
 
-    
-    def eval_args(self):
-        return "pipe_module.run(pt1, pt2, Hs)"
-
         
-    def eval_out(self):
-        return "pt1, pt2, Hs, F, mask = out_data"
-    
-    
-    def run(self, *args):  
-        pt1 = args[0]
-        pt2 = args[1]
-        Hs = args[2]
+    def run(self, **args):  
+        pt1 = args['pt1']
+        pt2 = args['pt2']
+        Hs = args['Hs']
         
         if torch.is_tensor(pt1):
             pt1 = np.ascontiguousarray(pt1.detach().cpu())
@@ -208,9 +176,9 @@ class poselib_module:
                 F, info = poselib.estimate_fundamental(pt1, pt2, params, {})
                 mask = info['inliers']
 
-            pt1 = args[0][mask]
-            pt2 = args[1][mask]     
-            Hs = args[2][mask]
+            pt1 = args['pt1'][mask]
+            pt2 = args['pt2'][mask]     
+            Hs = args['Hs'][mask]
         else:
             if (pt1.shape)[0] > 3:                        
                 F, info = poselib.estimate_homography(pt1, pt2, params, {})
@@ -218,8 +186,8 @@ class poselib_module:
 
             mask = mask.squeeze(1) > 0
                 
-            pt1 = args[0][mask]
-            pt2 = args[1][mask]     
-            Hs = args[2][mask]            
+            pt1 = args['pt1'][mask]
+            pt2 = args['pt2'][mask]     
+            Hs = args['Hs'][mask]            
             
-        return pt1, pt2, Hs, F, mask
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs, 'F': F, 'mask': mask}

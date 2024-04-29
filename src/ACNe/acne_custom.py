@@ -128,16 +128,8 @@ class acne_module:
     def get_id(self):
         return ('acne_outdoor_' + str(self.outdoor)).lower()
 
-    
-    def eval_args(self):
-        return "pipe_module.run(pt1, pt2, im1, im2, Hs)"
-
         
-    def eval_out(self):
-        return "pt1, pt2, Hs, mask = out_data"
-    
-    
-    def run(self, *args):  
+    def run(self, **args):  
         if (acne_module.current_obj_id != self.acne_id):
             if not (acne_module.current_obj_id is None):
                 acne_module.current_net.sess.close()
@@ -171,11 +163,11 @@ class acne_module:
             acne_module.current_net = self.net
             acne_module.current_obj_id = self.acne_id
             
-        pt1 = np.ascontiguousarray(args[0].detach().cpu())
-        pt2 = np.ascontiguousarray(args[1].detach().cpu())
+        pt1 = np.ascontiguousarray(args['pt1'].detach().cpu())
+        pt2 = np.ascontiguousarray(args['pt2'].detach().cpu())
 
-        sz1 = Image.open(args[2]).size
-        sz2 = Image.open(args[3]).size        
+        sz1 = Image.open(args['im1']).size
+        sz2 = Image.open(args['im2']).size        
                 
         l = pt1.shape[0]
         
@@ -204,13 +196,13 @@ class acne_module:
         
             mask = w_com > 1e-5
         
-            pt1 = args[0][mask]
-            pt2 = args[1][mask]            
-            Hs = args[4][mask]            
+            pt1 = args['pt1'][mask]
+            pt2 = args['pt2'][mask]            
+            Hs = args['Hs'][mask]            
         else:
-            pt1 = args[0]
-            pt2 = args[1]           
-            Hs = args[4]   
+            pt1 = args['pt1']
+            pt2 = args['pt2']           
+            Hs = args['Hs']   
             mask = []
             
-        return pt1, pt2, Hs, mask
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs, 'mask': mask}

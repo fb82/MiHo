@@ -1168,18 +1168,10 @@ class miho_module:
     def get_id(self):
         return ('miho_default').lower()
 
-    
-    def eval_args(self):
-        return "pipe_module.run(pt1, pt2, Hs)"
 
-
-    def eval_out(self):
-        return "pt1, pt2, Hs, inliers = out_data"               
-
-
-    def run(self, *args):
-        self.miho.planar_clustering(args[0], args[1])
+    def run(self, **args):
+        self.miho.planar_clustering(args['pt1'], args['pt2'])
         
-        pt1, pt2, Hs_miho, inliers = refinement_miho(None, None, args[0], args[1], self.miho, args[2], remove_bad=True, img_patches=False)        
+        pt1, pt2, Hs_miho, inliers = refinement_miho(None, None, args['pt1'], args['pt2'], self.miho, args['Hs'], remove_bad=True, img_patches=False)        
             
-        return pt1, pt2, Hs_miho, inliers
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_miho, 'mask': inliers}

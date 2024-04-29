@@ -119,7 +119,7 @@ if __name__ == '__main__':
         ],
         
         [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+            pipe_base.keynetaffnethardnet_module(upright=False, th=0.9),
             adalam.adalam_module(),
             pipe_base.pydegensac_module(px_th=3)
         ],        
@@ -131,7 +131,7 @@ if __name__ == '__main__':
             pipe_base.pydegensac_module(px_th=3)
         ]            
     ]
-               
+
     megadepth_data, scannet_data, data_file = bench.bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
     megadepth_data, scannet_data = bench.setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
 

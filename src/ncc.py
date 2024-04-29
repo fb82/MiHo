@@ -424,21 +424,13 @@ class ncc_module:
         return ('nnc_subpix_' + str(self.subpix) + '_w_' + str(self.w) + '_w_big_' + str(self.w_big) + '_ref_images_' + str(self.ref_images) + '_scales_' +  str(len(self.scale)) + '_angles_' + str(len(self.scale))).lower()
 
     
-    def eval_args(self):
-        return "pipe_module.run(pt1, pt2, Hs, im1, im2)"
-
-
-    def eval_out(self):
-        return "pt1, pt2, Hs, val, T = out_data"            
-
-
-    def run(self, *args):
-        im1 = Image.open(args[3])
-        im2 = Image.open(args[4])
+    def run(self, **args):
+        im1 = Image.open(args['im1'])
+        im2 = Image.open(args['im2'])
 
         im1 = self.transform(im1).type(torch.float16).to(device)
         im2 = self.transform(im2).type(torch.float16).to(device)        
         
-        pt1, pt2, Hs_ncc, val, T = refinement_norm_corr_alternate(im1, im2, args[0], args[1], args[2], w=self.w, w_big=self.w_big, ref_image=[self.ref_images], angle=self.angle, scale=self.scale, subpix=self.subpix, img_patches=False)   
+        pt1, pt2, Hs_ncc, val, T = refinement_norm_corr_alternate(im1, im2, args['pt1'], args['pt2'], args['Hs'], w=self.w, w_big=self.w_big, ref_image=[self.ref_images], angle=self.angle, scale=self.scale, subpix=self.subpix, img_patches=False)   
                     
-        return pt1, pt2, Hs_ncc, val, T
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_ncc, 'val': val, 'T': T}

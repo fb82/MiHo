@@ -281,6 +281,7 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
             im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + '.png'
             im2 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im2'][i])[0]) + '.png'
 
+            pipe_data = {'im1': im1, 'im2': im2}
             pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
             for pipe_module in pipe:
                 pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
@@ -289,11 +290,11 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
                 if os.path.isfile(pipe_f) and not force:
                     out_data = decompress_pickle(pipe_f)
                 else:                      
-                    out_data = eval(pipe_module.eval_args())
+                    out_data = pipe_module.run(**pipe_data)
                     os.makedirs(os.path.dirname(pipe_f), exist_ok=True)                 
                     compressed_pickle(pipe_f, out_data)
                     
-                exec(pipe_module.eval_out())
+                for k, v in out_data.items(): pipe_data[k] = v
 
 
 def eval_pipe(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to='res.pbz2', force=False, use_scale=False):
@@ -342,8 +343,8 @@ def eval_pipe(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_dat
                     if os.path.isfile(pipe_f):
                         out_data = decompress_pickle(pipe_f)
     
-                        pts1 = out_data[0]
-                        pts2 = out_data[1]
+                        pts1 = out_data['pt1']
+                        pts2 = out_data['pt2']
                                                 
                         if torch.is_tensor(pts1):
                             pts1 = pts1.detach().cpu().numpy()
@@ -428,13 +429,10 @@ def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data
             im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + '.png'
             im2 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im2'][i])[0]) + '.png'
                         
-            pair_data = []
-            is_refinement = []
-            
+            pair_data = []            
             pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
             pipe_img_save = os.path.join(bench_path, bench_plot, dataset_name)
             for pipe_module in pipe:
-                is_refinement.append(isinstance(pipe_module,ncc.ncc_module))
                 pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
                 pipe_img_save = os.path.join(pipe_img_save, pipe_module.get_id())
 
@@ -443,30 +441,32 @@ def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data
             
             os.makedirs(pipe_img_save, exist_ok=True)
             pipe_img_save = os.path.join(pipe_img_save, str(i) + '.png')
-            if os.path.isfile(pipe_img_save):
+            if os.path.isfile(pipe_img_save) and not force:
                 continue
             
             img1 = viz_utils.load_image(im1)
             img2 = viz_utils.load_image(im2)
             fig, axes = viz.plot_images([img1, img2])              
             
-            pt1 = pair_data[0][0]
-            pt2 = pair_data[0][1]
+            pt1 = pair_data[0]['pt1']
+            pt2 = pair_data[0]['pt2']
             l = pt1.shape[0]
             
             idx = torch.arange(l, device=device)                            
             clr = 0
             for j in range(1, len(pair_data)):
-                if not is_refinement[j]:
-                    mask = pair_data[j][-1]
-                    mpt1 = pt1[idx[~mask]]
-                    mpt2 = pt2[idx[~mask]]
-                    viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes)
+                if 'mask' in pair_data[j].keys():
+                    mask = pair_data[j]['mask']
+                    if isinstance(mask, list): mask = np.asarray(mask, dtype=bool)
+                    if mask.shape[0] > 0:
+                        mpt1 = pt1[idx[~mask]]
+                        mpt2 = pt2[idx[~mask]]
+                        viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes)
+                        idx = idx[mask]
                     clr = clr + 1
-                    idx = idx[mask]
             mpt1 = pt1[idx]
             mpt2 = pt2[idx]
-            viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes)            
+            viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes)
 
             viz.save_plot(pipe_img_save)
             viz.close_plot(fig)

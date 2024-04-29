@@ -330,21 +330,13 @@ class gms_module:
     def get_id(self):
         return ('gms').lower()
 
-    
-    def eval_args(self):
-        return "pipe_module.run(pt1, pt2, im1, im2, Hs)"
-
         
-    def eval_out(self):
-        return "pt1, pt2, Hs, mask = out_data"
-    
-    
-    def run(self, *args):  
-        pt1 = np.ascontiguousarray(args[0].detach().cpu())
-        pt2 = np.ascontiguousarray(args[1].detach().cpu())
+    def run(self, **args):  
+        pt1 = np.ascontiguousarray(args['pt1'].detach().cpu())
+        pt2 = np.ascontiguousarray(args['pt2'].detach().cpu())
 
-        sz1 = Image.open(args[2]).size
-        sz2 = Image.open(args[3]).size        
+        sz1 = Image.open(args['im1']).size
+        sz2 = Image.open(args['im2']).size        
                 
         l = pt1.shape[0]
         
@@ -356,13 +348,13 @@ class gms_module:
             gms = GmsMatcher(kpt1, kpt2, m12)
             _, mask = gms.compute_matches(sz1[1], sz1[0], sz2[1], sz2[0]);
         
-            pt1 = args[0][mask]
-            pt2 = args[1][mask]            
-            Hs = args[4][mask]            
+            pt1 = args['pt1'][mask]
+            pt2 = args['pt2'][mask]            
+            Hs = args['Hs'][mask]            
         else:
-            pt1 = args[0]
-            pt2 = args[1]           
-            Hs = args[4]   
+            pt1 = args['pt1']
+            pt2 = args['pt2']           
+            Hs = args['Hs']   
             mask = []
             
-        return pt1, pt2, Hs, mask
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs, 'mask': mask}

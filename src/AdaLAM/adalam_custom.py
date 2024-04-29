@@ -67,21 +67,15 @@ class adalam_module:
            setattr(self, k, v)
            self.matcher.config[k] = v
         
+        
     def get_id(self):
         return ('adalam_th_' + str(self.th) + '_scale_th_' + str(self.scale_rate_threshold) + '_ori_th_' + str(self.orientation_difference_threshold)).lower()
     
-    def eval_args(self):
-        return "pipe_module.run(pt1, pt2, kps1, kps2, Hs, val, im1, im2)"
 
-        
-    def eval_out(self):
-        return "pt1, pt2, Hs, mask = out_data"
-    
-    
-    def run(self, *args):                     
-        if torch.is_tensor(args[0]):           
-            k1 = np.ascontiguousarray(args[0].detach().cpu())
-            k2 = np.ascontiguousarray(args[1].detach().cpu())
+    def run(self, **args):                     
+        if torch.is_tensor(args['pt1']):           
+            k1 = np.ascontiguousarray(args['pt1'].detach().cpu())
+            k2 = np.ascontiguousarray(args['pt2'].detach().cpu())
             
             o1 = torch.zeros(0)
             o2 = torch.zeros(0)
@@ -90,30 +84,37 @@ class adalam_module:
             self.matcher.config['orientation_difference_threshold'] = None
             self.matcher.config['scale_rate_threshold'] = None            
 
-            if not (args[2] is None):
+            if 'kp1' in args.keys():
                 self.matcher.config['orientation_difference_threshold'] = self.orientation_difference_threshold
                 self.matcher.config['scale_rate_threshold'] = self.scale_rate_threshold                
-                o1 = KF.get_laf_orientation(args[2].unsqueeze(0)).squeeze().detach().cpu()
-                s1 = KF.get_laf_scale(args[2].unsqueeze(0)).squeeze().detach().cpu()
-                o2 = KF.get_laf_orientation(args[3].unsqueeze(0)).squeeze().detach().cpu()
-                s2 = KF.get_laf_scale(args[3].unsqueeze(0)).squeeze().detach().cpu()
+                o1 = KF.get_laf_orientation(args['kp1'].unsqueeze(0)).squeeze().detach().cpu()
+                s1 = KF.get_laf_scale(args['kp1'].unsqueeze(0)).squeeze().detach().cpu()
+                o2 = KF.get_laf_orientation(args['kp2'].unsqueeze(0)).squeeze().detach().cpu()
+                s2 = KF.get_laf_scale(args['kp2'].unsqueeze(0)).squeeze().detach().cpu()
 
-            sz1 = Image.open(args[6]).size
-            sz2 = Image.open(args[7]).size   
+            sz1 = Image.open(args['im1']).size
+            sz2 = Image.open(args['im2']).size
             
-            putative_matches = np.arange(args[0].shape[0], dtype=np.int64)
-            scores = np.ascontiguousarray(args[5].squeeze().detach().cpu())                    
-            mnn = np.zeros(args[0].shape[0], dtype=bool)                    
+            l = args['pt1'].shape[0]            
+            putative_matches = np.arange(l, dtype=np.int64)
+            if 'val' in args.keys():
+                scores = np.ascontiguousarray(args['val'].squeeze().detach().cpu())
+            else:
+                scores = np.zeros(l)
+            mnn = np.zeros(l, dtype=bool)                    
     
             idx = self.matcher.match_and_filter(k1=k1, k2=k2, o1=o1, o2=o2, d1=None, d2=None, s1=s1, s2=s2, im1shape=sz1, im2shape=sz2, putative_matches=putative_matches, scores=scores, mnn=mnn)
 
-            mask = np.zeros(args[0].shape[0], dtype=bool)                    
+            mask = np.zeros(l, dtype=bool)                    
             mask[idx[:,0]] = True
     
-            pt1 = args[0][mask]
-            pt2 = args[1][mask]     
-            Hs = args[4][mask]
+            pt1 = args['pt1'][mask]
+            pt2 = args['pt2'][mask]     
+            Hs = args['Hs'][mask]
         else:            
             mask = []
+            pt1 = args['pt1']
+            pt2 = args['pt2']     
+            Hs = args['Hs']
             
-        return pt1, pt2, Hs, mask
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs, 'mask': mask}

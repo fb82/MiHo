@@ -42,17 +42,12 @@ class disk_lightglue_module:
     def get_id(self):
         return ('disk').lower()
 
-    def eval_args(self):
-        return "pipe_module.run(im1, im2)"
-
-    def eval_out(self):
-        return "pt1, pt2, kps1, kps2, Hs = out_data"               
-
-    def run(self, *args):
+            
+    def run(self, **args):
 
         with torch.inference_mode():
-            image1 = load_image(args[0], self.grayscale, self.as_float)
-            image2 = load_image(args[1], self.grayscale, self.as_float)
+            image1 = load_image(args['im1'], self.grayscale, self.as_float)
+            image2 = load_image(args['im2'], self.grayscale, self.as_float)
             feats1 = self.extractor._extract(image1)
             feats2 = self.extractor._extract(image2)
             matches = self.matcher._match_pairs(feats1, feats2)
@@ -62,4 +57,4 @@ class disk_lightglue_module:
         kps2 = torch.tensor(feats2['keypoints'][matches[:,1],:]).to(device)
         pt1, pt2, Hs_laf = refinement_laf(None, None, pt1=kps1, pt2=kps2, img_patches=False) # No refinement LAF!!!
     
-        return pt1, pt2, kps1, kps2, Hs_laf
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_laf}
