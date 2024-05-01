@@ -207,10 +207,9 @@ def compute_homography_duplex(pt1, pt2, ptm, sidx_par):
 
 
     _, D, V = torch.linalg.svd(A, full_matrices=True)
-    H12 = V[:, -1].reshape(l0*2, 3, 3).permute(0, 2, 1)
+    H12 = V[:, -1].reshape(l0*2, 3, 3)
     H12 = Tm @ H12 @ T12
 
-    # H12 = H12.reshape(2, l0 ,3, 3)
     sv = torch.amax(D[:, -2].reshape(2, l0), dim=0)
     
     return H12, sv
@@ -254,7 +253,7 @@ def compute_homography(pts1, pts2):
 
     try:
         _, D, V = torch.linalg.svd(A, full_matrices=True)
-        H = V[-1, :].reshape(3, 3).T
+        H = V[-1, :].reshape(3, 3)
         H = torch.inverse(T2) @ H @ T1
     except:
         H = None

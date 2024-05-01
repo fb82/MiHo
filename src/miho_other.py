@@ -156,7 +156,7 @@ def compute_homography_unduplex(pt1, pt2, sidx_par):
     A[:, 2*l1:, 5] = p2x
 
     _, D, V = torch.linalg.svd(A, full_matrices=True)
-    H12 = V[:, -1].reshape(l0, 3, 3).permute(0, 2, 1)
+    H12 = V[:, -1].reshape(l0, 3, 3)
     H12 = T2 @ H12 @ T1
 
     sv = D[:, -2]
