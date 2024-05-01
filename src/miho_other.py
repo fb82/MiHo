@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import torch
 import torchvision.transforms as transforms
 import warnings
-from .ncc import refinement_miho
+from .ncc import refinement_miho_other
 
 
 cv2.ocl.setUseOpenCL(False)
@@ -23,7 +23,7 @@ def get_error_unduplex(H, pt1, pt2, sidx_par):
     pt2_ = torch.matmul(H, pt1)
     sign_pt2_ = torch.sign(pt2_[:, 2])
 
-    pt1_ = torch.matmul(torch.inverse(H), pt2)
+    pt1_ = torch.linalg.solve(H, pt2)
     sign_pt1_ = torch.sign(pt1_[:, 2])
 
     idx_aux = torch.arange(l2, device=device)*n + sidx_par[:, 0]
@@ -378,7 +378,7 @@ def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=50
     return H, iidx, oidx, vidx, sidx_
 
 
-def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
+def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=12, min_pt_gap=6,
                 max_fail_count=3, random_seed_init=123, th_grid=15):
     # set to 123 for debugging and profiling
     if random_seed_init is not None:
@@ -458,7 +458,7 @@ def dist2(pt):
     return d
 
 
-def cluster_assign_base(Hdata, pt1, pt2, H1_pre, H2_pre, **dummy_args):
+def cluster_assign_base(Hdata, pt1, pt2, **dummy_args):
     l = len(Hdata)
     n = Hdata[0][1].shape[0]
     
@@ -533,7 +533,7 @@ def cluster_assign(Hdata, pt1, pt2, median_th=5, err_th=15, **dummy_args):
     return err_min_idx
 
 
-def cluster_assign_other(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15, **dummy_args):
+def cluster_assign_other(Hdata, pt1, pt2, err_th_only=15, **dummy_args):
     l = len(Hdata)
     n = pt1.shape[0]
 
@@ -691,7 +691,7 @@ class miho:
                                 'min_iter': 50, 'p' :0.9, 'svd_th': 0.05,
                                 'buffers': 5}
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
-                              'min_plane_pts': 4, 'min_pt_gap': 4,
+                              'min_plane_pts': 12, 'min_pt_gap': 6,
                               'max_fail_count': 3, 'random_seed_init': 123,
                               'th_grid': 15}
 
@@ -748,22 +748,21 @@ class miho:
             warnings.warn("planar_clustering must run before!!!")
 
 
-# class miho_module:
-#     def __init__(self, **args):
-#         self.miho = miho()
+class miho_module:
+    def __init__(self, **args):
+        self.miho = miho()
         
-#         for k, v in args.items():
-#             setattr(self, k, v)
+        for k, v in args.items():
+            setattr(self, k, v)
         
         
-#     def get_id(self):
-#         return ('miho_default_duplex' + str(self.duplex)).lower()
+    def get_id(self):
+        return ('miho_default_unduplex').lower()
 
 
-#     def run(self, **args):
-#         self.miho.planar_clustering(args['pt1'], args['pt2'])
+    def run(self, **args):
+        self.miho.planar_clustering(args['pt1'], args['pt2'])
         
-#         pt1, pt2, Hs_miho, inliers = refinement_miho(None, None, args['pt1'], args['pt2'], self.miho, args['Hs'], remove_bad=True, img_patches=False)        
-#         # TODO refinement_miho_unduplex
+        pt1, pt2, Hs_miho, inliers = refinement_miho_other(None, None, args['pt1'], args['pt2'], self.miho, args['Hs'], remove_bad=True, img_patches=False)        
             
-#         return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_miho, 'mask': inliers}
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_miho, 'mask': inliers}

@@ -262,6 +262,47 @@ def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True
     return pt1, pt2, Hs, idx
 
 
+def refinement_miho_other(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, patch_ref='left', img_patches=False):
+    l = pt1.shape[0]
+    idx = torch.ones(l, dtype=torch.bool, device=device)
+
+    if mihoo is None:
+        if Hs_laf is not None:
+            return pt1, pt2, Hs_laf, idx
+        else:
+            Hs = torch.eye(3, device=device).repeat(l*2, 1).reshape(l, 2, 3, 3)
+            return pt1, pt2, Hs, idx
+
+    Hs = torch.zeros((l, 2, 3, 3), device=device)
+    for i in range(l):
+        ii = mihoo.Hidx[i]
+        if ii > -1:
+            if not (patch_ref=='left'):
+                Hs[i, 0] = mihoo.Hs[ii][0]
+                Hs[i, 1] = torch.eye(3, device=device)
+            else:
+                Hs[i, 0] = torch.eye(3, device=device)
+                Hs[i, 1] = mihoo.Hs[ii][0].inverse()
+        elif Hs_laf is not None:
+            Hs[i, 0] = Hs_laf[i, 0]
+            Hs[i, 1] = Hs_laf[i, 1]
+        else:
+            Hs[i, 0] = torch.eye(3, device=device)
+            Hs[i, 1] = torch.eye(3, device=device)
+            
+    if remove_bad:
+        mask = mihoo.Hidx > -1
+        pt1 = pt1[mask]
+        pt2 = pt2[mask]
+        Hs = Hs[mask]
+        idx = mask
+        
+    if img_patches:
+        go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='miho_patch_')
+    
+    return pt1, pt2, Hs, idx
+
+
 def norm_corr(patch1, patch2, subpix=True):     
     w = patch2.size()[1]
     ww = w * w

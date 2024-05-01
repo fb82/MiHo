@@ -1,6 +1,7 @@
 import os
 import src.base_modules as pipe_base
-import src.miho as miho
+import src.miho as miho_duplex
+import src.miho_other as miho_unduplex
 import src.ncc as ncc
 import src.GMS.gms_custom as gms
 import src.OANet.learnedmatcher_custom as oanet
@@ -46,18 +47,12 @@ if __name__ == '__main__':
         # available RANSAC: pydegensac, magsac, poselib
         [
             pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            miho.miho_module(),
             pipe_base.pydegensac_module(px_th=3)
         ],
 
         [
             pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            pipe_base.pydegensac_module(px_th=3)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            miho.miho_module(),
+            miho_duplex.miho_module(),
             pipe_base.pydegensac_module(px_th=3)
         ],
 
@@ -74,7 +69,20 @@ if __name__ == '__main__':
 
         [
             pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            miho.miho_module(),
+            miho_duplex.miho_module(),
+            ncc.ncc_module(),
+            pipe_base.pydegensac_module(px_th=3)
+        ],
+
+        [
+            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+            miho_unduplex.miho_module(),
+            pipe_base.pydegensac_module(px_th=3)
+        ],
+
+        [
+            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+            miho_unduplex.miho_module(),
             ncc.ncc_module(),
             pipe_base.pydegensac_module(px_th=3)
         ],

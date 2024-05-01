@@ -626,7 +626,7 @@ def rot_best_block(pt1, pt2, n=4, split_sz=2048):
     return aux
 
 
-def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
+def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=8, min_pt_gap=4,
                 max_fail_count=3, random_seed_init=123, th_grid=15,
                 rot_check=4):
 
@@ -694,7 +694,7 @@ def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
 
         midx_sum_old = midx_sum
         midx_sum = torch.sum(midx)
-
+        
         H_failed = torch.sum(oidx) <= min_plane_pts
         inl_failed = midx_sum - midx_sum_old <= min_pt_gap
         if H_failed or inl_failed:
@@ -707,7 +707,7 @@ def get_avg_hom(pt1, pt2, ransac_middle_args={}, min_plane_pts=4, min_pt_gap=4,
                 continue
         else:
             fail_count = 0
-
+            
         # print(f"{torch.sum(tidx)} {torch.sum(midx)} {fail_count}")
 
         Hdata.append([torch.matmul(H1_, H1), torch.matmul(H2_, H2), idx, sidx_])
@@ -1020,7 +1020,7 @@ class miho:
                                 'min_iter': 50, 'p' :0.9, 'svd_th': 0.05,
                                 'buffers': 5}
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
-                              'min_plane_pts': 4, 'min_pt_gap': 4,
+                              'min_plane_pts': 8, 'min_pt_gap': 4,
                               'max_fail_count': 3, 'random_seed_init': 123,
                               'th_grid': 15, 'rot_check': 4}
 
@@ -1088,7 +1088,7 @@ class miho_module:
         
         
     def get_id(self):
-        return ('miho_default').lower()
+        return ('miho_default_duplex').lower()
 
 
     def run(self, **args):

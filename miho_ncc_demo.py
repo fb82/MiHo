@@ -12,9 +12,9 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 if __name__ == '__main__':
     # demo code
-    load_matches = False  # used pre-computed matches without LAF
-    ncc_check = False     # img2 patches are img1 patches randomly traslated, only for testing NCC / NCC+
-    no_miho = False       # compute NCC / NCC+ on LAF without MiHo
+    load_matches = False # used pre-computed matches without LAF
+    ncc_check = False    # img2 patches are img1 patches randomly traslated, only for testing NCC / NCC+
+    no_miho = False      # compute NCC / NCC+ on LAF without MiHo
         
     img1 = 'data/im1.png'
     img2 = 'data/im2_rot.png'
@@ -53,7 +53,7 @@ if __name__ == '__main__':
         pt2 = torch.tensor(m12[:, 2:], dtype=torch.float32, device=device)
 
     params = miho.miho.all_params()
-    params['get_avg_hom']['rot_check'] = True
+    params['get_avg_hom']['rot_check'] = 4
     mihoo = miho.miho(params)
 
     # miho paramas examples:
@@ -73,7 +73,10 @@ if __name__ == '__main__':
 
     if ncc_check:
     # offset kpt shift, for testing
-        pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=False)    
+        if not load_matches:
+            pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=False)    
+        else:
+              pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im1, pt1=pt1, pt2=pt2, w=w, img_patches=False)      
         pt1 = pt1.round()
         if w_big is None:
             ww_big = w * 2
