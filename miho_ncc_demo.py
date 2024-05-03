@@ -2,7 +2,6 @@ from PIL import Image
 import time
 import torch
 import kornia as K
-from src import miho as miho
 from src import ncc as ncc
 import scipy.io as sio
 
@@ -15,6 +14,12 @@ if __name__ == '__main__':
     load_matches = False # used pre-computed matches without LAF
     ncc_check = False    # img2 patches are img1 patches randomly traslated, only for testing NCC / NCC+
     no_miho = False      # compute NCC / NCC+ on LAF without MiHo
+    miho_duplex = True   # duplex / unduplex MiHo   
+
+    if miho_duplex:    
+        from src import miho as miho
+    else:
+        from src import miho_other as miho
         
     img1 = 'data/im1.png'
     img2 = 'data/im2_rot.png'
@@ -119,8 +124,11 @@ if __name__ == '__main__':
             pt1__, pt2__, Hs_ncc, val, T = ncc.refinement_norm_corr(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True)   
             pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
         else:
-        # LAF -> MiHo -> NCC | NCC+   
-            pt1_, pt2_, Hs_miho, inliers = ncc.refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, img_patches=True)        
+        # LAF -> MiHo -> NCC | NCC+  
+            if miho_duplex:
+                pt1_, pt2_, Hs_miho, inliers = ncc.refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, img_patches=True)        
+            else:
+                pt1_, pt2_, Hs_miho, inliers = ncc.refinement_miho_other(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, patch_ref='right', img_patches=True)                        
             pt1__, pt2__, Hs_ncc, val, T = ncc.refinement_norm_corr(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True)   
             pt1__p, pt2_p_, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
     
