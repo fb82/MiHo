@@ -13,12 +13,15 @@ import src.bench_utils as bench
 # import deep_image_matching as dim
 # import yaml
 
-# from src.DIM_modules.keynetaffnethardnet_kornia_matcher_module import keynetaffnethardnet_kornia_matcher_module
-# from src.DIM_modules.superpoint_lightglue_module import superpoint_lightglue_module
-# from src.DIM_modules.superpoint_kornia_matcher_module import superpoint_kornia_matcher_module
-# from src.DIM_modules.disk_lightglue_module import disk_lightglue_module
-# from src.DIM_modules.aliked_lightglue_module import aliked_lightglue_module
-# from src.DIM_modules.loftr_module import loftr_module
+#from src.pipelines.keynetaffnethardnet_module_fabio import keynetaffnethardnet_module_fabio
+#from src.DIM_modules.keynetaffnethardnet_kornia_matcher_module import keynetaffnethardnet_kornia_matcher_module
+#from src.DIM_modules.superpoint_lightglue_module import superpoint_lightglue_module
+#from src.DIM_modules.superpoint_kornia_matcher_module import superpoint_kornia_matcher_module
+#from src.DIM_modules.disk_lightglue_module import disk_lightglue_module
+#from src.DIM_modules.aliked_lightglue_module import aliked_lightglue_module
+#from src.DIM_modules.sift_kornia_matcher_module import sift_kornia_matcher_module
+#from src.DIM_modules.magsac_module import magsac_module
+#from src.DIM_modules.loftr_module import loftr_module
 
 
 if __name__ == '__main__':
@@ -30,17 +33,56 @@ if __name__ == '__main__':
     save_to = os.path.join(bench_path, bench_res, 'res_')
 
     pipes = [
-        # [
-        #    superpoint_lightglue_module(nmax_keypoints=4000),
-        #    # superpoint_kornia_matcher_module(nmax_keypoints=4000, th=0.97),
-        #    # keynetaffnethardnet_kornia_matcher_module(nmax_keypoints=4000, upright=False, th=0.99),
-        #    # disk_lightglue_module(nmax_keypoints=4000),
-        #    # aliked_lightglue_module(nmax_keypoints=4000),
-        #    # loftr_module(pretrained='outdoor'),
-        #    # keynetaffnethardnet_module(upright=False, th=0.99),
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=2048),
+        #    magsac_module(px_th=3, conf=0.95, max_iters=100000)
+        #],
+
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=2048),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+
+        #[
+        #    superpoint_kornia_matcher_module(nmax_keypoints=2048, th=0.99),
         #    miho.miho_module(),
         #    pipe_base.pydegensac_module(px_th=3)
-        # ],
+        #],
+
+        #[
+        #    superpoint_kornia_matcher_module(nmax_keypoints=2048, th=0.99),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+
+        #[
+        #    sift_kornia_matcher_module(n_features=2048, contrastThreshold=0.04, th=0.99),
+        #    miho.miho_module(),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+
+        #[
+        #    sift_kornia_matcher_module(n_features=2048, contrastThreshold=0.04, th=0.99),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+
+        #[
+        #   #superpoint_lightglue_module(nmax_keypoints=4000),
+        #   #sift_kornia_matcher_module(n_features=8000, contrastThreshold=0.04, th=0.99),
+        #   superpoint_kornia_matcher_module(nmax_keypoints=8000, th=0.99),
+        #   # keynetaffnethardnet_kornia_matcher_module(nmax_keypoints=4000, upright=False, th=0.99),
+        #   # disk_lightglue_module(nmax_keypoints=4000),
+        #   # aliked_lightglue_module(nmax_keypoints=4000),
+        #   # loftr_module(pretrained='outdoor'),
+        #   # keynetaffnethardnet_module(upright=False, th=0.99),
+        #   #miho.miho_module(),
+        #   pipe_base.pydegensac_module(px_th=3)
+        #],
+
+        [
+            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+            miho.miho_module(),
+            pipe_base.pydegensac_module(px_th=3)
+        ],
 
         # available RANSAC: pydegensac, magsac, poselib        
         [
