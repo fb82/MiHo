@@ -439,7 +439,7 @@ def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=50
         H12 = H12[good_H.repeat(2)]            
         sidx_par = sidx_par[good_H]
         c_par = c_par[good_H]
-        
+
         if not c_par.size()[0]:
             if (c + par_run > Nc) and (c + par_run > min_iter):
                 break
