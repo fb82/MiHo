@@ -9,8 +9,8 @@ import warnings
 from .ncc import refinement_miho
 
 
-cv2.ocl.setUseOpenCL(False)
-matplotlib.use('tkagg')
+#cv2.ocl.setUseOpenCL(False)
+#matplotlib.use('tkagg')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 EPS_ = torch.finfo(torch.float32).eps
 sqrt2 = np.sqrt(2)
