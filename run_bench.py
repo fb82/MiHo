@@ -29,7 +29,38 @@ if __name__ == '__main__':
     pipes = [
         #[
         #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    magsac_module(px_th=3, conf=0.95, max_iters=100000)
+        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+        #    pipe_base.pydegensac_module(px_th=1)
+        #],
+#
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=2048),
+        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+#
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=2048),
+        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+        #    pipe_base.pydegensac_module(px_th=5)
+        #],
+#
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=2048),
+        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+        #    pipe_base.magsac_module(px_th=1)
+        #],
+#
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=2048),
+        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+        #    pipe_base.magsac_module(px_th=3)
+        #],
+#
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=2048),
+        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+        #    pipe_base.magsac_module(px_th=5)
         #],
 
         #[
