@@ -25,10 +25,10 @@ class magsac_module:
         return "pt1, pt2, Hs, F, mask = out_data"
     
     
-    def run(self, *args):
-        pt1 = args[0]
-        pt2 = args[1]
-        Hs = args[2]
+    def run(self, **args):
+        pt1 = args['pt1']
+        pt2 = args['pt2']
+        Hs = args['Hs']
         
         if torch.is_tensor(pt1):
             pt1 = pt1.detach().cpu()
@@ -45,11 +45,11 @@ class magsac_module:
                 quiet=False,
             )
     
-            pt1 = args[0][mask]
-            pt2 = args[1][mask]     
-            Hs = args[2][mask]
+            pt1 = args['pt1'][mask]
+            pt2 = args['pt2'][mask]     
+            Hs = args['Hs'][mask]
         else:            
             F = None
-            mask = None
-            
-        return pt1, pt2, Hs, F, mask
+            mask = []
+        
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs, 'F': F, 'mask': mask}
