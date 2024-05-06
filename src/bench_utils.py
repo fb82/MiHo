@@ -350,15 +350,17 @@ def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path=
                             pts1 = pts1.detach().cpu().numpy()
                             pts2 = pts2.detach().cpu().numpy()
                         
-                        if pts1.size < 5:
+                        if use_scale:
+                            scales = dataset_data['im_pair_scale'][i]
+                        
+                            pts1 = pts1 * scales[0]
+                            pts2 = pts2 * scales[1]
+                            
+                        nn = pts1.shape[0]
+                                                                            
+                        if nn < 5:
                             Rt = None
-                        else:
-                            if use_scale:
-                                scales = dataset_data['im_pair_scale'][i]
-                            
-                                pts1 = pts1 * scales[0]
-                                pts2 = pts2 * scales[1]
-                            
+                        else:                            
                             Rt = estimate_pose(pts1, pts2, K1[i], K2[i], essential_th)                                                        
                     else:
                         Rt = None
@@ -377,8 +379,7 @@ def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path=
                 aux = np.stack(([eval_data_['R_errs_e'], eval_data_['t_errs_e']]), axis=1)
                 max_Rt_err = np.max(aux, axis=1)
         
-                tmp = np.concatenate((aux, np.expand_dims(
-                    np.max(aux, axis=1), axis=1)), axis=1)
+                tmp = np.concatenate((aux, np.expand_dims(np.max(aux, axis=1), axis=1)), axis=1)
         
                 for a in angular_thresholds:       
                     auc_R = error_auc(np.squeeze(eval_data_['R_errs_e']), a)
@@ -393,7 +394,7 @@ def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path=
             compressed_pickle(save_to, eval_data)
 
 
-def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to='res_fundamental.pbz2', force=False, use_scale=False):
+def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_fundamental.pbz2', force=False, use_scale=False, err_th_list=list(range(1,16))):
     warnings.filterwarnings("ignore", category=UserWarning)
 
     angular_thresholds = [5, 10, 20]
@@ -408,94 +409,150 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
     else:
         eval_data = {}
         
-    for essential_th in essential_th_list:            
-        n = len(dataset_data['im1'])
-        
-        pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
-        pipe_name_base_small = ''
-        for pipe_module in pipe:
-            pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
-            pipe_name_base_small = os.path.join(pipe_name_base_small, pipe_module.get_id())
-
-            print(bar_name + ' evaluation with RANSAC essential matrix threshold ' + str(essential_th) + ' px')
-            print('Pipeline: ' + pipe_name_base_small)
-
-            if ((pipe_name_base + '_essential_th_list_' + str(essential_th)) in eval_data.keys()) and not force:
-                eval_data_ = eval_data[pipe_name_base + '_essential_th_list_' + str(essential_th)]                
-                for a in angular_thresholds:
-                    print(f"mAA@{str(a).ljust(2,' ')} (F) : {eval_data_['pose_error_f_auc_' + str(a)]}")
-                                    
-                continue
-                    
-            eval_data_ = {}
-            eval_data_['R_errs_f'] = []
-            eval_data_['t_errs_f'] = []
-                
-            with progress_bar('Completion') as p:
-                for i in p.track(range(n)):            
-                    pipe_f = os.path.join(pipe_name_base, 'base', str(i) + '.pbz2')
-                                        
-                    if os.path.isfile(pipe_f):
-                        out_data = decompress_pickle(pipe_f)
+    n = len(dataset_data['im1'])
     
-                        pts1 = out_data['pt1']
-                        pts2 = out_data['pt2']
+    pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
+    pipe_name_base_small = ''
+    pipe_name_root = os.path.join(pipe_name_base, pipe[0].get_id())
+
+    for pipe_module in pipe:
+        pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
+        pipe_name_base_small = os.path.join(pipe_name_base_small, pipe_module.get_id())
+
+        print('Pipeline: ' + pipe_name_base_small)
+
+        if (pipe_name_base in eval_data.keys()) and not force:
+            eval_data_ = eval_data[pipe_name_base]                
+            for a in angular_thresholds:
+                print(f"mAA@{str(a).ljust(2,' ')} (F) : {eval_data_['pose_error_f_auc_' + str(a)]}")
+
+            print(f"precision(F) : {eval_data_['epi_global_prec_f']}")
+            print(f"recall (F) : {eval_data_['epi_global_recall_f']}")
                                                 
-                        if torch.is_tensor(pts1):
-                            pts1 = pts1.detach().cpu().numpy()
-                            pts2 = pts2.detach().cpu().numpy()
-                                                    
-                        if pts1.size < 8:
-                            Rt_ = None
-                        else:
-                            if use_scale:
-                                scales = dataset_data['im_pair_scale'][i]
-                            
-                                pts1 = pts1 * scales[0]
-                                pts2 = pts2 * scales[1]
+            continue
+                
+        eval_data_ = {}
+        eval_data_['R_errs_f'] = []
+        eval_data_['t_errs_f'] = []
+        eval_data_['epi_max_error_f'] = []
+        eval_data_['epi_inliers_f'] = []
+        eval_data_['epi_prec_f'] = []
+        eval_data_['epi_recall_f'] = []
+            
+        with progress_bar('Completion') as p:
+            for i in p.track(range(n)):            
+                pipe_f = os.path.join(pipe_name_base, 'base', str(i) + '.pbz2')
 
-                            F = cv2.findFundamentalMat(pts1, pts2, cv2.FM_8POINT)[0]
-                            E = K2[i].transpose() @ F @ K1[i]
-                            Rt_ = cv2.decomposeEssentialMat(E)
-                            
-                    else:
+                epi_max_err =[]
+                inl_sum = []
+                avg_prec = 0
+                avg_recall = 0
+
+                if os.path.isfile(pipe_f):
+                    out_data = decompress_pickle(pipe_f)
+
+                    pts1 = out_data['pt1']
+                    pts2 = out_data['pt2']
+                                            
+                    if torch.is_tensor(pts1):
+                        pts1 = pts1.detach().cpu().numpy()
+                        pts2 = pts2.detach().cpu().numpy()
+
+                    if use_scale:
+                        scales = dataset_data['im_pair_scale'][i]
+                    
+                        pts1 = pts1 * scales[0]
+                        pts2 = pts2 * scales[1]
+                        
+                    nn = pts1.shape[0]
+                                                
+                    if nn < 8:
                         Rt_ = None
-        
-                    if Rt_ is None:
-                        eval_data_['R_errs_f'].append(np.inf)
-                        eval_data_['t_errs_f'].append(np.inf)
                     else:
-                        R_a, t_a, = Rt_[0], Rt_[2].squeeze()
-                        t_err_a, R_err_a = relative_pose_error(R_gt[i], t_gt[i], R_a, t_a, ignore_gt_t_thr=0.0)
+                        F = cv2.findFundamentalMat(pts1, pts2, cv2.FM_8POINT)[0]
+                        E = K2[i].T @ F @ K1[i]
+                        Rt_ = cv2.decomposeEssentialMat(E)
 
-                        R_b, t_b, = Rt_[1], Rt_[2].squeeze()
-                        t_err_b, R_err_b = relative_pose_error(R_gt[i], t_gt[i], R_b, t_b, ignore_gt_t_thr=0.0)
+                    if nn > 0:
+                        F_gt = torch.tensor(K2[i].T, device=device, dtype=torch.float64).inverse() @ \
+                               torch.tensor([[0, -t_gt[i][2], t_gt[i][1]],
+                                            [t_gt[i][2], 0, -t_gt[i][0]],
+                                            [-t_gt[i][1], t_gt[i][0], 0]], device=device) @ \
+                               torch.tensor(R_gt[i], device=device) @ \
+                               torch.tensor(K1[i], device=device, dtype=torch.float64).inverse()
+                        F_gt = F_gt / F_gt.sum()
 
-                        if max(R_err_a, t_err_a) < max(R_err_b, t_err_b):
-                            R_err, t_err = R_err_a, t_err_b
+                        pt1_ = torch.vstack((torch.tensor(pts1.T, device=device), torch.ones((1, nn), device=device)))
+                        pt2_ = torch.vstack((torch.tensor(pts2.T, device=device), torch.ones((1, nn), device=device)))
+                        
+                        l1_ = F_gt @ pt1_
+                        d1 = pt2_.permute(1,0).unsqueeze(-2).bmm(l1_.permute(1,0).unsqueeze(-1)).squeeze().abs() / (l1_[:2]**2).sum(0).sqrt()
+                        
+                        l2_ = F_gt.T @ pt2_
+                        d2 = pt1_.permute(1,0).unsqueeze(-2).bmm(l2_.permute(1,0).unsqueeze(-1)).squeeze().abs() / (l2_[:2]**2).sum(0).sqrt()
+                        
+                        epi_max_err = torch.maximum(d1, d2);                                
+                        inl_sum = (epi_max_err.unsqueeze(-1) < torch.tensor(err_th_list, device=device).unsqueeze(0)).sum(dim=0).type(torch.int)
+                        avg_prec = inl_sum.type(torch.double).mean()/nn
+                                                
+                        if pipe_name_base==pipe_name_root:
+                            recall_normalizer = torch.tensor(inl_sum, device=device)
                         else:
-                            R_err, t_err = R_err_b, t_err_b
+                            recall_normalizer = torch.tensor(eval_data[pipe_name_root]['epi_inliers_f'][i], device=device)
+                        avg_recall = (inl_sum.type(torch.double) / recall_normalizer).mean()
+                        
+                        epi_max_err = epi_max_err.detach().cpu().numpy()
+                        inl_sum = inl_sum.detach().cpu().numpy()
+                        avg_prec = avg_prec.item()
+                        avg_recall = avg_recall.item()
+                else:
+                    Rt_ = None
+                    
+                    
+                if Rt_ is None:
+                    eval_data_['R_errs_f'].append(np.inf)
+                    eval_data_['t_errs_f'].append(np.inf)
+                else:
+                    R_a, t_a, = Rt_[0], Rt_[2].squeeze()
+                    t_err_a, R_err_a = relative_pose_error(R_gt[i], t_gt[i], R_a, t_a, ignore_gt_t_thr=0.0)
 
-                        eval_data_['R_errs_f'].append(R_err)
-                        eval_data_['t_errs_f'].append(t_err)
+                    R_b, t_b, = Rt_[1], Rt_[2].squeeze()
+                    t_err_b, R_err_b = relative_pose_error(R_gt[i], t_gt[i], R_b, t_b, ignore_gt_t_thr=0.0)
 
-                aux = np.stack(([eval_data_['R_errs_f'], eval_data_['t_errs_f']]), axis=1)
-                max_Rt_err = np.max(aux, axis=1)
+                    if max(R_err_a, t_err_a) < max(R_err_b, t_err_b):
+                        R_err, t_err = R_err_a, t_err_b
+                    else:
+                        R_err, t_err = R_err_b, t_err_b
+
+                    eval_data_['R_errs_f'].append(R_err)
+                    eval_data_['t_errs_f'].append(t_err)
+                    
+                eval_data_['epi_max_error_f'].append(epi_max_err)  
+                eval_data_['epi_inliers_f'].append(inl_sum)
+                eval_data_['epi_prec_f'].append(avg_prec)                           
+                eval_data_['epi_recall_f'].append(avg_recall)
+                    
+            aux = np.stack(([eval_data_['R_errs_f'], eval_data_['t_errs_f']]), axis=1)
+            max_Rt_err = np.max(aux, axis=1)
         
-                tmp = np.concatenate((aux, np.expand_dims(
-                    np.max(aux, axis=1), axis=1)), axis=1)
+            tmp = np.concatenate((aux, np.expand_dims(np.max(aux, axis=1), axis=1)), axis=1)
+    
+            for a in angular_thresholds:       
+                auc_R = error_auc(np.squeeze(eval_data_['R_errs_f']), a)
+                auc_t = error_auc(np.squeeze(eval_data_['t_errs_f']), a)
+                auc_max_Rt = error_auc(np.squeeze(max_Rt_err), a)
+                eval_data_['pose_error_f_auc_' + str(a)] = np.asarray([auc_R, auc_t, auc_max_Rt])
+                eval_data_['pose_error_f_acc_' + str(a)] = np.sum(tmp < a, axis=0)/np.shape(tmp)[0]
+
+                print(f"mAA@{str(a).ljust(2,' ')} (F) : {eval_data_['pose_error_f_auc_' + str(a)]}")
+            
+            eval_data_['epi_global_prec_f'] = torch.tensor(eval_data_['epi_prec_f'], device=device).mean().item()
+            eval_data_['epi_global_recall_f'] = torch.tensor(eval_data_['epi_recall_f'], device=device).mean().item()
         
-                for a in angular_thresholds:       
-                    auc_R = error_auc(np.squeeze(eval_data_['R_errs_f']), a)
-                    auc_t = error_auc(np.squeeze(eval_data_['t_errs_f']), a)
-                    auc_max_Rt = error_auc(np.squeeze(max_Rt_err), a)
-                    eval_data_['pose_error_f_auc_' + str(a)] = np.asarray([auc_R, auc_t, auc_max_Rt])
-                    eval_data_['pose_error_f_acc_' + str(a)] = np.sum(tmp < a, axis=0)/np.shape(tmp)[0]
+            print(f"precision (F) : {eval_data_['epi_global_prec_f']}")
+            print(f"recall (F) : {eval_data_['epi_global_recall_f']}")
 
-                    print(f"mAA@{str(a).ljust(2,' ')} (F) : {eval_data_['pose_error_f_auc_' + str(a)]}")
-
-
-            eval_data[pipe_name_base + '_essential_th_list_' + str(essential_th)] = eval_data_
+            eval_data[pipe_name_base] = eval_data_
             compressed_pickle(save_to, eval_data)
 
 
