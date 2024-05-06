@@ -499,7 +499,9 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                             recall_normalizer = torch.tensor(inl_sum, device=device)
                         else:
                             recall_normalizer = torch.tensor(eval_data[pipe_name_root]['epi_inliers_f'][i], device=device)
-                        avg_recall = (inl_sum.type(torch.double) / recall_normalizer).mean()
+                        avg_recall = inl_sum.type(torch.double) / recall_normalizer
+                        avg_recall[~avg_recall.isfinite()] = 0
+                        avg_recall = avg_recall.mean()
                         
                         epi_max_err = epi_max_err.detach().cpu().numpy()
                         inl_sum = inl_sum.detach().cpu().numpy()
