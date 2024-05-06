@@ -289,9 +289,9 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
             
                 if os.path.isfile(pipe_f) and not force:
                     out_data = decompress_pickle(pipe_f)
-                else:                      
+                else:
                     out_data = pipe_module.run(**pipe_data)
-                    os.makedirs(os.path.dirname(pipe_f), exist_ok=True)                 
+                    os.makedirs(os.path.dirname(pipe_f), exist_ok=True)           
                     compressed_pickle(pipe_f, out_data)
                     
                 for k, v in out_data.items(): pipe_data[k] = v
