@@ -460,9 +460,11 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
 
                     if use_scale:
                         scales = dataset_data['im_pair_scale'][i]
+                    else:
+                        scales = np.asarray([[1.0, 1.0], [1.0, 1.0]])
                     
-                        pts1 = pts1 * scales[0]
-                        pts2 = pts2 * scales[1]
+                    pts1 = pts1 * scales[0]
+                    pts2 = pts2 * scales[1]
                         
                     nn = pts1.shape[0]
                                                 

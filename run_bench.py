@@ -141,13 +141,13 @@ if __name__ == '__main__':
     for i, pipe in enumerate(pipes):
         print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
         bench.run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
-        bench.eval_pipe_fundamental(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', save_to=save_to + 'megadepth.pbz2', use_scale=True, err_th_list=list(range(1,16)))
-        bench.eval_pipe_essential(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2', use_scale=True)
+        bench.eval_pipe_fundamental(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', save_to=save_to + '_fundamental_megadepth.pbz2', use_scale=True, err_th_list=list(range(1, 16)))
+        bench.eval_pipe_essential(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + '_essential_megadepth.pbz2', use_scale=True)
         bench.show_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)
 
     for i, pipe in enumerate(pipes):
         print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")
         bench.run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
-        bench.eval_pipe_fundamental(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', save_to=save_to + 'scannet.pbz2', use_scale=False, err_th_list=list(range(1,16)))
-        bench.eval_pipe_essential(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2', use_scale=False)
+        bench.eval_pipe_fundamental(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', save_to=save_to + '_fundamental_scannet.pbz2', use_scale=False, err_th_list=list(range(1, 16)))
+        bench.eval_pipe_essential(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + '_essential_scannet.pbz2', use_scale=False)
         bench.show_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)
