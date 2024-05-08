@@ -87,7 +87,7 @@ def cm_prune(x_):
     return cm_BlRdGn(norm_x)
 
 
-def plot_images(imgs, titles=None, cmaps="gray", dpi=100, pad=0.5, adaptive=True):
+def plot_images(imgs, titles=None, cmaps="gray", dpi=100, pad=0.5, adaptive=True, fig_num=None):
     """Plot a set of images horizontally.
     Args:
         imgs: list of NumPy RGB (H, W, 3) or PyTorch RGB (3, H, W) or mono (H, W).
@@ -113,7 +113,8 @@ def plot_images(imgs, titles=None, cmaps="gray", dpi=100, pad=0.5, adaptive=True
         ratios = [4 / 3] * n
     figsize = [sum(ratios) * 4.5, 4.5]
     fig, ax = plt.subplots(
-        1, n, figsize=figsize, dpi=dpi, gridspec_kw={"width_ratios": ratios}
+        1, n, figsize=figsize, dpi=dpi, gridspec_kw={"width_ratios": ratios},
+        num=fig_num
     )
     if n == 1:
         ax = [ax]
@@ -150,7 +151,7 @@ def plot_keypoints(kpts, colors="lime", ps=4, axes=None, a=1.0):
         ax.scatter(k[:, 0], k[:, 1], c=c, s=ps, linewidths=0, alpha=alpha)
 
 
-def plot_matches(kpts0, kpts1, color=None, lw=1.5, ps=4, a=1.0, labels=None, axes=None):
+def plot_matches(kpts0, kpts1, color=None, lw=1.5, ps=4, a=1.0, labels=None, axes=None, fig_num=None):
     """Plot matches for a pair of existing images.
     Args:
         kpts0, kpts1: corresponding keypoints of size (N, 2).
@@ -160,7 +161,10 @@ def plot_matches(kpts0, kpts1, color=None, lw=1.5, ps=4, a=1.0, labels=None, axe
         indices: indices of the images to draw the matches on.
         a: alpha opacity of the match lines.
     """
-    fig = plt.gcf()
+    if fig_num is None:
+        fig = plt.gcf()
+    else:
+        fig = plt.figure(num=fig_num)
     if axes is None:
         ax = fig.axes
         ax0, ax1 = ax[0], ax[1]
@@ -229,10 +233,11 @@ def add_text(
         )
 
 
-def save_plot(path, **kw):
+def save_plot(path, fig=None, **kw):
+    plt.figure(fig)
     """Save the current figure without any white margin."""
     plt.savefig(path, bbox_inches="tight", pad_inches=0, **kw)
 
 
-def close_plot(fig):
-    plt.close(fig)
+def clear_plot(fig):
+    fig.clf()

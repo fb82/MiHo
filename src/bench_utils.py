@@ -11,6 +11,7 @@ import _pickle as cPickle
 import bz2
 import src.ncc as ncc
 
+import matplotlib.pyplot as plt
 import src.plot.viz2d as viz
 import src.plot.utils as viz_utils
 
@@ -589,7 +590,9 @@ def download_megadepth_scannet_data(bench_path ='bench_data'):
 def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='plot', force=False):
 
     n = len(dataset_data['im1'])
-    im_path = os.path.join(bench_im, dataset_name)        
+    im_path = os.path.join(bench_im, dataset_name)    
+    fig = plt.figure()    
+    
     with progress_bar(bar_name + ' - pipeline completion') as p:
         for i in p.track(range(n)):
             im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + '.png'
@@ -612,7 +615,7 @@ def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data
             
             img1 = viz_utils.load_image(im1)
             img2 = viz_utils.load_image(im2)
-            fig, axes = viz.plot_images([img1, img2])              
+            fig, axes = viz.plot_images([img1, img2], fig_num=fig.number)              
             
             pt1 = pair_data[0]['pt1']
             pt2 = pair_data[0]['pt2']
@@ -627,12 +630,13 @@ def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data
                     if mask.shape[0] > 0:
                         mpt1 = pt1[idx[~mask]]
                         mpt2 = pt2[idx[~mask]]
-                        viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes)
+                        viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes, fig_num=fig.number)
                         idx = idx[mask]
                     clr = clr + 1
             mpt1 = pt1[idx]
             mpt2 = pt2[idx]
-            viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes)
+            viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes, fig_num=fig.number)
 
-            viz.save_plot(pipe_img_save)
-            viz.close_plot(fig)
+            viz.save_plot(pipe_img_save, fig)
+            viz.clear_plot(fig)
+    plt.close(fig)
