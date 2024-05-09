@@ -5,7 +5,7 @@ import src.miho_other as miho_unduplex
 import src.ncc as ncc
 import src.GMS.gms_custom as gms
 import src.OANet.learnedmatcher_custom as oanet
-import src.ACNe.acne_custom as acne
+#import src.ACNe.acne_custom as acne
 import src.AdaLAM.adalam_custom as adalam
 import src.bench_utils as bench
 
@@ -14,24 +14,67 @@ import src.bench_utils as bench
 # import yaml
 
 #from src.pipelines.keynetaffnethardnet_module_fabio import keynetaffnethardnet_module_fabio
-#from src.DIM_modules.keynetaffnethardnet_kornia_matcher_module import keynetaffnethardnet_kornia_matcher_module
-#from src.DIM_modules.superpoint_lightglue_module import superpoint_lightglue_module
-#from src.DIM_modules.superpoint_kornia_matcher_module import superpoint_kornia_matcher_module
-#from src.DIM_modules.disk_lightglue_module import disk_lightglue_module
-#from src.DIM_modules.aliked_lightglue_module import aliked_lightglue_module
-#from src.DIM_modules.sift_kornia_matcher_module import sift_kornia_matcher_module
-#from src.DIM_modules.magsac_module import magsac_module
+from src.DIM_modules.keynetaffnethardnet_kornia_matcher_module import keynetaffnethardnet_kornia_matcher_module
+from src.DIM_modules.superpoint_lightglue_module import superpoint_lightglue_module
+from src.DIM_modules.superpoint_kornia_matcher_module import superpoint_kornia_matcher_module
+from src.DIM_modules.disk_lightglue_module import disk_lightglue_module
+from src.DIM_modules.aliked_lightglue_module import aliked_lightglue_module
+from src.DIM_modules.sift_kornia_matcher_module import sift_kornia_matcher_module
+from src.DIM_modules.magsac_module import magsac_module
 #from src.DIM_modules.loftr_module import loftr_module
 
 
 if __name__ == '__main__':
 
     pipes = [
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-        #    pipe_base.pydegensac_module(px_th=1)
-        #],
+        [
+            superpoint_lightglue_module(nmax_keypoints=2048),
+            #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+            pipe_base.pydegensac_module(px_th=0.5)
+        ],
+
+        [
+            superpoint_lightglue_module(nmax_keypoints=2048),
+            #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+            pipe_base.pydegensac_module(px_th=1)
+        ],
+
+        [
+            superpoint_lightglue_module(nmax_keypoints=2048),
+            #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+            pipe_base.pydegensac_module(px_th=3)
+        ],
+
+        [
+            superpoint_lightglue_module(nmax_keypoints=2048),
+            #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+            pipe_base.pydegensac_module(px_th=5)
+        ],
+
+        [
+            superpoint_lightglue_module(nmax_keypoints=2048),
+            #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+            pipe_base.magsac_module(px_th=0.5)
+        ],
+
+        [
+            superpoint_lightglue_module(nmax_keypoints=2048),
+            #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+            pipe_base.magsac_module(px_th=1)
+        ],
+
+        [
+            superpoint_lightglue_module(nmax_keypoints=2048),
+            #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+            pipe_base.magsac_module(px_th=3)
+        ],
+
+        [
+            superpoint_lightglue_module(nmax_keypoints=2048),
+            #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+            pipe_base.magsac_module(px_th=5)
+        ],
+
 #
         #[
         #    superpoint_lightglue_module(nmax_keypoints=2048),
@@ -103,101 +146,95 @@ if __name__ == '__main__':
         #   pipe_base.pydegensac_module(px_th=3)
         #],
 
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            miho.miho_module(),
-            pipe_base.pydegensac_module(px_th=3)
-        ],
-
-        # available RANSAC: pydegensac, magsac, poselib        
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            pipe_base.pydegensac_module(px_th=3)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            ncc.ncc_module(),
-            pipe_base.pydegensac_module(px_th=3)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            miho_duplex.miho_module(),
-            pipe_base.pydegensac_module(px_th=3)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            miho_duplex.miho_module(),
-            ncc.ncc_module(),
-            pipe_base.pydegensac_module(px_th=3)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            miho_unduplex.miho_module(),
-            pipe_base.pydegensac_module(px_th=3)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            miho_unduplex.miho_module(),
-            ncc.ncc_module(),
-            pipe_base.pydegensac_module(px_th=3)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            gms.gms_module(),
-            pipe_base.pydegensac_module(px_th=3)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            gms.gms_module(),
-            ncc.ncc_module(),
-            pipe_base.pydegensac_module(px_th=3)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            oanet.oanet_module(),
-            pipe_base.pydegensac_module(px_th=3)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            oanet.oanet_module(),
-            ncc.ncc_module(),
-            pipe_base.pydegensac_module(px_th=3)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            acne.acne_module(),
-            pipe_base.pydegensac_module(px_th=3)
-        ],        
-        
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            acne.acne_module(),
-            ncc.ncc_module(),
-            pipe_base.pydegensac_module(px_th=3)
-        ],
-        
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            adalam.adalam_module(),
-            pipe_base.pydegensac_module(px_th=3)
-        ],        
-       
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-            adalam.adalam_module(),
-            ncc.ncc_module(),
-            pipe_base.pydegensac_module(px_th=3)
-        ]            
+        # available RANSAC: pydegensac, magsac, poselib
+        #[
+        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+#
+        #[
+        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+        #    ncc.ncc_module(),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+#
+        #[
+        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+        #    miho_duplex.miho_module(),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+#
+        #[
+        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+        #    miho_duplex.miho_module(),
+        #    ncc.ncc_module(),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+#
+        #[
+        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+        #    miho_unduplex.miho_module(),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+#
+        #[
+        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+        #    miho_unduplex.miho_module(),
+        #    ncc.ncc_module(),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+#
+        #[
+        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+        #    gms.gms_module(),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+#
+        #[
+        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+        #    gms.gms_module(),
+        #    ncc.ncc_module(),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+#
+        #[
+        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+        #    oanet.oanet_module(),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+#
+        #[
+        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+        #    oanet.oanet_module(),
+        #    ncc.ncc_module(),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+#
+        #[
+        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+        #    acne.acne_module(),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],        
+        #
+        #[
+        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+        #    acne.acne_module(),
+        #    ncc.ncc_module(),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+        #
+        #[
+        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+        #    adalam.adalam_module(),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],        
+       #
+        #[
+        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
+        #    adalam.adalam_module(),
+        #    ncc.ncc_module(),
+        #    pipe_base.pydegensac_module(px_th=3)
+        #]            
     ]
 
 ###
