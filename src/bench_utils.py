@@ -9,6 +9,7 @@ import os
 import warnings
 import _pickle as cPickle
 import bz2
+import shutil
 import src.ncc as ncc
 
 import matplotlib.pyplot as plt
@@ -640,3 +641,130 @@ def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data
             viz.save_plot(pipe_img_save, fig)
             viz.clear_plot(fig)
     plt.close(fig)
+
+
+planar_scenes = [
+    'aerial',
+    'aerialrot',
+    'apprendices'
+    'artisans',
+    'bark'
+    'barkrot'
+    'birdwoman',
+    'boat',
+    'boatrot',
+    'calder',
+    'chatnoir',
+    'colors',
+    'DD',
+    'dogman',
+    'duckhunt',
+    'floor',
+    'graf',
+    'home',
+    'marilyn',
+    'mario',
+    'maskedman',
+    'op',
+    'oprot',
+    'outside',
+    'posters',
+    'screen',
+    'spidey',
+    'sunseason',
+    'there',
+    'wall',
+    'zero'
+    ]
+
+
+def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, in_path='planar_in', out_path='planar_out', check_path='planar_out/check', save_to='planar_data.pbz2'):
+    
+    os.makedirs(out_path, exist_ok=True)
+    os.makedirs(check_path, exist_ok=True)
+
+    im1 = []
+    im2 = []
+    H = []
+    H_inv = []
+    im1_mask = []
+    im2_mask = []
+    im1_mask_bad = []
+    im2_mask_bad = []
+    
+    for scene in planar_scenes:
+        img1 = scene + '1.png'
+        img1_mask = 'mask_' + scene + '1.png'
+        img1_mask_bad = 'mask_bad_' + scene + '1.png'
+
+        for i in range(2, max_imgs+1):
+            img2 = scene + str(i) + '.png'
+            img2_mask = 'mask_' + scene  + str(i) + '.png'
+            img2_mask_bad = 'mask_bad_' + scene + str(i) + '.png'
+
+            H12 = scene + '_H1' + str(i) + '.txt'
+                        
+            im1s = os.path.join(in_path, img1)
+            im1s_mask = os.path.join(in_path, img1_mask)
+            im1s_mask_bad = os.path.join(in_path, img1_mask_bad)
+            im2s = os.path.join(in_path, img2)
+            im2s_mask = os.path.join(in_path, img2_mask)
+            im2s_mask_bad = os.path.join(in_path, img2_mask_bad)
+            H12s = os.path.join(in_path, H12)
+            
+            if not os.path.isfile(H12s):
+                continue
+            
+            im1d = os.path.join(out_path, img1)
+            im2d = os.path.join(out_path, img2)
+ 
+            shutil.copyfile(im1s, im1d)
+            shutil.copyfile(im2s, im2d)
+            
+            H_ = np.loadtxt(H12s)
+            H_inv_ = np.linalg.inv(H_)
+            
+            im1.append(img1)
+            im2.append(img2)
+            H.append(H_)
+            H_inv.append(H_inv_)
+            
+            im1i=cv2.imread(im1s)
+            im2i=cv2.imread(im2s)
+            im2i_ = cv2.warpPerspective(im1i,H_,(im2i.shape[1],im2i.shape[0]))
+            im1i_ = cv2.warpPerspective(im2i,H_inv_,(im1i.shape[1],im1i.shape[0]))
+            
+            if os.path.isfile(im1s_mask):
+                im1_mask.append(img1_mask)
+                shutil.copyfile(im1s_mask, os.path.join(out_path, img1_mask))
+            else:
+                im1_mask.append(None)
+
+            if os.path.isfile(im2s_mask):
+                im2_mask.append(img2_mask)
+                shutil.copyfile(im2s_mask, os.path.join(out_path, img2_mask))
+            else:
+                im2_mask.append(None)
+
+            if os.path.isfile(im1s_mask_bad):
+                im1_mask.append(img1_mask_bad)
+                shutil.copyfile(im1s_mask_bad, os.path.join(out_path, img1_mask_bad))
+            else:
+                im1_mask_bad.append(None)
+
+            if os.path.isfile(im2s_mask_bad):
+                im2_mask_bad.append(img2_mask_bad)
+                shutil.copyfile(im2s_mask_bad, os.path.join(out_path, img2_mask_bad))
+            else:
+                im2_mask_bad.append(None)
+
+            cv2.imwrite(os.path.join(check_path, scene + str(i) + '_1a.png'), im1i)
+            cv2.imwrite(os.path.join(check_path, scene + str(i) + '_1b.png'), im1i_)
+            cv2.imwrite(os.path.join(check_path, scene + str(i) + '_2a.png'), im2i)
+            cv2.imwrite(os.path.join(check_path, scene + str(i) + '_2b.png'), im2i_)
+    
+    data = {'im1': im1, 'im2': im2, 'H': H, 'H_inv': H_inv,
+            'im1_mask': im1_mask, 'im2_mask': im2_mask,
+            'im1_mask_bad': im1_mask_bad, 'im2_mask_bad': im2_mask_bad}
+
+    compressed_pickle(save_to, data)
