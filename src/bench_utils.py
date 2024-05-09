@@ -325,8 +325,7 @@ def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path=
             if ((pipe_name_base + '_essential_th_list_' + str(essential_th)) in eval_data.keys()) and not force:
                 eval_data_ = eval_data[pipe_name_base + '_essential_th_list_' + str(essential_th)]
                 for a in angular_thresholds:
-                    #print(f"mAA@{str(a).ljust(2,' ')} (E) : {eval_data_['pose_error_e_auc_' + str(a)]}")  
-                    print(f"mAA@{str(a).ljust(2,' ')} (E) : {eval_data_['pose_error_auc_' + str(a)]}")                                    
+                    print(f"mAA@{str(a).ljust(2,' ')} (E) : {eval_data_['pose_error_e_auc_' + str(a)]}")                                   
                 continue
                     
             eval_data_ = {}
