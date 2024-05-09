@@ -117,7 +117,10 @@ class magsac_module:
             if (pt1.shape)[0] > 7:                        
                 F, mask = cv2.findFundamentalMat(pt1, pt2, cv2.USAC_MAGSAC, self.px_th, self.conf, self.max_iters)
                 
-            mask = mask.squeeze(1) > 0
+            if not isinstance(mask, np.ndarray):
+                mask = np.asarray([], dtype=bool)
+            else:
+                mask = mask.squeeze(1) > 0
         
             pt1 = args['pt1'][mask]
             pt2 = args['pt2'][mask]     
@@ -126,7 +129,10 @@ class magsac_module:
             if (pt1.shape)[0] > 3:                        
                 F, mask = cv2.findHomography(pt1, pt2, cv2.USAC_MAGSAC, self.px_th, self.conf, self.max_iters)
 
-            mask = mask.squeeze(1) > 0
+            if not isinstance(mask, np.ndarray):
+                mask = np.asarray([], dtype=bool)
+            else:
+                mask = mask.squeeze(1) > 0
                 
             pt1 = args['pt1'][mask]
             pt2 = args['pt2'][mask]     
@@ -183,8 +189,6 @@ class poselib_module:
             if (pt1.shape)[0] > 3:                        
                 F, info = poselib.estimate_homography(pt1, pt2, params, {})
                 mask = info['inliers']
-
-            mask = mask.squeeze(1) > 0
                 
             pt1 = args['pt1'][mask]
             pt2 = args['pt2'][mask]     
