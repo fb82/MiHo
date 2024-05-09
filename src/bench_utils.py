@@ -328,8 +328,7 @@ def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path=
             if ((pipe_name_base + '_essential_th_list_' + str(essential_th)) in eval_data.keys()) and not force:
                 eval_data_ = eval_data[pipe_name_base + '_essential_th_list_' + str(essential_th)]
                 for a in angular_thresholds:
-                    #print(f"mAA@{str(a).ljust(2,' ')} (E) : {eval_data_['pose_error_e_auc_' + str(a)]}")  
-                    print(f"mAA@{str(a).ljust(2,' ')} (E) : {eval_data_['pose_error_auc_' + str(a)]}")                                    
+                    print(f"mAA@{str(a).ljust(2,' ')} (E) : {eval_data_['pose_error_e_auc_' + str(a)]}")                                   
                 continue
                     
             eval_data_ = {}
@@ -461,9 +460,11 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
 
                     if use_scale:
                         scales = dataset_data['im_pair_scale'][i]
+                    else:
+                        scales = np.asarray([[1.0, 1.0], [1.0, 1.0]])
                     
-                        pts1 = pts1 * scales[0]
-                        pts2 = pts2 * scales[1]
+                    pts1 = pts1 * scales[0]
+                    pts2 = pts2 * scales[1]
                         
                     nn = pts1.shape[0]
                                                 
@@ -500,7 +501,9 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                             recall_normalizer = torch.tensor(inl_sum, device=device)
                         else:
                             recall_normalizer = torch.tensor(eval_data[pipe_name_root]['epi_inliers_f'][i], device=device)
-                        avg_recall = (inl_sum.type(torch.double) / recall_normalizer).mean()
+                        avg_recall = inl_sum.type(torch.double) / recall_normalizer
+                        avg_recall[~avg_recall.isfinite()] = 0
+                        avg_recall = avg_recall.mean()
                         
                         epi_max_err = epi_max_err.detach().cpu().numpy()
                         inl_sum = inl_sum.detach().cpu().numpy()
