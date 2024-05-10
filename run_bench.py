@@ -22,11 +22,9 @@ import src.bench_utils as bench
 
 
 if __name__ == '__main__':
-    # megadepth & scannet
-    bench_path = '../miho_megadepth_scannet_bench_data'   
+    bench_path = '../bench_data'   
     bench_gt = 'gt_data'
     bench_im = 'imgs'
-    bench_file = 'megadepth_scannet'
     bench_res = 'res'
     bench_plot = 'plot'
     save_to = os.path.join(bench_path, bench_res, 'res_')
@@ -135,18 +133,9 @@ if __name__ == '__main__':
         ]            
     ]
 
-    planar_data, _ = bench.planar_bench_setup(bench_path=bench_path, bench_imgs=bench_im)
+###
 
-    print("*** P l a n a r ***")    
-    for i, pipe in enumerate(pipes):
-        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
-        for pipe_module in pipe:
-            if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'homography')
-        bench.show_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)
-
-        bench.run_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
-        bench.show_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)
-
+    bench_file = 'megadepth_scannet'
     megadepth_data, scannet_data, data_file = bench.bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
     megadepth_data, scannet_data = bench.setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
 
@@ -169,3 +158,16 @@ if __name__ == '__main__':
         bench.eval_pipe_fundamental(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', save_to=save_to + '_fundamental_scannet.pbz2', use_scale=False, err_th_list=list(range(1, 16)))
         bench.eval_pipe_essential(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5], save_to=save_to + '_essential_scannet.pbz2', use_scale=False)
         bench.show_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)
+
+###
+
+    planar_data, _ = bench.planar_bench_setup(bench_path=bench_path, bench_imgs=bench_im)
+
+    print("*** P l a n a r ***")    
+    for i, pipe in enumerate(pipes):
+        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
+        for pipe_module in pipe:
+            if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'homography')
+        bench.run_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
+        bench.eval_pipe_homography(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path, bench_res='res', save_to=save_to + '_homography_planar.pbz2', use_scale=False, err_th_list=list(range(1, 16)))
+        bench.show_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)

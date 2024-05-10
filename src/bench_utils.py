@@ -376,7 +376,7 @@ def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path=
                 aux = np.stack(([eval_data_['R_errs_e'], eval_data_['t_errs_e']]), axis=1)
                 max_Rt_err = np.max(aux, axis=1)
         
-                tmp = np.concatenate((aux, np.expand_dims(np.max(aux, axis=1), axis=1)), axis=1)
+                tmp = np.concatenate((aux, np.expand_dims(max_Rt_err, axis=1)), axis=1)
         
                 for a in angular_thresholds:       
                     auc_R = error_auc(np.squeeze(eval_data_['R_errs_e']), a)
@@ -536,7 +536,7 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
             aux = np.stack(([eval_data_['R_errs_f'], eval_data_['t_errs_f']]), axis=1)
             max_Rt_err = np.max(aux, axis=1)
         
-            tmp = np.concatenate((aux, np.expand_dims(np.max(aux, axis=1), axis=1)), axis=1)
+            tmp = np.concatenate((aux, np.expand_dims(max_Rt_err, axis=1)), axis=1)
     
             for a in angular_thresholds:       
                 auc_R = error_auc(np.squeeze(eval_data_['R_errs_f']), a)
@@ -706,6 +706,8 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
 
     im1 = []
     im2 = []
+    sz1 = []
+    sz2 = []
     H = []
     H_inv = []
     im1_mask = []
@@ -753,6 +755,10 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
             
             im1i=cv2.imread(im1s)
             im2i=cv2.imread(im2s)
+            
+            sz1.append(np.array(im1i.shape)[:2][::-1])
+            sz2.append(np.array(im2i.shape)[:2][::-1])
+                        
             im2i_ = cv2.warpPerspective(im1i,H_,(im2i.shape[1],im2i.shape[0]))
             im1i_ = cv2.warpPerspective(im2i,H_inv_,(im1i.shape[1],im1i.shape[0]))
             
@@ -789,11 +795,178 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
     
     H = np.asarray(H)
     H_inv = np.asarray(H_inv)
+    sz1 = np.asarray(sz1)
+    sz2 = np.asarray(sz2)
     im_pair_scale = np.asarray(im_pair_scale)
     
     data = {'im1': im1, 'im2': im2, 'H': H, 'H_inv': H_inv,
-            'im1_mask': im1_mask, 'im2_mask': im2_mask,
+            'im1_mask': im1_mask, 'im2_mask': im2_mask, 'sz1': sz1, 'sz2': sz2,
             'im1_mask_bad': im1_mask_bad, 'im2_mask_bad': im2_mask_bad}
 
     compressed_pickle(save_to_full, data)
     return data, save_to_full
+
+
+def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_fundamental.pbz2', force=False, use_scale=False, err_th_list=list(range(1,16))):
+    warnings.filterwarnings("ignore", category=UserWarning)
+
+    angular_thresholds = [5, 10, 15]
+
+    if os.path.isfile(save_to):
+        eval_data = decompress_pickle(save_to)
+    else:
+        eval_data = {}
+        
+    n = len(dataset_data['im1'])
+    
+    pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
+    pipe_name_base_small = ''
+    pipe_name_root = os.path.join(pipe_name_base, pipe[0].get_id())
+
+    for pipe_module in pipe:
+        pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
+        pipe_name_base_small = os.path.join(pipe_name_base_small, pipe_module.get_id())
+
+        print('Pipeline: ' + pipe_name_base_small)
+
+        if (pipe_name_base in eval_data.keys()) and not force:
+            eval_data_ = eval_data[pipe_name_base]                
+            for a in angular_thresholds:
+                print(f"mAA@{str(a).ljust(2,' ')} (F) : {eval_data_['pose_error_h_auc_' + str(a)]}")
+
+            print(f"precision(F) : {eval_data_['reproj_global_prec_h']}")
+            print(f"recall (F) : {eval_data_['reproj_global_recall_h']}")
+                                                
+            continue
+                
+        eval_data_ = {}
+
+        eval_data_['err_plane_1_h'] = []
+        eval_data_['err_plane_2_h'] = []        
+
+        eval_data_['acc_1_h'] = []
+        eval_data_['acc_2_h'] = []        
+        
+        eval_data_['reproj_max_error_h'] = []
+        eval_data_['reproj_inliers_h'] = []
+        eval_data_['reproj_prec_h'] = []
+        eval_data_['reproj_recall_h'] = []
+            
+        with progress_bar('Completion') as p:
+            for i in p.track(range(n)):            
+                pipe_f = os.path.join(pipe_name_base, 'base', str(i) + '.pbz2')
+
+                reproj_max_err =[]
+                inl_sum = []
+                avg_prec = 0
+                avg_recall = 0
+
+                if os.path.isfile(pipe_f):
+                    out_data = decompress_pickle(pipe_f)
+
+                    pts1 = out_data['pt1']
+                    pts2 = out_data['pt2']
+                                            
+                    if torch.is_tensor(pts1):
+                        pts1 = pts1.detach().cpu().numpy()
+                        pts2 = pts2.detach().cpu().numpy()
+
+                    if use_scale:
+                        scales = dataset_data['im_pair_scale'][i]
+                    else:
+                        scales = np.asarray([[1.0, 1.0], [1.0, 1.0]])
+                    
+                    pts1 = pts1 * scales[0]
+                    pts2 = pts2 * scales[1]
+                        
+                    nn = pts1.shape[0]
+                                                
+                    if nn < 4:
+                        H = None
+                    else:
+                        H = cv2.findHomography(pts1, pts2, 0)[0]
+
+                    if nn > 0:
+                        H_gt = dataset_data['H'][i]
+                        H_inv_gt = dataset_data['H_inv'][i]
+                        
+                        pt1_ = torch.vstack((torch.tensor(pts1.T, device=device), torch.ones((1, nn), device=device)))
+                        pt2_ = torch.vstack((torch.tensor(pts2.T, device=device), torch.ones((1, nn), device=device)))
+                        
+                        pt1_reproj = H_gt @ pt1_
+                        pt1_reproj = pt1_reproj[:2] / pt1_reproj[2].unsqueeze(0)
+                        d1 = ((pt2_[:2] - pt1_reproj)**2).sum(0).sqrt()
+                        
+                        pt2_reproj = H_inv_gt @ pt2_
+                        pt2_reproj = pt2_reproj[:2] / pt2_reproj[2].unsqueeze(0)
+                        d2 = ((pt1_[:2] - pt2_reproj)**2).sum(0).sqrt()
+                        
+                        reproj_max_err = torch.maximum(d1, d2);                                
+                        inl_sum = (reproj_max_err.unsqueeze(-1) < torch.tensor(err_th_list, device=device).unsqueeze(0)).sum(dim=0).type(torch.int)
+                        avg_prec = inl_sum.type(torch.double).mean()/nn
+                                                
+                        if pipe_name_base==pipe_name_root:
+                            recall_normalizer = torch.tensor(inl_sum, device=device)
+                        else:
+                            recall_normalizer = torch.tensor(eval_data[pipe_name_root]['epi_inliers_f'][i], device=device)
+                        avg_recall = inl_sum.type(torch.double) / recall_normalizer
+                        avg_recall[~avg_recall.isfinite()] = 0
+                        avg_recall = avg_recall.mean()
+                        
+                        reproj_max_err = reproj_max_err.detach().cpu().numpy()
+                        inl_sum = inl_sum.detach().cpu().numpy()
+                        avg_prec = avg_prec.item()
+                        avg_recall = avg_recall.item()
+                else:
+                    H = None
+                    
+                    
+                if H is None:
+                    eval_data_['err_plane_1_h'].append([])
+                    eval_data_['err_plane_2_h'].append([])
+
+                    eval_data_['acc_1_h'].append(np.inf) 
+                    eval_data_['acc_2_h'].append(np.inf)        
+                else:
+                    heat1 = homography_error_heat_map(H_gt, H, dataset_data['sz1'][i], dataset_data['sz2'][i])
+                    heat2 = homography_error_heat_map(H_inv_gt, np.linalg.inv(H), dataset_data['sz2'][i], dataset_data['sz1'][i])
+                    
+                    eval_data_['err_plane_1_h'].append(heat1)
+                    eval_data_['err_plane_2_h'].append(heat2)
+
+                    heat1 = heat1.flatten()
+                    heat2 = heat2.flatten()
+
+                    eval_data_['acc_1_h'].append(heat1.mean(where=np.isfinite(heat1))) 
+                    eval_data_['acc_2_h'].append(heat2.mean(where=np.isfinite(heat2)))        
+                    
+                eval_data_['reproj_max_error_h'].append(reproj_max_err)  
+                eval_data_['reproj_inliers_h'].append(inl_sum)
+                eval_data_['reproj_prec_h'].append(avg_prec)                           
+                eval_data_['reproj_recall_h'].append(avg_recall)
+                    
+            aux = np.stack(([eval_data_['acc_1_h'], eval_data_['acc_2_h']]), axis=1)
+            max_acc_err = np.max(aux, axis=1)        
+            tmp = np.concatenate((aux, np.expand_dims(max_acc_err, axis=1)), axis=1)
+    
+            for a in angular_thresholds:       
+                auc_1 = error_auc(np.squeeze(eval_data_['acc_1_h']), a)
+                auc_2 = error_auc(np.squeeze(eval_data_['acc_2_h']), a)
+                auc_max_12 = error_auc(np.squeeze(max_acc_err), a)
+                eval_data_['pose_error_h_auc_' + str(a)] = np.asarray([auc_1, auc_2, auc_max_12])
+                eval_data_['pose_error_h_acc_' + str(a)] = np.sum(tmp < a, axis=0)/np.shape(tmp)[0]
+
+                print(f"mAA@{str(a).ljust(2,' ')} (F) : {eval_data_['pose_error_h_auc_' + str(a)]}")
+            
+            eval_data_['reproj_global_prec_h'] = torch.tensor(eval_data_['reproj_prec_h'], device=device).mean().item()
+            eval_data_['reproj_global_recall_h'] = torch.tensor(eval_data_['reproj_recall_h'], device=device).mean().item()
+        
+            print(f"precision (F) : {eval_data_['reproj_global_prec_h']}")
+            print(f"recall (F) : {eval_data_['reproj_global_recall_h']}")
+
+            eval_data[pipe_name_base] = eval_data_
+            compressed_pickle(save_to, eval_data)
+
+
+def homography_error_heat_map(H12_gt, H12, sz1, sz2):
+    return 0
