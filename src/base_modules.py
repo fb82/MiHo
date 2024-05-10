@@ -118,7 +118,7 @@ class magsac_module:
                 F, mask = cv2.findFundamentalMat(pt1, pt2, cv2.USAC_MAGSAC, self.px_th, self.conf, self.max_iters)
                 
             if not isinstance(mask, np.ndarray):
-                mask = np.asarray([], dtype=bool)
+                mask = []
             else:
                 mask = mask.squeeze(1) > 0
         
@@ -130,7 +130,7 @@ class magsac_module:
                 F, mask = cv2.findHomography(pt1, pt2, cv2.USAC_MAGSAC, self.px_th, self.conf, self.max_iters)
 
             if not isinstance(mask, np.ndarray):
-                mask = np.asarray([], dtype=bool)
+                mask = []
             else:
                 mask = mask.squeeze(1) > 0
                 
