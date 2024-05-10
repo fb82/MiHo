@@ -114,25 +114,43 @@ class magsac_module:
         mask = []
             
         if self.mode == 'fundamental_matrix':           
-            if (pt1.shape)[0] > 7:                        
-                F, mask = cv2.findFundamentalMat(pt1, pt2, cv2.USAC_MAGSAC, self.px_th, self.conf, self.max_iters)
-                
+            if (pt1.shape)[0] > 7:  
+                try:                     
+                    F, mask = cv2.findFundamentalMat(pt1, pt2, cv2.USAC_MAGSAC, self.px_th, self.conf, self.max_iters)
+                except:
+                    try:
+                        idx = np.random.permutation(pt1.shape[0])
+                        jdx = np.argsort(idx)
+                        F, mask = cv2.findFundamentalMat(pt1[idx], pt2[idx], cv2.USAC_MAGSAC, self.px_th, self.conf, self.max_iters)
+                        mask = mask[jdx]
+                    except:
+                        F, mask = pydegensac.findFundamentalMatrix(pt1, pt2, px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
+                        
             if not isinstance(mask, np.ndarray):
-                mask = np.asarray([], dtype=bool)
+                mask = []
             else:
-                mask = mask.squeeze(1) > 0
+                if len(mask.shape) > 1: mask = mask.squeeze(1) > 0
         
             pt1 = args['pt1'][mask]
             pt2 = args['pt2'][mask]     
             Hs = args['Hs'][mask]
         else:
-            if (pt1.shape)[0] > 3:                        
-                F, mask = cv2.findHomography(pt1, pt2, cv2.USAC_MAGSAC, self.px_th, self.conf, self.max_iters)
+            if (pt1.shape)[0] > 3:    
+                try:                    
+                    F, mask = cv2.findHomography(pt1, pt2, cv2.USAC_MAGSAC, self.px_th, self.conf, self.max_iters)
+                except:
+                    try:
+                        idx = np.random.permutation(pt1.shape[0])
+                        jdx = np.argsort(idx)
+                        F, mask = cv2.findHomography(pt1[idx], pt2[idx], cv2.USAC_MAGSAC, self.px_th, self.conf, self.max_iters)
+                        mask = mask[jdx]
+                    except:                    
+                        F, mask = pydegensac.findHomography(pt1, pt2, px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
 
             if not isinstance(mask, np.ndarray):
-                mask = np.asarray([], dtype=bool)
+                mask = []
             else:
-                mask = mask.squeeze(1) > 0
+                if len(mask.shape) > 1: mask = mask.squeeze(1) > 0
                 
             pt1 = args['pt1'][mask]
             pt2 = args['pt2'][mask]     

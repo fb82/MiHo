@@ -15,7 +15,7 @@ class oanet_module:
         model_file = os.path.join(oanet_dir, 'model_best.pth')
         file_to_download = os.path.join(oanet_dir, 'sift-gl3d.tar.gz')    
         if not os.path.isfile(model_file):    
-            url = "https://drive.google.com/file/d/1JxXYuuSa_sS-IXbL-VzJs4OVrC9O0bXc/view?usp=drive_link"
+            url = "https://drive.google.com/file/d/1Yuk_ZBlY_xgUUGXCNQX-eh8BO2ni_qhm/view?usp=sharing"
             gdown.download(url, file_to_download, fuzzy=True)
     
             with tarfile.open(file_to_download,"r") as tar_ref:

@@ -127,12 +127,7 @@ def scannet_1500_list(ppath='bench_data/gt_data/scannet'):
 
 def bench_init(bench_file='megadepth_scannet', bench_path='bench_data', bench_gt='gt_data'):
     download_megadepth_scannet_data(bench_path)
-    
-    out_dir = os.path.join(bench_path, 'gt_data')
-    if not os.path.isdir(out_dir):    
-        with zipfile.ZipFile('data/megadepth_scannet_gt_data.zip',"r") as zip_ref:
-            zip_ref.extractall(bench_path)    
-    
+        
     data_file = os.path.join(bench_path, 'megadepth_scannet' + '.pbz2')
     if not os.path.isfile(data_file):      
         megadepth_data = megadepth_1500_list(os.path.join(bench_path, bench_gt, 'megadepth'))
@@ -565,24 +560,34 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
 def download_megadepth_scannet_data(bench_path ='bench_data'):   
     os.makedirs(os.path.join(bench_path, 'downloads'), exist_ok=True)   
 
+    file_to_download = os.path.join(bench_path, 'downloads', 'megadepth_scannet_gt_data.zip')    
+    if not os.path.isfile(file_to_download):    
+        url = "https://drive.google.com/file/d/1GtpHBN6RLcgSW5RPPyqYLyfbn7ex360G/view?usp=drive_link"
+        gdown.download(url, file_to_download, fuzzy=True)
+
+    out_dir = os.path.join(bench_path, 'gt_data')
+    if not os.path.isdir(out_dir):    
+        with zipfile.ZipFile(file_to_download, "r") as zip_ref:
+            zip_ref.extractall(bench_path)    
+
     file_to_download = os.path.join(bench_path, 'downloads', 'megadepth_test_1500.tar.gz')    
     if not os.path.isfile(file_to_download):    
-        url = "https://drive.google.com/file/d/12yKniNWebDHRTCwhBNJmxYMPgqYX3Nhv/view?usp=drive_link"
+        url = "https://drive.google.com/file/d/1Vwk_htrvWmw5AtJRmHw10ldK57ckgZ3r/view?usp=drive_link"
         gdown.download(url, file_to_download, fuzzy=True)
     
     out_dir = os.path.join(bench_path, 'megadepth_test_1500')
     if not os.path.isdir(out_dir):    
-        with tarfile.open(file_to_download,"r") as tar_ref:
+        with tarfile.open(file_to_download, "r") as tar_ref:
             tar_ref.extractall(bench_path)
     
     file_to_download = os.path.join(bench_path, 'downloads', 'scannet_test_1500.tar.gz')    
     if not os.path.isfile(file_to_download):    
-        url = "https://drive.google.com/file/d/1wtl-mNicxGlXZ-UQJxFnKuWPvvssQBwd/view?usp=drive_link"
+        url = "https://drive.google.com/file/d/13KCCdC1k3IIZ4I3e4xJoVMvDA84Wo-AG/view?usp=drive_link"
         gdown.download(url, file_to_download, fuzzy=True)
 
     out_dir = os.path.join(bench_path, 'scannet_test_1500')
     if not os.path.isdir(out_dir):    
-        with tarfile.open(file_to_download,"r") as tar_ref:
+        with tarfile.open(file_to_download, "r") as tar_ref:
             tar_ref.extractall(bench_path)
     
     return

@@ -3,3 +3,4 @@
 *.pth
 run_bench
 logs*
+acne_weights.zip
