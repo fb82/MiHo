@@ -44,7 +44,7 @@ if __name__ == '__main__':
         #    pipe_base.pydegensac_module(px_th=3)
         # ],
 
-        # available RANSAC: pydegensac, magsac, poselib
+        # available RANSAC: pydegensac, magsac, poselib        
         [
             pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
             pipe_base.pydegensac_module(px_th=3)
@@ -136,23 +136,35 @@ if __name__ == '__main__':
     ]
 
     planar_data, _ = bench.planar_bench_setup(bench_path=bench_path, bench_imgs=bench_im)
+
+    print("*** P l a n a r ***")    
     for i, pipe in enumerate(pipes):
         print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
+        for pipe_module in pipe:
+            if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'homography')
+        bench.show_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)
+
         bench.run_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
         bench.show_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)
 
     megadepth_data, scannet_data, data_file = bench.bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
     megadepth_data, scannet_data = bench.setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
 
+    print("*** M e g a D e p t h ***")    
     for i, pipe in enumerate(pipes):
         print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
+        for pipe_module in pipe:
+            if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'fundamental_matrix')
         bench.run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
         bench.eval_pipe_fundamental(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', save_to=save_to + '_fundamental_megadepth.pbz2', use_scale=True, err_th_list=list(range(1, 16)))
         bench.eval_pipe_essential(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5], save_to=save_to + '_essential_megadepth.pbz2', use_scale=True)
         bench.show_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)
 
+    print("*** S c a n N e t ***")    
     for i, pipe in enumerate(pipes):
-        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")
+        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
+        for pipe_module in pipe:
+            if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'fundamental_matrix')
         bench.run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
         bench.eval_pipe_fundamental(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', save_to=save_to + '_fundamental_scannet.pbz2', use_scale=False, err_th_list=list(range(1, 16)))
         bench.eval_pipe_essential(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5], save_to=save_to + '_essential_scannet.pbz2', use_scale=False)
