@@ -683,8 +683,24 @@ planar_scenes = [
     ]
 
 
-def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, in_path='planar_in', out_path='planar_out', check_path='planar_out/check', save_to='planar_data.pbz2'):
+def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='bench_data', bench_imgs='imgs', out_path='planar_out', bench_plot='plot', save_to='planar.pbz2'):        
+    os.makedirs(os.path.join(bench_path, 'downloads'), exist_ok=True)
+
+    file_to_download = os.path.join(bench_path, 'downloads', 'planar_data.zip')    
+    if not os.path.isfile(file_to_download):    
+        url = "https://drive.google.com/file/d/1XkP4RR9KKbCV94heI5JWlue2l32H0TNs/view?usp=drive_link"
+        gdown.download(url, file_to_download, fuzzy=True)
+
+    out_dir = os.path.join(bench_path, 'planar')
+    if not os.path.isdir(out_dir):    
+        with zipfile.ZipFile(file_to_download, "r") as zip_ref:
+            zip_ref.extractall(out_dir)        
     
+    in_path = out_dir
+    out_path = os.path.join(bench_path, bench_imgs, 'planar')
+    check_path = os.path.join(bench_path, bench_plot, 'planar_check')
+    save_to_full = os.path.join(bench_path, save_to)
+
     os.makedirs(out_path, exist_ok=True)
     os.makedirs(check_path, exist_ok=True)
 
@@ -696,6 +712,7 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, in_path='planar_
     im2_mask = []
     im1_mask_bad = []
     im2_mask_bad = []
+    im_pair_scale = []
     
     for scene in planar_scenes:
         img1 = scene + '1.png'
@@ -739,6 +756,8 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, in_path='planar_
             im2i_ = cv2.warpPerspective(im1i,H_,(im2i.shape[1],im2i.shape[0]))
             im1i_ = cv2.warpPerspective(im2i,H_inv_,(im1i.shape[1],im1i.shape[0]))
             
+            im_pair_scale.append(np.ones((2, 2)))
+            
             if os.path.isfile(im1s_mask):
                 im1_mask.append(img1_mask)
                 shutil.copyfile(im1s_mask, os.path.join(out_path, img1_mask))
@@ -768,8 +787,13 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, in_path='planar_
             cv2.imwrite(os.path.join(check_path, scene + str(i) + '_2a.png'), im2i)
             cv2.imwrite(os.path.join(check_path, scene + str(i) + '_2b.png'), im2i_)
     
+    H = np.asarray(H)
+    H_inv = np.asarray(H_inv)
+    im_pair_scale = np.asarray(im_pair_scale)
+    
     data = {'im1': im1, 'im2': im2, 'H': H, 'H_inv': H_inv,
             'im1_mask': im1_mask, 'im2_mask': im2_mask,
             'im1_mask_bad': im1_mask_bad, 'im2_mask_bad': im2_mask_bad}
 
-    compressed_pickle(save_to, data)
+    compressed_pickle(save_to_full, data)
+    return data, save_to_full

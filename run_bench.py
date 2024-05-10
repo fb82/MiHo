@@ -135,6 +135,12 @@ if __name__ == '__main__':
         ]            
     ]
 
+    planar_data, _ = bench.planar_bench_setup(bench_path=bench_path, bench_imgs=bench_im)
+    for i, pipe in enumerate(pipes):
+        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
+        bench.run_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
+        bench.show_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)
+
     megadepth_data, scannet_data, data_file = bench.bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
     megadepth_data, scannet_data = bench.setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
 
