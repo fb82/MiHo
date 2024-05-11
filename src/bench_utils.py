@@ -712,8 +712,8 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
     H_inv = []
     im1_mask = []
     im2_mask = []
-    im1_mask_bad = []
-    im2_mask_bad = []
+    im1_use_mask = []
+    im2_use_mask = []
     im_pair_scale = []
     
     for scene in planar_scenes:
@@ -764,29 +764,34 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
             
             im_pair_scale.append(np.ones((2, 2)))
             
+            im1_mask_ = None
+            im2_mask_ = None
+            im1_use_mask_ = False
+            im2_use_mask_ = False
+            
             if os.path.isfile(im1s_mask):
-                im1_mask.append(img1_mask)
+                im1_mask_ = img1_mask
                 shutil.copyfile(im1s_mask, os.path.join(out_path, img1_mask))
-            else:
-                im1_mask.append(None)
-
+                im1_use_mask_ = True
+ 
             if os.path.isfile(im2s_mask):
-                im2_mask.append(img2_mask)
+                im2_mask_ = img2_mask
                 shutil.copyfile(im2s_mask, os.path.join(out_path, img2_mask))
-            else:
-                im2_mask.append(None)
+                im2_use_mask_ = True
 
             if os.path.isfile(im1s_mask_bad):
-                im1_mask.append(img1_mask_bad)
+                im1_mask_ = img1_mask_bad
                 shutil.copyfile(im1s_mask_bad, os.path.join(out_path, img1_mask_bad))
-            else:
-                im1_mask_bad.append(None)
 
             if os.path.isfile(im2s_mask_bad):
-                im2_mask_bad.append(img2_mask_bad)
+                im2_mask_ = img2_mask_bad
                 shutil.copyfile(im2s_mask_bad, os.path.join(out_path, img2_mask_bad))
-            else:
-                im2_mask_bad.append(None)
+
+            im1_mask.append(im1_mask_)
+            im2_mask.append(im2_mask_)
+
+            im1_use_mask.append(im1_use_mask_)
+            im2_use_mask.append(im2_use_mask_)
 
             cv2.imwrite(os.path.join(check_path, scene + str(i) + '_1a.png'), im1i)
             cv2.imwrite(os.path.join(check_path, scene + str(i) + '_1b.png'), im1i_)
@@ -797,11 +802,14 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
     H_inv = np.asarray(H_inv)
     sz1 = np.asarray(sz1)
     sz2 = np.asarray(sz2)
+    im1_use_mask = np.asarray(im1_use_mask)
+    im2_use_mask = np.asarray(im2_use_mask)
+
     im_pair_scale = np.asarray(im_pair_scale)
     
     data = {'im1': im1, 'im2': im2, 'H': H, 'H_inv': H_inv,
             'im1_mask': im1_mask, 'im2_mask': im2_mask, 'sz1': sz1, 'sz2': sz2,
-            'im1_mask_bad': im1_mask_bad, 'im2_mask_bad': im2_mask_bad}
+            'im1_use_mask': im1_use_mask, 'im2_use_mask': im2_use_mask}
 
     compressed_pickle(save_to_full, data)
     return data, save_to_full
