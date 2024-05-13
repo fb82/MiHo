@@ -52,14 +52,8 @@ def get_inlier_unduplex(H, pt1, pt2, sidx_par, th):
     pt2_ = torch.matmul(H, pt1)
     sign_pt2_ = torch.sign(pt2_[:, 2])
 
-    # CUDA crash on bad matrices! ##########################
-    bad_matrix = ~(torch.isfinite(torch.linalg.cond(H))) #
-    H[bad_matrix] = torch.eye(3, device=device)          #
-    ########################################################
-    pt1_ = torch.linalg.solve(H, pt2.unsqueeze(0))
-    # CUDA crash on bad matrices! ##
-    pt1_[bad_matrix, 2] = 0        #
-    ################################
+    pt1_, bad_matrix = torch.linalg.solve_ex(H, pt2.unsqueeze(0))
+    pt1_[bad_matrix > 0, 2] = 0        #
     sign_pt1_ = torch.sign(pt1_[:, 2])
 
     idx_aux = torch.arange(l2, device=device).unsqueeze(1)*n + sidx_par

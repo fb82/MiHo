@@ -52,14 +52,8 @@ def get_inlier_duplex(H12, pt1, pt2, ptm, sidx_par, th):
     ptm_reproj = torch.cat((torch.matmul(H12[:l2], pt1), torch.matmul(H12[l2:], pt2)), dim=0)
     sign_ptm = torch.sign(ptm_reproj[:, 2])
     
-    # CUDA crash on bad matrices! ##########################
-    bad_matrix = ~(torch.isfinite(torch.linalg.cond(H12))) #
-    H12[bad_matrix] = torch.eye(3, device=device)          #
-    ########################################################
-    pt12_reproj = torch.linalg.solve(H12, ptm.unsqueeze(0))
-    # CUDA crash on bad matrices! ##
-    pt12_reproj[bad_matrix, 2] = 0 #
-    ################################
+    pt12_reproj, bad_matrix = torch.linalg.solve_ex(H12, ptm.unsqueeze(0))
+    pt12_reproj[bad_matrix > 0, 2] = 0 #
     sign_pt12 = torch.sign(pt12_reproj[:, 2])
 
     idx_aux = torch.arange(l2*2, device=device).unsqueeze(1)*n + sidx_par.repeat(2,1)
