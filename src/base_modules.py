@@ -3,7 +3,7 @@ import torch
 import kornia as K
 import pydegensac
 import cv2
-#import poselib
+import poselib
 from .ncc import refinement_laf
 
 
@@ -15,13 +15,12 @@ class keynetaffnethardnet_module:
         self.upright = False
         self.th = 0.99
         self.num_features = 2048
-        
+
         for k, v in args.items():
            setattr(self, k, v)
 
         with torch.inference_mode():
-            self.detector = K.feature.KeyNetAffNetHardNet(num_features=self.num_features, upright=self.upright, device=device)
-            
+            self.detector = K.feature.KeyNetAffNetHardNet(upright=self.upright, device=device)
         
     def get_id(self):
         return ('keynetaffnethardnet_upright_' + str(self.upright) + '_th_' + str(self.th) + '_nfeat_' + str(self.num_features)).lower()
