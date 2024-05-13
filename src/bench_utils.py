@@ -9,8 +9,10 @@ import os
 import warnings
 import _pickle as cPickle
 import bz2
+import shutil
 import src.ncc as ncc
 
+import matplotlib.pyplot as plt
 import src.plot.viz2d as viz
 import src.plot.utils as viz_utils
 
@@ -125,12 +127,7 @@ def scannet_1500_list(ppath='bench_data/gt_data/scannet'):
 
 def bench_init(bench_file='megadepth_scannet', bench_path='bench_data', bench_gt='gt_data'):
     download_megadepth_scannet_data(bench_path)
-    
-    out_dir = os.path.join(bench_path, 'gt_data')
-    if not os.path.isdir(out_dir):    
-        with zipfile.ZipFile('data/megadepth_scannet_gt_data.zip',"r") as zip_ref:
-            zip_ref.extractall(bench_path)    
-    
+        
     data_file = os.path.join(bench_path, 'megadepth_scannet' + '.pbz2')
     if not os.path.isfile(data_file):      
         megadepth_data = megadepth_1500_list(os.path.join(bench_path, bench_gt, 'megadepth'))
@@ -563,24 +560,34 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
 def download_megadepth_scannet_data(bench_path ='bench_data'):   
     os.makedirs(os.path.join(bench_path, 'downloads'), exist_ok=True)   
 
+    file_to_download = os.path.join(bench_path, 'downloads', 'megadepth_scannet_gt_data.zip')    
+    if not os.path.isfile(file_to_download):    
+        url = "https://drive.google.com/file/d/1GtpHBN6RLcgSW5RPPyqYLyfbn7ex360G/view?usp=drive_link"
+        gdown.download(url, file_to_download, fuzzy=True)
+
+    out_dir = os.path.join(bench_path, 'gt_data')
+    if not os.path.isdir(out_dir):    
+        with zipfile.ZipFile(file_to_download, "r") as zip_ref:
+            zip_ref.extractall(bench_path)    
+
     file_to_download = os.path.join(bench_path, 'downloads', 'megadepth_test_1500.tar.gz')    
     if not os.path.isfile(file_to_download):    
-        url = "https://drive.google.com/file/d/12yKniNWebDHRTCwhBNJmxYMPgqYX3Nhv/view?usp=drive_link"
+        url = "https://drive.google.com/file/d/1Vwk_htrvWmw5AtJRmHw10ldK57ckgZ3r/view?usp=drive_link"
         gdown.download(url, file_to_download, fuzzy=True)
     
     out_dir = os.path.join(bench_path, 'megadepth_test_1500')
     if not os.path.isdir(out_dir):    
-        with tarfile.open(file_to_download,"r") as tar_ref:
+        with tarfile.open(file_to_download, "r") as tar_ref:
             tar_ref.extractall(bench_path)
     
     file_to_download = os.path.join(bench_path, 'downloads', 'scannet_test_1500.tar.gz')    
     if not os.path.isfile(file_to_download):    
-        url = "https://drive.google.com/file/d/1wtl-mNicxGlXZ-UQJxFnKuWPvvssQBwd/view?usp=drive_link"
+        url = "https://drive.google.com/file/d/13KCCdC1k3IIZ4I3e4xJoVMvDA84Wo-AG/view?usp=drive_link"
         gdown.download(url, file_to_download, fuzzy=True)
 
     out_dir = os.path.join(bench_path, 'scannet_test_1500')
     if not os.path.isdir(out_dir):    
-        with tarfile.open(file_to_download,"r") as tar_ref:
+        with tarfile.open(file_to_download, "r") as tar_ref:
             tar_ref.extractall(bench_path)
     
     return
@@ -589,7 +596,9 @@ def download_megadepth_scannet_data(bench_path ='bench_data'):
 def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='plot', force=False):
 
     n = len(dataset_data['im1'])
-    im_path = os.path.join(bench_im, dataset_name)        
+    im_path = os.path.join(bench_im, dataset_name)    
+    fig = plt.figure()    
+    
     with progress_bar(bar_name + ' - pipeline completion') as p:
         for i in p.track(range(n)):
             im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + '.png'
@@ -612,7 +621,7 @@ def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data
             
             img1 = viz_utils.load_image(im1)
             img2 = viz_utils.load_image(im2)
-            fig, axes = viz.plot_images([img1, img2])              
+            fig, axes = viz.plot_images([img1, img2], fig_num=fig.number)              
             
             pt1 = pair_data[0]['pt1']
             pt2 = pair_data[0]['pt2']
@@ -627,12 +636,164 @@ def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data
                     if mask.shape[0] > 0:
                         mpt1 = pt1[idx[~mask]]
                         mpt2 = pt2[idx[~mask]]
-                        viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes)
+                        viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes, fig_num=fig.number)
                         idx = idx[mask]
                     clr = clr + 1
             mpt1 = pt1[idx]
             mpt2 = pt2[idx]
-            viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes)
+            viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes, fig_num=fig.number)
 
-            viz.save_plot(pipe_img_save)
-            viz.close_plot(fig)
+            viz.save_plot(pipe_img_save, fig)
+            viz.clear_plot(fig)
+    plt.close(fig)
+
+
+planar_scenes = [
+    'aerial',
+    'aerialrot',
+    'apprendices'
+    'artisans',
+    'bark'
+    'barkrot'
+    'birdwoman',
+    'boat',
+    'boatrot',
+    'calder',
+    'chatnoir',
+    'colors',
+    'DD',
+    'dogman',
+    'duckhunt',
+    'floor',
+    'graf',
+    'home',
+    'marilyn',
+    'mario',
+    'maskedman',
+    'op',
+    'oprot',
+    'outside',
+    'posters',
+    'screen',
+    'spidey',
+    'sunseason',
+    'there',
+    'wall',
+    'zero'
+    ]
+
+
+def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='bench_data', bench_imgs='imgs', out_path='planar_out', bench_plot='plot', save_to='planar.pbz2'):        
+    os.makedirs(os.path.join(bench_path, 'downloads'), exist_ok=True)
+
+    file_to_download = os.path.join(bench_path, 'downloads', 'planar_data.zip')    
+    if not os.path.isfile(file_to_download):    
+        url = "https://drive.google.com/file/d/1XkP4RR9KKbCV94heI5JWlue2l32H0TNs/view?usp=drive_link"
+        gdown.download(url, file_to_download, fuzzy=True)
+
+    out_dir = os.path.join(bench_path, 'planar')
+    if not os.path.isdir(out_dir):    
+        with zipfile.ZipFile(file_to_download, "r") as zip_ref:
+            zip_ref.extractall(out_dir)        
+    
+    in_path = out_dir
+    out_path = os.path.join(bench_path, bench_imgs, 'planar')
+    check_path = os.path.join(bench_path, bench_plot, 'planar_check')
+    save_to_full = os.path.join(bench_path, save_to)
+
+    os.makedirs(out_path, exist_ok=True)
+    os.makedirs(check_path, exist_ok=True)
+
+    im1 = []
+    im2 = []
+    H = []
+    H_inv = []
+    im1_mask = []
+    im2_mask = []
+    im1_mask_bad = []
+    im2_mask_bad = []
+    im_pair_scale = []
+    
+    for scene in planar_scenes:
+        img1 = scene + '1.png'
+        img1_mask = 'mask_' + scene + '1.png'
+        img1_mask_bad = 'mask_bad_' + scene + '1.png'
+
+        for i in range(2, max_imgs+1):
+            img2 = scene + str(i) + '.png'
+            img2_mask = 'mask_' + scene  + str(i) + '.png'
+            img2_mask_bad = 'mask_bad_' + scene + str(i) + '.png'
+
+            H12 = scene + '_H1' + str(i) + '.txt'
+                        
+            im1s = os.path.join(in_path, img1)
+            im1s_mask = os.path.join(in_path, img1_mask)
+            im1s_mask_bad = os.path.join(in_path, img1_mask_bad)
+            im2s = os.path.join(in_path, img2)
+            im2s_mask = os.path.join(in_path, img2_mask)
+            im2s_mask_bad = os.path.join(in_path, img2_mask_bad)
+            H12s = os.path.join(in_path, H12)
+            
+            if not os.path.isfile(H12s):
+                continue
+            
+            im1d = os.path.join(out_path, img1)
+            im2d = os.path.join(out_path, img2)
+ 
+            shutil.copyfile(im1s, im1d)
+            shutil.copyfile(im2s, im2d)
+            
+            H_ = np.loadtxt(H12s)
+            H_inv_ = np.linalg.inv(H_)
+            
+            im1.append(img1)
+            im2.append(img2)
+            H.append(H_)
+            H_inv.append(H_inv_)
+            
+            im1i=cv2.imread(im1s)
+            im2i=cv2.imread(im2s)
+            im2i_ = cv2.warpPerspective(im1i,H_,(im2i.shape[1],im2i.shape[0]))
+            im1i_ = cv2.warpPerspective(im2i,H_inv_,(im1i.shape[1],im1i.shape[0]))
+            
+            im_pair_scale.append(np.ones((2, 2)))
+            
+            if os.path.isfile(im1s_mask):
+                im1_mask.append(img1_mask)
+                shutil.copyfile(im1s_mask, os.path.join(out_path, img1_mask))
+            else:
+                im1_mask.append(None)
+
+            if os.path.isfile(im2s_mask):
+                im2_mask.append(img2_mask)
+                shutil.copyfile(im2s_mask, os.path.join(out_path, img2_mask))
+            else:
+                im2_mask.append(None)
+
+            if os.path.isfile(im1s_mask_bad):
+                im1_mask.append(img1_mask_bad)
+                shutil.copyfile(im1s_mask_bad, os.path.join(out_path, img1_mask_bad))
+            else:
+                im1_mask_bad.append(None)
+
+            if os.path.isfile(im2s_mask_bad):
+                im2_mask_bad.append(img2_mask_bad)
+                shutil.copyfile(im2s_mask_bad, os.path.join(out_path, img2_mask_bad))
+            else:
+                im2_mask_bad.append(None)
+
+            cv2.imwrite(os.path.join(check_path, scene + str(i) + '_1a.png'), im1i)
+            cv2.imwrite(os.path.join(check_path, scene + str(i) + '_1b.png'), im1i_)
+            cv2.imwrite(os.path.join(check_path, scene + str(i) + '_2a.png'), im2i)
+            cv2.imwrite(os.path.join(check_path, scene + str(i) + '_2b.png'), im2i_)
+    
+    H = np.asarray(H)
+    H_inv = np.asarray(H_inv)
+    im_pair_scale = np.asarray(im_pair_scale)
+    
+    data = {'im1': im1, 'im2': im2, 'H': H, 'H_inv': H_inv,
+            'im1_mask': im1_mask, 'im2_mask': im2_mask,
+            'im1_mask_bad': im1_mask_bad, 'im2_mask_bad': im2_mask_bad}
+
+    compressed_pickle(save_to_full, data)
+    return data, save_to_full

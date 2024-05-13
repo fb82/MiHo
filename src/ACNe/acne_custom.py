@@ -5,6 +5,7 @@ import numpy as np
 import warnings
 from PIL import Image
 import zipfile
+import gdown
 
 from .demo_util import get_T_from_K, norm_points_with_T
 from .utils import norm_points
@@ -100,10 +101,15 @@ class acne_module:
     current_obj_id = None
     
     def __init__(self, **args):
-
         acne_dir = os.path.split(__file__)[0]
         model_dir = os.path.join(acne_dir, 'logs')
-        file_to_unzip = "data/acne_weights.zip"
+
+        file_to_download = os.path.join(acne_dir, 'acne_weights.zip')    
+        if not os.path.isfile(file_to_download):    
+            url = "https://drive.google.com/file/d/1yluw3u3F8qH3oTB3dxVw1re4HI6a0TuQ/view?usp=drive_link"
+            gdown.download(url, file_to_download, fuzzy=True)        
+
+        file_to_unzip = file_to_download
         if not os.path.isdir(model_dir):    
             with zipfile.ZipFile(file_to_unzip,"r") as zip_ref:
                 zip_ref.extractall(path=acne_dir)
