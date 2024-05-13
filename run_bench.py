@@ -33,53 +33,67 @@ if __name__ == '__main__':
     save_to = os.path.join(bench_path, bench_res, 'res_')
 
     pipes = [
+
         [
             superpoint_lightglue_module(nmax_keypoints=2048),
-            #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-            pipe_base.pydegensac_module(px_th=0.5)
+            miho_duplex.miho_module(),
+            pipe_base.magsac_module(px_th=1.0)
         ],
 
         [
             superpoint_lightglue_module(nmax_keypoints=2048),
-            #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-            pipe_base.pydegensac_module(px_th=1)
+            miho_duplex.miho_module(),
+            ncc.ncc_module(),
+            pipe_base.magsac_module(px_th=1.0)
         ],
 
-        [
-            superpoint_lightglue_module(nmax_keypoints=2048),
-            #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-            pipe_base.pydegensac_module(px_th=3)
-        ],
-
-        [
-            superpoint_lightglue_module(nmax_keypoints=2048),
-            #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-            pipe_base.pydegensac_module(px_th=5)
-        ],
-
-        [
-            superpoint_lightglue_module(nmax_keypoints=2048),
-            #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-            pipe_base.magsac_module(px_th=0.5)
-        ],
-
-        [
-            superpoint_lightglue_module(nmax_keypoints=2048),
-            #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-            pipe_base.magsac_module(px_th=1)
-        ],
-
-        [
-            superpoint_lightglue_module(nmax_keypoints=2048),
-            #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-            pipe_base.magsac_module(px_th=3)
-        ],
-
-        [
-            superpoint_lightglue_module(nmax_keypoints=2048),
-            #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-            pipe_base.magsac_module(px_th=5)
-        ],
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=2048),
+        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+        #    pipe_base.pydegensac_module(px_th=0.5)
+        #],
+#
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=2048),
+        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+        #    pipe_base.pydegensac_module(px_th=1)
+        #],
+#
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=2048),
+        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+        #    pipe_base.pydegensac_module(px_th=3)
+        #],
+#
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=2048),
+        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+        #    pipe_base.pydegensac_module(px_th=5)
+        #],
+#
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=2048),
+        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+        #    pipe_base.magsac_module(px_th=0.5)
+        #],
+#
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=2048),
+        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+        #    pipe_base.magsac_module(px_th=1)
+        #],
+#
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=2048),
+        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+        #    pipe_base.magsac_module(px_th=3)
+        #],
+#
+        #[
+        #    superpoint_lightglue_module(nmax_keypoints=2048),
+        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
+        #    pipe_base.magsac_module(px_th=5)
+        #],
 
 #
         #[
