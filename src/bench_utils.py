@@ -712,6 +712,9 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
     H_inv = []
     im1_mask = []
     im2_mask = []
+    im1_full_mask = []
+    im2_full_mask = []
+
     im1_use_mask = []
     im2_use_mask = []
     im_pair_scale = []
@@ -764,58 +767,37 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
             
             im_pair_scale.append(np.ones((2, 2)))
             
-            im1_mask_ = None
-            im2_mask_ = None
+            im1_mask_ = torch.ones((sz1[-1][1],sz1[-1][0]), device=device, dtype=torch.bool)
+            im2_mask_ = torch.ones((sz2[-1][1],sz2[-1][0]), device=device, dtype=torch.bool)
             im1_use_mask_ = False
             im2_use_mask_ = False
             
             if os.path.isfile(im1s_mask):
-                im1_mask_ = img1_mask
-                shutil.copyfile(im1s_mask, os.path.join(out_path, img1_mask))
+                im1_mask_ = torch.tensor((cv2.imread(im1s_mask, cv2.IMREAD_GRAYSCALE)==0), device=device)
                 im1_use_mask_ = True
  
             if os.path.isfile(im2s_mask):
-                im2_mask_ = img2_mask
-                shutil.copyfile(im2s_mask, os.path.join(out_path, img2_mask))
+                im2_mask_ = torch.tensor((cv2.imread(im2s_mask, cv2.IMREAD_GRAYSCALE)==0), device=device)
                 im2_use_mask_ = True
 
             if os.path.isfile(im1s_mask_bad):
-                im1_mask_ = img1_mask_bad
-                shutil.copyfile(im1s_mask_bad, os.path.join(out_path, img1_mask_bad))
+                im1_mask_ = torch.tensor((cv2.imread(im1s_mask_bad, cv2.IMREAD_GRAYSCALE)==0), device=device)
 
             if os.path.isfile(im2s_mask_bad):
-                im2_mask_ = img2_mask_bad
-                shutil.copyfile(im2s_mask_bad, os.path.join(out_path, img2_mask_bad))
+                im2_mask_ = torch.tensor((cv2.imread(im1s_mask_bad, cv2.IMREAD_GRAYSCALE)==0), device=device)
 
-            im1_mask.append(im1_mask_)
-            im2_mask.append(im2_mask_)
+            im1_mask.append(im1_mask_.detach().cpu().numpy())
+            im2_mask.append(im2_mask_.detach().cpu().numpy())
 
             im1_use_mask.append(im1_use_mask_)
             im2_use_mask.append(im2_use_mask_)
 
-
-            if im1_mask_ is None:
-                bmask1_ = torch.ones((sz1[-1][1],sz1[-1][0]), device=device, dtype=torch.bool)
-            else:
-                bmask1_ = torch.tensor((cv2.imread(im1s_mask, cv2.IMREAD_GRAYSCALE)==0), device=device)
-
-            if im2_mask_ is None:
-                bmask2_ = torch.ones((sz2[-1][1],sz2[-1][0]), device=device, dtype=torch.bool)
-            else:
-                bmask2_ = torch.tensor((cv2.imread(im2s_mask, cv2.IMREAD_GRAYSCALE)==0), device=device)
-                
-            x1 = torch.arange(sz1[-1][0], device=device).unsqueeze(0).repeat(sz1[-1][1],1).unsqueeze(-1)
-            y1 = torch.arange(sz1[-1][1], device=device).unsqueeze(1).repeat(1,sz1[-1][0]).unsqueeze(-1)
-            z1 = torch.ones((sz1[-1][1],sz1[-1][0]), device=device).unsqueeze(-1)
-            pt1 = torch.cat((x1, y1, z1), dim=-1).reshape((-1, 3))
-            pt2_ = torch.tensor(H_, device=device, dtype=torch.float) @ pt1.permute(1,0)
-            pt2_ = (pt2_[:2] / pt2_[-1].unsqueeze(0)).reshape(2, sz1[-1][1], -1).round()
-            mask1_reproj = torch.isfinite(pt2_).all(dim=0) & (pt2_>=0).all(dim=0) & (pt2_[0]<sz2[-1][0]) & (pt2_[1]<sz2[-1][1])
-            mask1_reproj = mask1_reproj & bmask1_
-            masked_pt2 = pt2_[:, mask1_reproj]
-            idx = masked_pt2[1] * sz2[-1][0] + masked_pt2[0]
-            mask1_reproj[mask1_reproj.clone()] = bmask2_.flatten()[idx.type(torch.long)]
-
+            im1_full_mask_ = refine_mask(im1_mask_, im2_mask_, sz1[-1], sz2[-1], H_)
+            im2_full_mask_ = refine_mask(im2_mask_, im1_full_mask_, sz2[-1], sz1[-1], H_inv_)
+            
+            im1_full_mask.append(im1_full_mask_.detach().cpu().numpy())
+            im2_full_mask.append(im2_full_mask_.detach().cpu().numpy())
+            
             cv2.imwrite(os.path.join(check_path, scene + str(i) + '_1a.png'), im1i)
             cv2.imwrite(os.path.join(check_path, scene + str(i) + '_1b.png'), im1i_)
             cv2.imwrite(os.path.join(check_path, scene + str(i) + '_2a.png'), im2i)
@@ -823,8 +805,10 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
     
     H = np.asarray(H)
     H_inv = np.asarray(H_inv)
+
     sz1 = np.asarray(sz1)
     sz2 = np.asarray(sz2)
+
     im1_use_mask = np.asarray(im1_use_mask)
     im2_use_mask = np.asarray(im2_use_mask)
 
@@ -832,10 +816,28 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
     
     data = {'im1': im1, 'im2': im2, 'H': H, 'H_inv': H_inv,
             'im1_mask': im1_mask, 'im2_mask': im2_mask, 'sz1': sz1, 'sz2': sz2,
-            'im1_use_mask': im1_use_mask, 'im2_use_mask': im2_use_mask}
+            'im1_use_mask': im1_use_mask, 'im2_use_mask': im2_use_mask,
+            'im1_full_mask': im1_full_mask, 'im2_full_mask': im2_full_mask}
 
     compressed_pickle(save_to_full, data)
     return data, save_to_full
+
+
+def  refine_mask(im1_mask, im2_mask, sz1, sz2, H):
+                
+    x = torch.arange(sz1[0], device=device).unsqueeze(0).repeat(sz1[1],1).unsqueeze(-1)
+    y = torch.arange(sz1[1], device=device).unsqueeze(1).repeat(1,sz1[0]).unsqueeze(-1)
+    z = torch.ones((sz1[1],sz1[0]), device=device).unsqueeze(-1)
+    pt1 = torch.cat((x, y, z), dim=-1).reshape((-1, 3))
+    pt2_ = torch.tensor(H, device=device, dtype=torch.float) @ pt1.permute(1,0)
+    pt2_ = (pt2_[:2] / pt2_[-1].unsqueeze(0)).reshape(2, sz1[1], -1).round()
+    mask1_reproj = torch.isfinite(pt2_).all(dim=0) & (pt2_ >= 0).all(dim=0) & (pt2_[0] < sz2[0]) & (pt2_[1] < sz2[1])
+    mask1_reproj = mask1_reproj & im1_mask
+    masked_pt2 = pt2_[:, mask1_reproj]
+    idx = masked_pt2[1] * sz2[0] + masked_pt2[0]
+    mask1_reproj[mask1_reproj.clone()] = im2_mask.flatten()[idx.type(torch.long)]
+    
+    return mask1_reproj
 
 
 def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_fundamental.pbz2', force=False, use_scale=False, err_th_list=list(range(1,16))):
