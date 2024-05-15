@@ -41,7 +41,7 @@ class superpoint_lightglue_module:
 
 
     def get_id(self):
-        return ('superpoint_lightglue').lower()
+        return ('superpoint_lightglue_nfeat_' + str(self.nmax_keypoints)).lower()
             
 
     def run(self, **args):

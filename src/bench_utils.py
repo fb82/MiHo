@@ -793,6 +793,29 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
             im1_use_mask.append(im1_use_mask_)
             im2_use_mask.append(im2_use_mask_)
 
+
+            if im1_mask_ is None:
+                bmask1_ = torch.ones((sz1[-1][1],sz1[-1][0]), device=device, dtype=torch.bool)
+            else:
+                bmask1_ = torch.tensor((cv2.imread(im1s_mask, cv2.IMREAD_GRAYSCALE)==0), device=device)
+
+            if im2_mask_ is None:
+                bmask2_ = torch.ones((sz2[-1][1],sz2[-1][0]), device=device, dtype=torch.bool)
+            else:
+                bmask2_ = torch.tensor((cv2.imread(im2s_mask, cv2.IMREAD_GRAYSCALE)==0), device=device)
+                
+            x1 = torch.arange(sz1[-1][0], device=device).unsqueeze(0).repeat(sz1[-1][1],1).unsqueeze(-1)
+            y1 = torch.arange(sz1[-1][1], device=device).unsqueeze(1).repeat(1,sz1[-1][0]).unsqueeze(-1)
+            z1 = torch.ones((sz1[-1][1],sz1[-1][0]), device=device).unsqueeze(-1)
+            pt1 = torch.cat((x1, y1, z1), dim=-1).reshape((-1, 3))
+            pt2_ = torch.tensor(H_, device=device, dtype=torch.float) @ pt1.permute(1,0)
+            pt2_ = (pt2_[:2] / pt2_[-1].unsqueeze(0)).reshape(2, sz1[-1][1], -1).round()
+            mask1_reproj = torch.isfinite(pt2_).all(dim=0) & (pt2_>=0).all(dim=0) & (pt2_[0]<sz2[-1][0]) & (pt2_[1]<sz2[-1][1])
+            mask1_reproj = mask1_reproj & bmask1_
+            masked_pt2 = pt2_[:, mask1_reproj]
+            idx = masked_pt2[1] * sz2[-1][0] + masked_pt2[0]
+            mask1_reproj[mask1_reproj.clone()] = bmask2_.flatten()[idx.type(torch.long)]
+
             cv2.imwrite(os.path.join(check_path, scene + str(i) + '_1a.png'), im1i)
             cv2.imwrite(os.path.join(check_path, scene + str(i) + '_1b.png'), im1i_)
             cv2.imwrite(os.path.join(check_path, scene + str(i) + '_2a.png'), im2i)
