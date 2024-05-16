@@ -840,7 +840,7 @@ def  refine_mask(im1_mask, im2_mask, sz1, sz2, H):
     return mask1_reproj
 
 
-def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_fundamental.pbz2', force=False, use_scale=False, err_th_list=list(range(1,16))):
+def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_fundamental.pbz2', force=False, use_scale=False, rad=15, err_th_list=list(range(1,16))):
     warnings.filterwarnings("ignore", category=UserWarning)
 
     angular_thresholds = [5, 10, 15]
@@ -917,11 +917,11 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                     if nn < 4:
                         H = None
                     else:
-                        H = cv2.findHomography(pts1, pts2, 0)[0]
+                        H = torch.tensor(cv2.findHomography(pts1, pts2, 0)[0], device=device)
 
                     if nn > 0:
-                        H_gt = dataset_data['H'][i]
-                        H_inv_gt = dataset_data['H_inv'][i]
+                        H_gt = torch.tensor(dataset_data['H'][i], device=device)
+                        H_inv_gt = torch.tensor(dataset_data['H_inv'][i], device=device)
                         
                         pt1_ = torch.vstack((torch.tensor(pts1.T, device=device), torch.ones((1, nn), device=device)))
                         pt2_ = torch.vstack((torch.tensor(pts2.T, device=device), torch.ones((1, nn), device=device)))
@@ -933,6 +933,13 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                         pt2_reproj = H_inv_gt @ pt2_
                         pt2_reproj = pt2_reproj[:2] / pt2_reproj[2].unsqueeze(0)
                         d2 = ((pt1_[:2] - pt2_reproj)**2).sum(0).sqrt()
+                        
+                        if dataset_data['im1_use_mask'][i]:
+                            mm2 = cv2.dilate(dataset_data['im2_mask'][i].astype(np.ubyte),np.ones((rad*2+1, rad*2+1)))
+                        #   not account for matches where pt1 out of refined mask and pt2 out of the dilated original 2nd mask 
+                        if dataset_data['im2_use_mask'][i]:
+                            mm1 = cv2.dilate(dataset_data['im1_mask'][i].astype(np.ubyte),np.ones((rad*2+1, rad*2+1)))
+                        #   not account for matches where pt2 out of refined mask and pt1 out of the dilated original 2nd mask 
                         
                         reproj_max_err = torch.maximum(d1, d2);                                
                         inl_sum = (reproj_max_err.unsqueeze(-1) < torch.tensor(err_th_list, device=device).unsqueeze(0)).sum(dim=0).type(torch.int)
@@ -961,17 +968,14 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                     eval_data_['acc_1_h'].append(np.inf) 
                     eval_data_['acc_2_h'].append(np.inf)        
                 else:
-                    heat1 = homography_error_heat_map(H_gt, H, dataset_data['sz1'][i], dataset_data['sz2'][i])
-                    heat2 = homography_error_heat_map(H_inv_gt, np.linalg.inv(H), dataset_data['sz2'][i], dataset_data['sz1'][i])
+                    heat1 = homography_error_heat_map(H_gt, H, torch.tensor(dataset_data['im1_full_mask'][i], device=device))
+                    heat2 = homography_error_heat_map(H_inv_gt, H.inverse(), torch.tensor(dataset_data['im2_full_mask'][i], device=device))
                     
-                    eval_data_['err_plane_1_h'].append(heat1)
-                    eval_data_['err_plane_2_h'].append(heat2)
+                    eval_data_['acc_1_h'].append(heat1[heat1 != 1].mean().detach().cpu().numpy()) 
+                    eval_data_['acc_2_h'].append(heat2[heat2 != 1].mean().detach().cpu().numpy())       
 
-                    heat1 = heat1.flatten()
-                    heat2 = heat2.flatten()
-
-                    eval_data_['acc_1_h'].append(heat1.mean(where=np.isfinite(heat1))) 
-                    eval_data_['acc_2_h'].append(heat2.mean(where=np.isfinite(heat2)))        
+                    eval_data_['err_plane_1_h'].append(heat1.detach().cpu().numpy())
+                    eval_data_['err_plane_2_h'].append(heat2.detach().cpu().numpy())
                     
                 eval_data_['reproj_max_error_h'].append(reproj_max_err)  
                 eval_data_['reproj_inliers_h'].append(inl_sum)
@@ -1001,5 +1005,20 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
             compressed_pickle(save_to, eval_data)
 
 
-def homography_error_heat_map(H12_gt, H12, sz1, sz2):
-    return 0
+def homography_error_heat_map(H12_gt, H12, mask1):
+    pt1 = mask1.argwhere()
+    
+    pt1 = torch.cat((pt1, torch.ones(pt1.shape[0], 1, device=device)), dim=1).permute(1,0)   
+
+    pt2_gt_ = H12_gt.type(torch.float) @ pt1
+    pt2_gt_ = pt2_gt_[:2] / pt2_gt_[2].unsqueeze(0)
+
+    pt2_ = H12.type(torch.float) @ pt1
+    pt2_ = pt2_[:2] / pt2_[2].unsqueeze(0)
+
+    d1 = ((pt2_gt_ - pt2_)**2).sum(dim=0).sqrt()
+
+    heat_map = torch.full(mask1.shape, -1, device=device, dtype=torch.float)
+    heat_map[mask1] = d1
+    
+    return heat_map
