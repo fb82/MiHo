@@ -27,7 +27,7 @@ if __name__ == '__main__':
     bench_im = 'imgs'
     bench_res = 'res'
     bench_plot = 'plot'
-    save_to = os.path.join(bench_path, bench_res, 'res_')
+    save_to = os.path.join(bench_path, bench_res, 'res')
 
     pipes = [
         # [
@@ -169,5 +169,5 @@ if __name__ == '__main__':
         for pipe_module in pipe:
             if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'homography')
         bench.run_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
-        bench.eval_pipe_homography(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path, bench_res='res', save_to=save_to + '_homography_planar.pbz2', use_scale=False, err_th_list=list(range(1, 16)))
+        bench.eval_pipe_homography(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path, bench_res='res', save_to=save_to + '_homography_planar.pbz2', use_scale=False, err_th_list=list(range(1, 16)), bench_plot=bench_plot, save_acc_images=True)
         bench.show_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)

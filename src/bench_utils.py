@@ -666,7 +666,7 @@ planar_scenes = [
     'dogman',
     'duckhunt',
     'floor',
-    'graf',
+#   'graf',       # actually there are two planes :(
     'home',
     'marilyn',
     'mario',
@@ -799,10 +799,12 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
             im1_full_mask.append(im1_full_mask_.detach().cpu().numpy())
             im2_full_mask.append(im2_full_mask_.detach().cpu().numpy())
             
-            cv2.imwrite(os.path.join(check_path, scene + str(i) + '_1a.png'), im1i)
-            cv2.imwrite(os.path.join(check_path, scene + str(i) + '_1b.png'), im1i_)
-            cv2.imwrite(os.path.join(check_path, scene + str(i) + '_2a.png'), im2i)
-            cv2.imwrite(os.path.join(check_path, scene + str(i) + '_2b.png'), im2i_)
+            iname = os.path.splitext(img1)[0] + '_' + os.path.splitext(img2)[0]
+                        
+            cv2.imwrite(os.path.join(check_path, iname + '_1a.png'), im1i)
+            cv2.imwrite(os.path.join(check_path, iname + '_1b.png'), im1i_)
+            cv2.imwrite(os.path.join(check_path, iname + '_2a.png'), im2i)
+            cv2.imwrite(os.path.join(check_path, iname + '_2b.png'), im2i_)
     
     H = np.asarray(H)
     H_inv = np.asarray(H_inv)
@@ -841,9 +843,10 @@ def  refine_mask(im1_mask, im2_mask, sz1, sz2, H):
     return mask1_reproj
 
 
-def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_fundamental.pbz2', force=False, use_scale=False, rad=15, err_th_list=list(range(1,16))):
+def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_homography.pbz2', force=False, use_scale=False, rad=15, err_th_list=list(range(1,16)), bench_plot='plot', save_acc_images=True):
     warnings.filterwarnings("ignore", category=UserWarning)
 
+    # these are actually pixel errors
     angular_thresholds = [5, 10, 15]
 
     if os.path.isfile(save_to):
@@ -856,10 +859,12 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
     pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
     pipe_name_base_small = ''
     pipe_name_root = os.path.join(pipe_name_base, pipe[0].get_id())
+    pipe_img_save = os.path.join(bench_path, bench_plot, 'planar_accuracy')
 
     for pipe_module in pipe:
         pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
         pipe_name_base_small = os.path.join(pipe_name_base_small, pipe_module.get_id())
+        pipe_img_save = os.path.join(pipe_img_save, pipe_module.get_id())
 
         print('Pipeline: ' + pipe_name_base_small)
 
@@ -979,16 +984,24 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                     eval_data_['acc_1_h'].append(heat1[heat1 != 1].mean().detach().cpu().numpy()) 
                     eval_data_['acc_2_h'].append(heat2[heat2 != 1].mean().detach().cpu().numpy())       
 
-                    eval_data_['err_plane_1_h'].append(heat1.detach().cpu().numpy())
-                    eval_data_['err_plane_2_h'].append(heat2.detach().cpu().numpy())
+                    eval_data_['err_plane_1_h'].append(heat1.type(torch.half).detach().cpu().numpy())
+                    eval_data_['err_plane_2_h'].append(heat2.type(torch.half).detach().cpu().numpy())
 
-                    # im1s = os.path.join(bench_path,'planar',dataset_data['im1'][i])
-                    # colorize_plane(im1s, heat1, cmap_name='viridis', max_val=45, cf=0.7, save_to='plane1_acc.png')
-
-                    # im2s = os.path.join(bench_path,'planar',dataset_data['im2'][i])
-                    # colorize_plane(im2s, heat2, cmap_name='viridis', max_val=45, cf=0.7, save_to='plane2_acc.png')
-
-                    
+                    if save_acc_images:
+                        pipe_img_save_base = os.path.join(pipe_img_save, 'base')
+                        os.makedirs(pipe_img_save_base, exist_ok=True)
+                        iname = os.path.splitext(dataset_data['im1'][i])[0] + '_' + os.path.splitext(dataset_data['im2'][i])[0]
+    
+                        pipe_img_save1 = os.path.join(pipe_img_save_base, iname + '_1.png')
+                        if not (os.path.isfile(pipe_img_save1) and not force):
+                            im1s = os.path.join(bench_path,'planar',dataset_data['im1'][i])
+                            colorize_plane(im1s, heat1, cmap_name='viridis', max_val=45, cf=0.7, save_to=pipe_img_save1)
+    
+                        pipe_img_save2 = os.path.join(pipe_img_save_base, iname + '_2.png')
+                        if not (os.path.isfile(pipe_img_save2) and not force):
+                            im2s = os.path.join(bench_path,'planar',dataset_data['im2'][i])
+                            colorize_plane(im2s, heat2, cmap_name='viridis', max_val=45, cf=0.7, save_to=pipe_img_save2)
+   
                 eval_data_['reproj_max_error_h'].append(reproj_max_err)  
                 eval_data_['reproj_inliers_h'].append(inl_sum)
                 eval_data_['reproj_valid_h'].append(valid_matches)
@@ -1006,6 +1019,7 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                 eval_data_['pose_error_h_auc_' + str(a)] = np.asarray([auc_1, auc_2, auc_max_12])
                 eval_data_['pose_error_h_acc_' + str(a)] = np.sum(tmp < a, axis=0)/np.shape(tmp)[0]
 
+                # accuracy using 1st, 2nd image as reference, and the maximum accuracy
                 print(f"mAA@{str(a).ljust(2,' ')} (H) : {eval_data_['pose_error_h_auc_' + str(a)]}")
             
             eval_data_['reproj_global_prec_h'] = torch.tensor(eval_data_['reproj_prec_h'], device=device).mean().item()
