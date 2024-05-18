@@ -12,6 +12,7 @@ import bz2
 import shutil
 import src.ncc as ncc
 
+from matplotlib import colormaps
 import matplotlib.pyplot as plt
 import src.plot.viz2d as viz
 import src.plot.utils as viz_utils
@@ -867,8 +868,8 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
             for a in angular_thresholds:
                 print(f"mAA@{str(a).ljust(2,' ')} (F) : {eval_data_['pose_error_h_auc_' + str(a)]}")
 
-            print(f"precision(F) : {eval_data_['reproj_global_prec_h']}")
-            print(f"recall (F) : {eval_data_['reproj_global_recall_h']}")
+            print(f"precision(H) : {eval_data_['reproj_global_prec_h']}")
+            print(f"recall (H) : {eval_data_['reproj_global_recall_h']}")
                                                 
             continue
                 
@@ -882,6 +883,7 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
         
         eval_data_['reproj_max_error_h'] = []
         eval_data_['reproj_inliers_h'] = []
+        eval_data_['reproj_valid_h'] = []
         eval_data_['reproj_prec_h'] = []
         eval_data_['reproj_recall_h'] = []
             
@@ -934,26 +936,29 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                         pt2_reproj = pt2_reproj[:2] / pt2_reproj[2].unsqueeze(0)
                         d2 = ((pt1_[:2] - pt2_reproj)**2).sum(0).sqrt()
                         
-                        if dataset_data['im1_use_mask'][i]:
-                            mm2 = cv2.dilate(dataset_data['im2_mask'][i].astype(np.ubyte),np.ones((rad*2+1, rad*2+1)))
-                        #   not account for matches where pt1 out of refined mask and pt2 out of the dilated original 2nd mask 
-                        if dataset_data['im2_use_mask'][i]:
-                            mm1 = cv2.dilate(dataset_data['im1_mask'][i].astype(np.ubyte),np.ones((rad*2+1, rad*2+1)))
-                        #   not account for matches where pt2 out of refined mask and pt1 out of the dilated original 2nd mask 
+                        valid_matches = torch.ones(nn, device=device, dtype=torch.bool)
                         
-                        reproj_max_err = torch.maximum(d1, d2);                                
+                        if dataset_data['im1_use_mask'][i]:
+                            valid_matches = valid_matches & ~invalid_matches(dataset_data['im1_mask'][i], dataset_data['im2_full_mask'][i], pts1, pts2, rad)
+
+                        if dataset_data['im2_use_mask'][i]:
+                            valid_matches = valid_matches & ~invalid_matches(dataset_data['im2_mask'][i], dataset_data['im1_full_mask'][i], pts2, pts1, rad)
+                                                
+                        reproj_max_err_ = torch.maximum(d1, d2);                                
+                        reproj_max_err = reproj_max_err_[valid_matches]
                         inl_sum = (reproj_max_err.unsqueeze(-1) < torch.tensor(err_th_list, device=device).unsqueeze(0)).sum(dim=0).type(torch.int)
                         avg_prec = inl_sum.type(torch.double).mean()/nn
                                                 
                         if pipe_name_base==pipe_name_root:
                             recall_normalizer = torch.tensor(inl_sum, device=device)
                         else:
-                            recall_normalizer = torch.tensor(eval_data[pipe_name_root]['epi_inliers_f'][i], device=device)
+                            recall_normalizer = torch.tensor(eval_data[pipe_name_root]['reproj_inliers_h'][i], device=device)
                         avg_recall = inl_sum.type(torch.double) / recall_normalizer
                         avg_recall[~avg_recall.isfinite()] = 0
                         avg_recall = avg_recall.mean()
                         
-                        reproj_max_err = reproj_max_err.detach().cpu().numpy()
+                        reproj_max_err = reproj_max_err_.detach().cpu().numpy()
+                        valid_matches = valid_matches.detach().cpu().numpy()
                         inl_sum = inl_sum.detach().cpu().numpy()
                         avg_prec = avg_prec.item()
                         avg_recall = avg_recall.item()
@@ -976,9 +981,17 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
 
                     eval_data_['err_plane_1_h'].append(heat1.detach().cpu().numpy())
                     eval_data_['err_plane_2_h'].append(heat2.detach().cpu().numpy())
+
+                    # im1s = os.path.join(bench_path,'planar',dataset_data['im1'][i])
+                    # colorize_plane(im1s, heat1, cmap_name='viridis', max_val=45, cf=0.7, save_to='plane1_acc.png')
+
+                    # im2s = os.path.join(bench_path,'planar',dataset_data['im2'][i])
+                    # colorize_plane(im2s, heat2, cmap_name='viridis', max_val=45, cf=0.7, save_to='plane2_acc.png')
+
                     
                 eval_data_['reproj_max_error_h'].append(reproj_max_err)  
                 eval_data_['reproj_inliers_h'].append(inl_sum)
+                eval_data_['reproj_valid_h'].append(valid_matches)
                 eval_data_['reproj_prec_h'].append(avg_prec)                           
                 eval_data_['reproj_recall_h'].append(avg_recall)
                     
@@ -993,16 +1006,54 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                 eval_data_['pose_error_h_auc_' + str(a)] = np.asarray([auc_1, auc_2, auc_max_12])
                 eval_data_['pose_error_h_acc_' + str(a)] = np.sum(tmp < a, axis=0)/np.shape(tmp)[0]
 
-                print(f"mAA@{str(a).ljust(2,' ')} (F) : {eval_data_['pose_error_h_auc_' + str(a)]}")
+                print(f"mAA@{str(a).ljust(2,' ')} (H) : {eval_data_['pose_error_h_auc_' + str(a)]}")
             
             eval_data_['reproj_global_prec_h'] = torch.tensor(eval_data_['reproj_prec_h'], device=device).mean().item()
             eval_data_['reproj_global_recall_h'] = torch.tensor(eval_data_['reproj_recall_h'], device=device).mean().item()
         
-            print(f"precision (F) : {eval_data_['reproj_global_prec_h']}")
-            print(f"recall (F) : {eval_data_['reproj_global_recall_h']}")
+            print(f"precision (H) : {eval_data_['reproj_global_prec_h']}")
+            print(f"recall (H) : {eval_data_['reproj_global_recall_h']}")
 
             eval_data[pipe_name_base] = eval_data_
             compressed_pickle(save_to, eval_data)
+
+
+def colorize_plane(ims, heat, cmap_name='viridis', max_val=45, cf=0.7, save_to='plane_acc.png'):
+    im_gray = cv2.imread(ims, cv2.IMREAD_GRAYSCALE)
+    im_gray = torch.tensor(im_gray, device=device).unsqueeze(0).repeat(3,1,1).permute(1,2,0)
+    heat_mask = heat != -1
+    heat_ = heat.clone()
+    cmap = (colormaps[cmap_name](np.arange(0,(max_val + 1)) / max_val))[:,[2, 1, 0]]
+    heat_[heat_ > max_val - 1] = max_val - 1
+    heat_[heat_ == -1] = max_val
+    cmap = torch.tensor(cmap, device=device)
+    heat_im = cmap[heat_.type(torch.long)]
+    heat_im = heat_im.type(torch.float) * 255
+    blend_mask = heat_mask.unsqueeze(-1).type(torch.float) * cf
+    imm = heat_im * blend_mask + im_gray.type(torch.float) * (1-blend_mask)                    
+    cv2.imwrite(save_to, imm.type(torch.uint8).detach().cpu().numpy())   
+ 
+
+def invalid_matches(mask1, mask2, pts1, pts2, rad):
+    dmask2 = cv2.dilate(mask2.astype(np.ubyte),np.ones((rad*2+1, rad*2+1)))
+    
+    pt1 = torch.tensor(pts1, device=device).round().permute(1, 0)
+    pt2 = torch.tensor(pts2, device=device).round().permute(1, 0)
+
+    invalid_ = torch.zeros(pt1.shape[1], device=device, dtype=torch.bool)
+
+    to_exclude = (pt1[0] < 0) & (pt2[0] < 0) & (pt1[0] >= mask1.shape[1]) & (pt2[0] >= mask2.shape[1]) & (pt1[1] < 0) & (pt2[1] < 0) & (pt1[1] >= mask1.shape[0]) & (pt2[1] >= mask2.shape[0])
+
+    pt1 = pt1[:, ~to_exclude]
+    pt2 = pt2[:, ~to_exclude]
+    
+    l1 = (pt1[1, :] * mask1.shape[1] + pt1[0,:]).type(torch.long)
+    l2 = (pt2[1, :] * mask2.shape[1] + pt2[0,:]).type(torch.long)
+
+    invalid_check = ~(torch.tensor(mask1, device=device).flatten()[l1]) & ~(torch.tensor(dmask2, device=device, dtype=torch.bool).flatten()[l2])
+    invalid_[~to_exclude] = invalid_check 
+
+    return invalid_
 
 
 def homography_error_heat_map(H12_gt, H12, mask1):
