@@ -763,8 +763,8 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
             sz1.append(np.array(im1i.shape)[:2][::-1])
             sz2.append(np.array(im2i.shape)[:2][::-1])
                         
-            im2i_ = cv2.warpPerspective(im1i,H_,(im2i.shape[1],im2i.shape[0]))
-            im1i_ = cv2.warpPerspective(im2i,H_inv_,(im1i.shape[1],im1i.shape[0]))
+            im2i_ = cv2.warpPerspective(im1i,H_,(im2i.shape[1],im2i.shape[0]), flags=cv2.INTER_LANCZOS4)
+            im1i_ = cv2.warpPerspective(im2i,H_inv_,(im1i.shape[1],im1i.shape[0]), flags=cv2.INTER_LANCZOS4)
             
             im_pair_scale.append(np.ones((2, 2)))
             
