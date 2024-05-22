@@ -11,6 +11,7 @@ import _pickle as cPickle
 import bz2
 import shutil
 import src.ncc as ncc
+import csv
 
 from matplotlib import colormaps
 import matplotlib.pyplot as plt
@@ -684,7 +685,7 @@ planar_scenes = [
     ]
 
 
-def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='bench_data', bench_imgs='imgs', out_path='planar_out', bench_plot='plot', save_to='planar.pbz2', upright=True):        
+def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='bench_data', bench_imgs='imgs', bench_plot='plot', save_to='planar.pbz2', upright=True):        
     os.makedirs(os.path.join(bench_path, 'downloads'), exist_ok=True)
 
     file_to_download = os.path.join(bench_path, 'downloads', 'planar_data.zip')    
@@ -1126,3 +1127,49 @@ def homography_error_heat_map(H12_gt, H12, mask1):
     heat_map[mask1] = d1
     
     return heat_map
+
+
+def imc_phototourism_bench_setup(bench_path='bench_data', bench_imgs='imgs', save_to='imc_phototourism.pbz2'):        
+    os.makedirs(os.path.join(bench_path, 'downloads'), exist_ok=True)
+
+    file_to_download = os.path.join(bench_path, 'downloads', 'image-matching-challenge-2022.zip')    
+    if not os.path.isfile(file_to_download):    
+        url = "https://drive.google.com/file/d/1RyqsKr_X0Itkf34KUv2C7XP35drKSXht/view?usp=drive_link"
+        gdown.download(url, file_to_download, fuzzy=True)
+
+    out_dir = os.path.join(bench_path, 'imc_phototourism')
+    if not os.path.isdir(out_dir):    
+        with zipfile.ZipFile(file_to_download, "r") as zip_ref:
+            zip_ref.extractall(out_dir)        
+    
+    out_path = os.path.join(bench_path, bench_imgs, 'imw_phototourism')
+    save_to_full = os.path.join(bench_path, save_to)
+    
+    scenes = [scene for scene in os.listdir(os.path.join(out_dir, 'train')) if os.path.isdir(os.path.join(out_dir, 'train', scene))]
+
+    scale_file = os.path.join(out_dir, 'train', 'scaling_factors.csv')
+    first_row = True
+    scale_dict = {}
+    with open(scale_file, newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            scale_dict[row['scene']] = float(row['scaling_factor'])
+    
+    for scene in scenes:
+        work_path = os.path.join(out_dir, 'train', scene)
+        pose_file  = os.path.join(work_path, 'calibration.csv')
+        covis_file  = os.path.join(work_path, 'pair_covisibility.csv')
+
+        if (not os.path.isfile(pose_file)) or (not os.path.isfile(covis_file)):
+            continue
+        
+        covis_pair = []
+        covis_val = []
+        with open(covis_file, newline='') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                covis_pair.append(row['pair'].split('-'))
+                covis_val.append(float(row['covisibility']))
+        
+        covis_val = np.asarray(covis_val)
+        covis_hist = np.histogram(covis_val, bins=[0.1, 0.33, 0.56, 0.79])[0]
