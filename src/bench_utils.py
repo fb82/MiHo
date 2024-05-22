@@ -684,7 +684,7 @@ planar_scenes = [
     ]
 
 
-def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='bench_data', bench_imgs='imgs', out_path='planar_out', bench_plot='plot', save_to='planar.pbz2'):        
+def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='bench_data', bench_imgs='imgs', out_path='planar_out', bench_plot='plot', save_to='planar.pbz2', upright=True):        
     os.makedirs(os.path.join(bench_path, 'downloads'), exist_ok=True)
 
     file_to_download = os.path.join(bench_path, 'downloads', 'planar_data.zip')    
@@ -720,7 +720,7 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
     im2_use_mask = []
     im_pair_scale = []
     
-    for scene in planar_scenes:
+    for scene in planar_scenes:        
         img1 = scene + '1.png'
         img1_mask = 'mask_' + scene + '1.png'
         img1_mask_bad = 'mask_bad_' + scene + '1.png'
@@ -806,6 +806,45 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
             cv2.imwrite(os.path.join(check_path, iname + '_2a.png'), im2i)
             cv2.imwrite(os.path.join(check_path, iname + '_2b.png'), im2i_)
     
+    if upright:
+        for scene in planar_scenes:
+            is_upright = scene[-3:] == 'rot'
+            if is_upright:
+                img1_unrot = scene[:-3] + '1.png'
+                img1_rot = scene + '1.png'
+
+                for i in range(2, max_imgs+1):
+                    img2_unrot = scene[:-3] + str(i) + '.png'
+                    img2_rot = scene + str(i) + '.png'
+
+                    rot_idx = [ii for ii, (im1i, im2i) in enumerate(zip(im1, im2)) if (im1i==img1_rot) and (im2i==img2_rot)]
+
+                    if len(rot_idx)>0:
+                        unrot_idx = [ii for ii, (im1i, im2i) in enumerate(zip(im1, im2)) if (im1i==img1_unrot) and (im2i==img2_unrot)][0]
+                        
+                        im2d = os.path.join(out_path, img2_unrot)    
+                        os.remove(im2d)
+                        
+                        iname = os.path.splitext(img1_unrot)[0] + '_' + os.path.splitext(img2_unrot)[0]
+                                    
+                        os.remove(os.path.join(check_path, iname + '_1a.png'))
+                        os.remove(os.path.join(check_path, iname + '_1b.png'))
+                        os.remove(os.path.join(check_path, iname + '_2a.png'))
+                        os.remove(os.path.join(check_path, iname + '_2b.png'))
+                                                
+                        del im1[unrot_idx]
+                        del im2[unrot_idx]
+                        del H[unrot_idx]
+                        del H_inv[unrot_idx]
+                        del im1_mask[unrot_idx]
+                        del im2_mask[unrot_idx]
+                        del sz1[unrot_idx]
+                        del sz2[unrot_idx]
+                        del im1_use_mask[unrot_idx]
+                        del im2_use_mask[unrot_idx]
+                        del im1_full_mask[unrot_idx]
+                        del im2_full_mask[unrot_idx]
+
     H = np.asarray(H)
     H_inv = np.asarray(H_inv)
 

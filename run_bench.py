@@ -31,15 +31,15 @@ if __name__ == '__main__':
 
     pipes = [
         # [
-        #    superpoint_lightglue_module(nmax_keypoints=4000),
-        #    # superpoint_kornia_matcher_module(nmax_keypoints=4000, th=0.97),
-        #    # keynetaffnethardnet_kornia_matcher_module(nmax_keypoints=4000, upright=False, th=0.99),
-        #    # disk_lightglue_module(nmax_keypoints=4000),
-        #    # aliked_lightglue_module(nmax_keypoints=4000),
-        #    # loftr_module(pretrained='outdoor'),
-        #    # keynetaffnethardnet_module(upright=False, th=0.99),
-        #    miho.miho_module(),
-        #    pipe_base.pydegensac_module(px_th=3)
+        #     superpoint_lightglue_module(nmax_keypoints=4000),
+        #     # superpoint_kornia_matcher_module(nmax_keypoints=4000, th=0.97),
+        #     # keynetaffnethardnet_kornia_matcher_module(nmax_keypoints=4000, upright=False, th=0.99),
+        #     # disk_lightglue_module(nmax_keypoints=4000),
+        #     # aliked_lightglue_module(nmax_keypoints=4000),
+        #     # loftr_module(pretrained='outdoor'),
+        #     # keynetaffnethardnet_module(upright=False, th=0.99),
+        #     miho_duplex.miho_module(),
+        #     pipe_base.pydegensac_module(px_th=3)
         # ],
 
         # available RANSAC: pydegensac, magsac, poselib        
@@ -161,7 +161,7 @@ if __name__ == '__main__':
 
 ###
 
-    planar_data, _ = bench.planar_bench_setup(bench_path=bench_path, bench_imgs=bench_im)
+    planar_data, _ = bench.planar_bench_setup(bench_path=bench_path, bench_imgs=bench_im, upright=True)
 
     print("*** P l a n a r ***")    
     for i, pipe in enumerate(pipes):
