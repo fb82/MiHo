@@ -127,10 +127,16 @@ def scannet_1500_list(ppath='bench_data/gt_data/scannet'):
     return data
 
 
-def bench_init(bench_file='megadepth_scannet', bench_path='bench_data', bench_gt='gt_data'):
+def megadepth_scannet_bench_setup(bench_path='bench_data', bench_imgs='imgs', bench_gt='gt_data', save_to='megadepth_scannet.pbz2'):
+    megadepth_data, scannet_data, data_file = bench_init(bench_path=bench_path, bench_gt=bench_gt, save_to=save_to)
+    megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_imgs)
+    
+    return megadepth_data, scannet_data, data_file
+
+def bench_init(bench_path='bench_data', bench_gt='gt_data', save_to='megadepth_scannet.pbz2'):
     download_megadepth_scannet_data(bench_path)
         
-    data_file = os.path.join(bench_path, 'megadepth_scannet' + '.pbz2')
+    data_file = os.path.join(bench_path, save_to)
     if not os.path.isfile(data_file):      
         megadepth_data = megadepth_1500_list(os.path.join(bench_path, bench_gt, 'megadepth'))
         scannet_data = scannet_1500_list(os.path.join(bench_path, bench_gt, 'scannet'))
@@ -271,14 +277,14 @@ def error_auc(errors, thr):
     return np.trapz(y, x) / thr    
 
 
-def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', force=False):
+def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', force=False, ext='.png'):
 
     n = len(dataset_data['im1'])
     im_path = os.path.join(bench_im, dataset_name)        
     with progress_bar(bar_name + ' - pipeline completion') as p:
         for i in p.track(range(n)):
-            im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + '.png'
-            im2 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im2'][i])[0]) + '.png'
+            im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + ext
+            im2 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im2'][i])[0]) + ext
 
             pipe_data = {'im1': im1, 'im2': im2}
             pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
@@ -595,7 +601,7 @@ def download_megadepth_scannet_data(bench_path ='bench_data'):
     return
 
 
-def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='plot', force=False):
+def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='plot', force=False, ext='.png'):
 
     n = len(dataset_data['im1'])
     im_path = os.path.join(bench_im, dataset_name)    
@@ -603,8 +609,8 @@ def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data
     
     with progress_bar(bar_name + ' - pipeline completion') as p:
         for i in p.track(range(n)):
-            im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + '.png'
-            im2 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im2'][i])[0]) + '.png'
+            im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + ext
+            im2 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im2'][i])[0]) + ext
                         
             pair_data = []            
             pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
@@ -685,7 +691,12 @@ planar_scenes = [
     ]
 
 
-def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='bench_data', bench_imgs='imgs', bench_plot='plot', save_to='planar.pbz2', upright=True):        
+def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='bench_data', bench_imgs='imgs', bench_plot='plot', save_to='planar.pbz2', upright=True, force=False):        
+
+    save_to_full = os.path.join(bench_path, save_to)
+    if os.path.isfile(save_to_full) and (not force):
+        return decompress_pickle(save_to_full), save_to_full  
+
     os.makedirs(os.path.join(bench_path, 'downloads'), exist_ok=True)
 
     file_to_download = os.path.join(bench_path, 'downloads', 'planar_data.zip')    
@@ -701,7 +712,6 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
     in_path = out_dir
     out_path = os.path.join(bench_path, bench_imgs, 'planar')
     check_path = os.path.join(bench_path, bench_plot, 'planar_check')
-    save_to_full = os.path.join(bench_path, save_to)
 
     os.makedirs(out_path, exist_ok=True)
     os.makedirs(check_path, exist_ok=True)
@@ -721,130 +731,133 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
     im2_use_mask = []
     im_pair_scale = []
     
-    for scene in planar_scenes:        
-        img1 = scene + '1.png'
-        img1_mask = 'mask_' + scene + '1.png'
-        img1_mask_bad = 'mask_bad_' + scene + '1.png'
-
-        for i in range(2, max_imgs+1):
-            img2 = scene + str(i) + '.png'
-            img2_mask = 'mask_' + scene  + str(i) + '.png'
-            img2_mask_bad = 'mask_bad_' + scene + str(i) + '.png'
-
-            H12 = scene + '_H1' + str(i) + '.txt'
-                        
-            im1s = os.path.join(in_path, img1)
-            im1s_mask = os.path.join(in_path, img1_mask)
-            im1s_mask_bad = os.path.join(in_path, img1_mask_bad)
-            im2s = os.path.join(in_path, img2)
-            im2s_mask = os.path.join(in_path, img2_mask)
-            im2s_mask_bad = os.path.join(in_path, img2_mask_bad)
-            H12s = os.path.join(in_path, H12)
-            
-            if not os.path.isfile(H12s):
-                continue
-            
-            im1d = os.path.join(out_path, img1)
-            im2d = os.path.join(out_path, img2)
- 
-            shutil.copyfile(im1s, im1d)
-            shutil.copyfile(im2s, im2d)
-            
-            H_ = np.loadtxt(H12s)
-            H_inv_ = np.linalg.inv(H_)
-            
-            im1.append(img1)
-            im2.append(img2)
-            H.append(H_)
-            H_inv.append(H_inv_)
-            
-            im1i=cv2.imread(im1s)
-            im2i=cv2.imread(im2s)
-            
-            sz1.append(np.array(im1i.shape)[:2][::-1])
-            sz2.append(np.array(im2i.shape)[:2][::-1])
-                        
-            im2i_ = cv2.warpPerspective(im1i,H_,(im2i.shape[1],im2i.shape[0]), flags=cv2.INTER_LANCZOS4)
-            im1i_ = cv2.warpPerspective(im2i,H_inv_,(im1i.shape[1],im1i.shape[0]), flags=cv2.INTER_LANCZOS4)
-            
-            im_pair_scale.append(np.ones((2, 2)))
-            
-            im1_mask_ = torch.ones((sz1[-1][1],sz1[-1][0]), device=device, dtype=torch.bool)
-            im2_mask_ = torch.ones((sz2[-1][1],sz2[-1][0]), device=device, dtype=torch.bool)
-            im1_use_mask_ = False
-            im2_use_mask_ = False
-            
-            if os.path.isfile(im1s_mask):
-                im1_mask_ = torch.tensor((cv2.imread(im1s_mask, cv2.IMREAD_GRAYSCALE)==0), device=device)
-                im1_use_mask_ = True
- 
-            if os.path.isfile(im2s_mask):
-                im2_mask_ = torch.tensor((cv2.imread(im2s_mask, cv2.IMREAD_GRAYSCALE)==0), device=device)
-                im2_use_mask_ = True
-
-            if os.path.isfile(im1s_mask_bad):
-                im1_mask_ = torch.tensor((cv2.imread(im1s_mask_bad, cv2.IMREAD_GRAYSCALE)==0), device=device)
-
-            if os.path.isfile(im2s_mask_bad):
-                im2_mask_ = torch.tensor((cv2.imread(im1s_mask_bad, cv2.IMREAD_GRAYSCALE)==0), device=device)
-
-            im1_mask.append(im1_mask_.detach().cpu().numpy())
-            im2_mask.append(im2_mask_.detach().cpu().numpy())
-
-            im1_use_mask.append(im1_use_mask_)
-            im2_use_mask.append(im2_use_mask_)
-
-            im1_full_mask_ = refine_mask(im1_mask_, im2_mask_, sz1[-1], sz2[-1], H_)
-            im2_full_mask_ = refine_mask(im2_mask_, im1_full_mask_, sz2[-1], sz1[-1], H_inv_)
-            
-            im1_full_mask.append(im1_full_mask_.detach().cpu().numpy())
-            im2_full_mask.append(im2_full_mask_.detach().cpu().numpy())
-            
-            iname = os.path.splitext(img1)[0] + '_' + os.path.splitext(img2)[0]
-                        
-            cv2.imwrite(os.path.join(check_path, iname + '_1a.png'), im1i)
-            cv2.imwrite(os.path.join(check_path, iname + '_1b.png'), im1i_)
-            cv2.imwrite(os.path.join(check_path, iname + '_2a.png'), im2i)
-            cv2.imwrite(os.path.join(check_path, iname + '_2b.png'), im2i_)
+    with progress_bar('Completion') as p:
+        for sn in p.track(range(len(planar_scenes))):     
+            scene = planar_scenes[sn]
     
-    if upright:
-        for scene in planar_scenes:
-            is_upright = scene[-3:] == 'rot'
-            if is_upright:
-                img1_unrot = scene[:-3] + '1.png'
-                img1_rot = scene + '1.png'
-
-                for i in range(2, max_imgs+1):
-                    img2_unrot = scene[:-3] + str(i) + '.png'
-                    img2_rot = scene + str(i) + '.png'
-
-                    rot_idx = [ii for ii, (im1i, im2i) in enumerate(zip(im1, im2)) if (im1i==img1_rot) and (im2i==img2_rot)]
-
-                    if len(rot_idx)>0:
-                        unrot_idx = [ii for ii, (im1i, im2i) in enumerate(zip(im1, im2)) if (im1i==img1_unrot) and (im2i==img2_unrot)][0]
-                        
-                        im2d = os.path.join(out_path, img2_unrot)    
-                        os.remove(im2d)
-                        
-                        iname = os.path.splitext(img1_unrot)[0] + '_' + os.path.splitext(img2_unrot)[0]
-                                    
-                        os.remove(os.path.join(check_path, iname + '_1a.png'))
-                        os.remove(os.path.join(check_path, iname + '_1b.png'))
-                        os.remove(os.path.join(check_path, iname + '_2a.png'))
-                        os.remove(os.path.join(check_path, iname + '_2b.png'))
-                                                
-                        del im1[unrot_idx]
-                        del im2[unrot_idx]
-                        del H[unrot_idx]
-                        del H_inv[unrot_idx]
-                        del im1_mask[unrot_idx]
-                        del im2_mask[unrot_idx]
-                        del sz1[unrot_idx]
-                        del sz2[unrot_idx]
-                        del im1_use_mask[unrot_idx]
-                        del im2_use_mask[unrot_idx]
-                        del im1_full_mask[unrot_idx]
-                        del im2_full_mask[unrot_idx]
+            img1 = scene + '1.png'
+            img1_mask = 'mask_' + scene + '1.png'
+            img1_mask_bad = 'mask_bad_' + scene + '1.png'
+    
+            for i in range(2, max_imgs+1):
+                img2 = scene + str(i) + '.png'
+                img2_mask = 'mask_' + scene  + str(i) + '.png'
+                img2_mask_bad = 'mask_bad_' + scene + str(i) + '.png'
+    
+                H12 = scene + '_H1' + str(i) + '.txt'
+                            
+                im1s = os.path.join(in_path, img1)
+                im1s_mask = os.path.join(in_path, img1_mask)
+                im1s_mask_bad = os.path.join(in_path, img1_mask_bad)
+                im2s = os.path.join(in_path, img2)
+                im2s_mask = os.path.join(in_path, img2_mask)
+                im2s_mask_bad = os.path.join(in_path, img2_mask_bad)
+                H12s = os.path.join(in_path, H12)
+                
+                if not os.path.isfile(H12s):
+                    continue
+                
+                im1d = os.path.join(out_path, img1)
+                im2d = os.path.join(out_path, img2)
+     
+                shutil.copyfile(im1s, im1d)
+                shutil.copyfile(im2s, im2d)
+                
+                H_ = np.loadtxt(H12s)
+                H_inv_ = np.linalg.inv(H_)
+                
+                im1.append(img1)
+                im2.append(img2)
+                H.append(H_)
+                H_inv.append(H_inv_)
+                
+                im1i=cv2.imread(im1s)
+                im2i=cv2.imread(im2s)
+                
+                sz1.append(np.array(im1i.shape)[:2][::-1])
+                sz2.append(np.array(im2i.shape)[:2][::-1])
+                            
+                im2i_ = cv2.warpPerspective(im1i,H_,(im2i.shape[1],im2i.shape[0]), flags=cv2.INTER_LANCZOS4)
+                im1i_ = cv2.warpPerspective(im2i,H_inv_,(im1i.shape[1],im1i.shape[0]), flags=cv2.INTER_LANCZOS4)
+                
+                im_pair_scale.append(np.ones((2, 2)))
+                
+                im1_mask_ = torch.ones((sz1[-1][1],sz1[-1][0]), device=device, dtype=torch.bool)
+                im2_mask_ = torch.ones((sz2[-1][1],sz2[-1][0]), device=device, dtype=torch.bool)
+                im1_use_mask_ = False
+                im2_use_mask_ = False
+                
+                if os.path.isfile(im1s_mask):
+                    im1_mask_ = torch.tensor((cv2.imread(im1s_mask, cv2.IMREAD_GRAYSCALE)==0), device=device)
+                    im1_use_mask_ = True
+     
+                if os.path.isfile(im2s_mask):
+                    im2_mask_ = torch.tensor((cv2.imread(im2s_mask, cv2.IMREAD_GRAYSCALE)==0), device=device)
+                    im2_use_mask_ = True
+    
+                if os.path.isfile(im1s_mask_bad):
+                    im1_mask_ = torch.tensor((cv2.imread(im1s_mask_bad, cv2.IMREAD_GRAYSCALE)==0), device=device)
+    
+                if os.path.isfile(im2s_mask_bad):
+                    im2_mask_ = torch.tensor((cv2.imread(im1s_mask_bad, cv2.IMREAD_GRAYSCALE)==0), device=device)
+    
+                im1_mask.append(im1_mask_.detach().cpu().numpy())
+                im2_mask.append(im2_mask_.detach().cpu().numpy())
+    
+                im1_use_mask.append(im1_use_mask_)
+                im2_use_mask.append(im2_use_mask_)
+    
+                im1_full_mask_ = refine_mask(im1_mask_, im2_mask_, sz1[-1], sz2[-1], H_)
+                im2_full_mask_ = refine_mask(im2_mask_, im1_full_mask_, sz2[-1], sz1[-1], H_inv_)
+                
+                im1_full_mask.append(im1_full_mask_.detach().cpu().numpy())
+                im2_full_mask.append(im2_full_mask_.detach().cpu().numpy())
+                
+                iname = os.path.splitext(img1)[0] + '_' + os.path.splitext(img2)[0]
+                            
+                cv2.imwrite(os.path.join(check_path, iname + '_1a.png'), im1i)
+                cv2.imwrite(os.path.join(check_path, iname + '_1b.png'), im1i_)
+                cv2.imwrite(os.path.join(check_path, iname + '_2a.png'), im2i)
+                cv2.imwrite(os.path.join(check_path, iname + '_2b.png'), im2i_)
+        
+        if upright:
+            for scene in planar_scenes:
+                is_upright = scene[-3:] == 'rot'
+                if is_upright:
+                    img1_unrot = scene[:-3] + '1.png'
+                    img1_rot = scene + '1.png'
+    
+                    for i in range(2, max_imgs+1):
+                        img2_unrot = scene[:-3] + str(i) + '.png'
+                        img2_rot = scene + str(i) + '.png'
+    
+                        rot_idx = [ii for ii, (im1i, im2i) in enumerate(zip(im1, im2)) if (im1i==img1_rot) and (im2i==img2_rot)]
+    
+                        if len(rot_idx)>0:
+                            unrot_idx = [ii for ii, (im1i, im2i) in enumerate(zip(im1, im2)) if (im1i==img1_unrot) and (im2i==img2_unrot)][0]
+                            
+                            im2d = os.path.join(out_path, img2_unrot)    
+                            os.remove(im2d)
+                            
+                            iname = os.path.splitext(img1_unrot)[0] + '_' + os.path.splitext(img2_unrot)[0]
+                                        
+                            os.remove(os.path.join(check_path, iname + '_1a.png'))
+                            os.remove(os.path.join(check_path, iname + '_1b.png'))
+                            os.remove(os.path.join(check_path, iname + '_2a.png'))
+                            os.remove(os.path.join(check_path, iname + '_2b.png'))
+                                                    
+                            del im1[unrot_idx]
+                            del im2[unrot_idx]
+                            del H[unrot_idx]
+                            del H_inv[unrot_idx]
+                            del im1_mask[unrot_idx]
+                            del im2_mask[unrot_idx]
+                            del sz1[unrot_idx]
+                            del sz2[unrot_idx]
+                            del im1_use_mask[unrot_idx]
+                            del im2_use_mask[unrot_idx]
+                            del im1_full_mask[unrot_idx]
+                            del im2_full_mask[unrot_idx]
 
     H = np.asarray(H)
     H_inv = np.asarray(H_inv)
@@ -920,8 +933,8 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                 
         eval_data_ = {}
 
-        eval_data_['err_plane_1_h'] = []
-        eval_data_['err_plane_2_h'] = []        
+        # eval_data_['err_plane_1_h'] = []
+        # eval_data_['err_plane_2_h'] = []        
 
         eval_data_['acc_1_h'] = []
         eval_data_['acc_2_h'] = []        
@@ -1012,8 +1025,8 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                     
                     
                 if H is None:
-                    eval_data_['err_plane_1_h'].append([])
-                    eval_data_['err_plane_2_h'].append([])
+                    # eval_data_['err_plane_1_h'].append([])
+                    # eval_data_['err_plane_2_h'].append([])
 
                     eval_data_['acc_1_h'].append(np.inf) 
                     eval_data_['acc_2_h'].append(np.inf)        
@@ -1024,8 +1037,8 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                     eval_data_['acc_1_h'].append(heat1[heat1 != 1].mean().detach().cpu().numpy()) 
                     eval_data_['acc_2_h'].append(heat2[heat2 != 1].mean().detach().cpu().numpy())       
 
-                    eval_data_['err_plane_1_h'].append(heat1.type(torch.half).detach().cpu().numpy())
-                    eval_data_['err_plane_2_h'].append(heat2.type(torch.half).detach().cpu().numpy())
+                    # eval_data_['err_plane_1_h'].append(heat1.type(torch.half).detach().cpu().numpy())
+                    # eval_data_['err_plane_2_h'].append(heat2.type(torch.half).detach().cpu().numpy())
 
                     if save_acc_images:
                         pipe_img_save_base = os.path.join(pipe_img_save, 'base')
@@ -1068,7 +1081,7 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
             print(f"precision (H) : {eval_data_['reproj_global_prec_h']}")
             print(f"recall (H) : {eval_data_['reproj_global_recall_h']}")
 
-            eval_data[pipe_name_base] = eval_data_
+            eval_data[pipe_name_base] = eval_data_    
             compressed_pickle(save_to, eval_data)
 
 
@@ -1129,7 +1142,13 @@ def homography_error_heat_map(H12_gt, H12, mask1):
     return heat_map
 
 
-def imc_phototourism_bench_setup(bench_path='bench_data', bench_imgs='imgs', save_to='imc_phototourism.pbz2'):        
+def imc_phototourism_bench_setup(bench_path='bench_data', bench_imgs='imgs', save_to='imc_phototourism.pbz2', sample_size=800, seed=42, covisibility_range=[0.1, 0.7], new_sample=False, force=False):
+    
+    save_to_full = os.path.join(bench_path, save_to)
+    if os.path.isfile(save_to_full) and (not force):
+        return decompress_pickle(save_to_full), save_to_full  
+
+    rng = np.random.default_rng(seed=seed)    
     os.makedirs(os.path.join(bench_path, 'downloads'), exist_ok=True)
 
     file_to_download = os.path.join(bench_path, 'downloads', 'image-matching-challenge-2022.zip')    
@@ -1141,35 +1160,135 @@ def imc_phototourism_bench_setup(bench_path='bench_data', bench_imgs='imgs', sav
     if not os.path.isdir(out_dir):    
         with zipfile.ZipFile(file_to_download, "r") as zip_ref:
             zip_ref.extractall(out_dir)        
-    
-    out_path = os.path.join(bench_path, bench_imgs, 'imw_phototourism')
-    save_to_full = os.path.join(bench_path, save_to)
-    
+        
     scenes = [scene for scene in os.listdir(os.path.join(out_dir, 'train')) if os.path.isdir(os.path.join(out_dir, 'train', scene))]
 
     scale_file = os.path.join(out_dir, 'train', 'scaling_factors.csv')
-    first_row = True
     scale_dict = {}
     with open(scale_file, newline='') as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
             scale_dict[row['scene']] = float(row['scaling_factor'])
+        
+    im1 = []
+    im2 = []
+    K1 = []
+    K2 = []
+    R = []
+    T = []
+    scene_scales = []
+    covisibility = []
     
-    for scene in scenes:
-        work_path = os.path.join(out_dir, 'train', scene)
-        pose_file  = os.path.join(work_path, 'calibration.csv')
-        covis_file  = os.path.join(work_path, 'pair_covisibility.csv')
+    if new_sample:
+        sampled_idx = {}
+    else:
+        file_to_download = os.path.join(bench_path, 'downloads', 'imc_sampled_idx.pbz2')    
+        if not os.path.isfile(file_to_download):    
+            url = "https://drive.google.com/file/d/13AE6pbkJ8bNfVYjkxYvpVN6mkok98NuM/view?usp=drive_link"
+            gdown.download(url, file_to_download, fuzzy=True)
+        
+        sampled_idx = decompress_pickle(file_to_download)
+    
+    with progress_bar('Completion') as p:
+        for sn in p.track(range(len(scenes))):    
+            scene = scenes[sn]
+            
+            work_path = os.path.join(out_dir, 'train', scene)
+            pose_file  = os.path.join(work_path, 'calibration.csv')
+            covis_file  = os.path.join(work_path, 'pair_covisibility.csv')
+    
+            if (not os.path.isfile(pose_file)) or (not os.path.isfile(covis_file)):
+                continue
+            
+            im1_ = []
+            im2_ = []
+            covis_val = []
+            with open(covis_file, newline='') as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    pp = row['pair'].split('-')
+                    im1_.append(os.path.join(scene, pp[0]))
+                    im2_.append(os.path.join(scene, pp[1]))
+                    covis_val.append(float(row['covisibility']))
+    
+            covis_val = np.asarray(covis_val)
+            
+            if new_sample:
+                mask_val = (covis_val >= covisibility_range[0]) & (covis_val <= covisibility_range[1])
 
-        if (not os.path.isfile(pose_file)) or (not os.path.isfile(covis_file)):
-            continue
+                n = covis_val.shape[0]
+                
+                full_idx = np.arange(n)  
+                full_idx = full_idx[mask_val]
+    
+                m = full_idx.shape[0]
+                
+                idx = rng.permutation(m)[:sample_size]
+                full_idx = np.sort(full_idx[idx])
+
+                sampled_idx[scene] = full_idx
+            else:
+                full_idx = sampled_idx[scene]
+                        
+            covis_val = covis_val[full_idx]
+            im1_ = [im1_[i] for i in full_idx]
+            im2_ = [im2_[i] for i in full_idx]
+            
+            img_path = os.path.join(bench_path, bench_imgs, 'imc_phototourism')
+            os.makedirs(os.path.join(img_path, scene), exist_ok=True)
+            for im in im1_: shutil.copyfile(os.path.join(bench_path, 'imc_phototourism', 'train', scene, 'images', os.path.split(im)[1]) + '.jpg', os.path.join(img_path, im) + '.jpg')
+            for im in im2_: shutil.copyfile(os.path.join(bench_path, 'imc_phototourism', 'train', scene, 'images', os.path.split(im)[1]) + '.jpg', os.path.join(img_path, im) + '.jpg')
+    
+            Kv = {}
+            Tv = {}
+            calib_file = os.path.join(work_path, 'calibration.csv')
+            with open(calib_file, newline='') as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    cam = os.path.join(scene, row['image_id'])
+                    Kv[cam] = np.asarray([float(i) for i in row['camera_intrinsics'].split(' ')]).reshape((3, 3))
+                    tmp = np.eye(4)
+                    tmp[:3, :3] = np.asarray([float(i) for i in row['rotation_matrix'].split(' ')]).reshape((3, 3))
+                    tmp[:3, 3] = np.asarray([float(i) for i in row['translation_vector'].split(' ')])
+                    Tv[cam] = tmp
+    
+            K1_ = []
+            K2_ = []
+            T_ = []
+            R_ = []
+            scales_ = []
+            for i in range(len(im1_)):
+                K1_.append(Kv[im1_[i]])
+                K2_.append(Kv[im2_[i]])
+                T1 = Tv[im1_[i]]
+                T2 = Tv[im2_[i]]
+                T12 = np.matmul(T2, np.linalg.inv(T1))
+                T_.append(T12[:3, 3])
+                R_.append(T12[:3, :3])
+                scales_.append(scale_dict[scene])
+                
+                
+            im1 = im1 + im1_
+            im2 = im2 + im2_
+            K1 = K1 + K1_
+            K2 = K2 + K2_
+            T = T + T_
+            R = R + R_
+            scene_scales = scene_scales + scales_
+            covisibility = covisibility + covis_val.tolist()  
         
-        covis_pair = []
-        covis_val = []
-        with open(covis_file, newline='') as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                covis_pair.append(row['pair'].split('-'))
-                covis_val.append(float(row['covisibility']))
-        
-        covis_val = np.asarray(covis_val)
-        covis_hist = np.histogram(covis_val, bins=[0.1, 0.33, 0.56, 0.79])[0]
+    imc_data = {}
+    imc_data['im1'] = im1
+    imc_data['im2'] = im2
+    imc_data['K1'] = np.asarray(K1)
+    imc_data['K2'] = np.asarray(K2)
+    imc_data['T'] = np.asarray(T)
+    imc_data['R'] = np.asarray(R)
+    imc_data['scene_scales'] = np.asarray(scene_scales)
+    imc_data['covisibility'] = np.asarray(covisibility)
+    imc_data['im_pair_scale'] = np.zeros((len(im1), 2, 2))
+    
+    compressed_pickle(os.path.join(bench_path, save_to_full), imc_data)
+    if new_sample: compressed_pickle(os.path.join(bench_path, 'downloads', 'imc_sampled_idx.pbz2'), sampled_idx)
+    
+    return imc_data, save_to_full
