@@ -477,8 +477,11 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                         Rt_ = None
                     else:
                         F = cv2.findFundamentalMat(pts1, pts2, cv2.FM_8POINT)[0]
-                        E = K2[i].T @ F @ K1[i]
-                        Rt_ = cv2.decomposeEssentialMat(E)
+                        if F is None:
+                            Rt_ = None
+                        else:
+                            E = K2[i].T @ F @ K1[i]
+                            Rt_ = cv2.decomposeEssentialMat(E)
 
                     if nn > 0:
                         F_gt = torch.tensor(K2[i].T, device=device, dtype=torch.float64).inverse() @ \
@@ -656,42 +659,7 @@ def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data
     plt.close(fig)
 
 
-planar_scenes = [
-    'aerial',
-    'aerialrot',
-    'apprendices'
-    'artisans',
-    'bark'
-    'barkrot'
-    'birdwoman',
-    'boat',
-    'boatrot',
-    'calder',
-    'chatnoir',
-    'colors',
-    'DD',
-    'dogman',
-    'duckhunt',
-    'floor',
-#   'graf',       # actually there are two planes :(
-    'home',
-    'marilyn',
-    'mario',
-    'maskedman',
-    'op',
-    'oprot',
-    'outside',
-    'posters',
-    'screen',
-    'spidey',
-    'sunseason',
-    'there',
-    'wall',
-    'zero'
-    ]
-
-
-def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='bench_data', bench_imgs='imgs', bench_plot='plot', save_to='planar.pbz2', upright=True, force=False):        
+def planar_bench_setup(to_exclude =['graf'], max_imgs=6, bench_path='bench_data', bench_imgs='imgs', bench_plot='plot', save_to='planar.pbz2', upright=True, force=False):        
 
     save_to_full = os.path.join(bench_path, save_to)
     if os.path.isfile(save_to_full) and (not force):
@@ -708,7 +676,10 @@ def planar_bench_setup(planar_scenes=planar_scenes, max_imgs=6, bench_path='benc
     if not os.path.isdir(out_dir):    
         with zipfile.ZipFile(file_to_download, "r") as zip_ref:
             zip_ref.extractall(out_dir)        
-    
+
+    planar_scenes = [scene[:-5] for scene in os.listdir(out_dir) if scene[-5:]=='1.png' and scene[:5]!='mask_']
+    for i in to_exclude: planar_scenes.remove(i)
+
     in_path = out_dir
     out_path = os.path.join(bench_path, bench_imgs, 'planar')
     check_path = os.path.join(bench_path, bench_plot, 'planar_check')
