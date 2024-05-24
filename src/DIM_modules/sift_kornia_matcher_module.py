@@ -41,19 +41,19 @@ class sift_kornia_matcher_module:
         self.matcher = dim.matchers.KorniaMatcher(self.config)
 
     def get_id(self):
-        return ('sift_kornia_matcher_' + '_th_' + str(self.th)).lower()
+        return ('sift_kornia_matcher_' + '_th_' + str(self.th) + '_nfeat_' + str(self.n_features)).lower()
 
-    def eval_args(self):
-        return "pipe_module.run(im1, im2)"
+    #def eval_args(self):
+    #    return "pipe_module.run(im1, im2)"
+#
+    #def eval_out(self):
+    #    return "pt1, pt2, kps1, kps2, Hs = out_data"               
 
-    def eval_out(self):
-        return "pt1, pt2, kps1, kps2, Hs = out_data"               
-
-    def run(self, *args):
+    def run(self, **args):
 
         with torch.inference_mode():
-            image1 = load_image(args[0], self.grayscale, self.as_float)
-            image2 = load_image(args[1], self.grayscale, self.as_float)
+            image1 = load_image(args['im1'], self.grayscale, self.as_float)
+            image2 = load_image(args['im2'], self.grayscale, self.as_float)
             feats1 = self.extractor._extract(image1)
             feats2 = self.extractor._extract(image2)
             matches = self.matcher._match_pairs(feats1, feats2)
@@ -71,4 +71,5 @@ class sift_kornia_matcher_module:
         #    print(args[1])
         #    quit()
     
-        return pt1, pt2, kps1, kps2, Hs_laf
+        #return pt1, pt2, kps1, kps2, Hs_laf
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_laf}
