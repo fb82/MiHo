@@ -298,7 +298,7 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
                     out_data = pipe_module.run(**pipe_data)
                     os.makedirs(os.path.dirname(pipe_f), exist_ok=True)           
                     compressed_pickle(pipe_f, out_data)
-                    
+                #print(out_data);print(type(out_data));quit()    
                 for k, v in out_data.items(): pipe_data[k] = v
 
 
@@ -477,8 +477,11 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                         Rt_ = None
                     else:
                         F = cv2.findFundamentalMat(pts1, pts2, cv2.FM_8POINT)[0]
-                        E = K2[i].T @ F @ K1[i]
-                        Rt_ = cv2.decomposeEssentialMat(E)
+                        if F is None:
+                            Rt_ = None
+                        else:
+                            E = K2[i].T @ F @ K1[i]
+                            Rt_ = cv2.decomposeEssentialMat(E)
 
                     if nn > 0:
                         F_gt = torch.tensor(K2[i].T, device=device, dtype=torch.float64).inverse() @ \
