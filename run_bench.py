@@ -29,13 +29,18 @@ if __name__ == '__main__':
     pipes = [
 
         [
-            superpoint_lightglue_module(nmax_keypoints=2048),
+            sift_kornia_matcher_module(n_features=8000, th=0.99, contrastThreshold = 0.04),
+            pipe_base.magsac_module(px_th=1.0)
+        ],
+
+        [
+            sift_kornia_matcher_module(n_features=8000, th=0.99, contrastThreshold = 0.04),
             miho_duplex.miho_module(),
             pipe_base.magsac_module(px_th=1.0)
         ],
 
         [
-            superpoint_lightglue_module(nmax_keypoints=2048),
+            sift_kornia_matcher_module(n_features=8000, th=0.99, contrastThreshold = 0.04),
             miho_duplex.miho_module(),
             ncc.ncc_module(),
             pipe_base.magsac_module(px_th=1.0)
@@ -43,212 +48,11 @@ if __name__ == '__main__':
 
         #[
         #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-        #    pipe_base.pydegensac_module(px_th=0.5)
-        #],
-#
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-        #    pipe_base.pydegensac_module(px_th=1)
-        #],
-#
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-#
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-        #    pipe_base.pydegensac_module(px_th=5)
-        #],
-#
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-        #    pipe_base.magsac_module(px_th=0.5)
-        #],
-#
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-        #    pipe_base.magsac_module(px_th=1)
-        #],
-#
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-        #    pipe_base.magsac_module(px_th=3)
-        #],
-#
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-        #    pipe_base.magsac_module(px_th=5)
-        #],
-
-#
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-#
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-        #    pipe_base.pydegensac_module(px_th=5)
-        #],
-#
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-        #    pipe_base.magsac_module(px_th=1)
-        #],
-#
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-        #    pipe_base.magsac_module(px_th=3)
-        #],
-#
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    #magsac_module(px_th=3, conf=0.95, max_iters=100000)
-        #    pipe_base.magsac_module(px_th=5)
-        #],
-
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-
-        #[
-        #    superpoint_kornia_matcher_module(nmax_keypoints=2048, th=0.99),
-        #    miho.miho_module(),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-
-        #[
-        #    superpoint_kornia_matcher_module(nmax_keypoints=2048, th=0.99),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-
-        #[
-        #    sift_kornia_matcher_module(n_features=2048, contrastThreshold=0.04, th=0.99),
-        #    miho.miho_module(),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-
-        #[
-        #    sift_kornia_matcher_module(n_features=2048, contrastThreshold=0.04, th=0.99),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-
-        #[
-        #   #superpoint_lightglue_module(nmax_keypoints=4000),
-        #   #sift_kornia_matcher_module(n_features=8000, contrastThreshold=0.04, th=0.99),
-        #   superpoint_kornia_matcher_module(nmax_keypoints=8000, th=0.99),
-        #   # keynetaffnethardnet_kornia_matcher_module(nmax_keypoints=4000, upright=False, th=0.99),
-        #   # disk_lightglue_module(nmax_keypoints=4000),
-        #   # aliked_lightglue_module(nmax_keypoints=4000),
-        #   # loftr_module(pretrained='outdoor'),
-        #   # keynetaffnethardnet_module(upright=False, th=0.99),
-        #   #miho.miho_module(),
-        #   pipe_base.pydegensac_module(px_th=3)
-        #],
-
-        # available RANSAC: pydegensac, magsac, poselib
-        #[
-        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-#
-        #[
-        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #    ncc.ncc_module(),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-#
-        #[
-        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #    miho_duplex.miho_module(),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-#
-        #[
-        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
         #    miho_duplex.miho_module(),
         #    ncc.ncc_module(),
-        #    pipe_base.pydegensac_module(px_th=3)
+        #    pipe_base.magsac_module(px_th=1.0)
         #],
-#
-        #[
-        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #    miho_unduplex.miho_module(),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-#
-        #[
-        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #    miho_unduplex.miho_module(),
-        #    ncc.ncc_module(),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-#
-        #[
-        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #    gms.gms_module(),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-#
-        #[
-        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #    gms.gms_module(),
-        #    ncc.ncc_module(),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-#
-        #[
-        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #    oanet.oanet_module(),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-#
-        #[
-        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #    oanet.oanet_module(),
-        #    ncc.ncc_module(),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-#
-        #[
-        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #    acne.acne_module(),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],        
-        #
-        #[
-        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #    acne.acne_module(),
-        #    ncc.ncc_module(),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],
-        #
-        #[
-        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #    adalam.adalam_module(),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #],        
-       #
-        #[
-        #    pipe_base.keynetaffnethardnet_module(upright=False, th=0.99),
-        #    adalam.adalam_module(),
-        #    ncc.ncc_module(),
-        #    pipe_base.pydegensac_module(px_th=3)
-        #]            
+
     ]
 
 ###
@@ -268,7 +72,7 @@ if __name__ == '__main__':
         bench.run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, ext='.png')
         bench.eval_pipe_fundamental(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, save_to=save_to + '_fundamental_megadepth.pbz2', use_scale=True)
         bench.eval_pipe_essential(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, essential_th_list=[0.5], save_to=save_to + '_essential_megadepth.pbz2', use_scale=True)
-        bench.show_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , ext='.png')
+        #bench.show_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , ext='.png')
 
     print("*** S c a n N e t ***")    
     for i, pipe in enumerate(pipes):
@@ -278,31 +82,31 @@ if __name__ == '__main__':
         bench.run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , ext='.png')
         bench.eval_pipe_fundamental(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, save_to=save_to + '_fundamental_scannet.pbz2', use_scale=False)
         bench.eval_pipe_essential(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, essential_th_list=[0.5], save_to=save_to + '_essential_scannet.pbz2', use_scale=False)
-        bench.show_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , ext='.png')
+        #bench.show_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , ext='.png')
 
-###
+####
+#
+#    planar_data, _ = bench.planar_bench_setup(bench_path=bench_path, upright=True)
+#
+#    print("*** P l a n a r ***")    
+#    for i, pipe in enumerate(pipes):
+#        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
+#        for pipe_module in pipe:
+#            if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'homography')
+#        bench.run_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path, ext='.png')
+#        bench.eval_pipe_homography(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path, save_to=save_to + '_homography_planar.pbz2', use_scale=False, save_acc_images=True)
+#        bench.show_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , ext='.png')
 
-    planar_data, _ = bench.planar_bench_setup(bench_path=bench_path, upright=True)
-
-    print("*** P l a n a r ***")    
-    for i, pipe in enumerate(pipes):
-        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
-        for pipe_module in pipe:
-            if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'homography')
-        bench.run_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path, ext='.png')
-        bench.eval_pipe_homography(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path, save_to=save_to + '_homography_planar.pbz2', use_scale=False, save_acc_images=True)
-        bench.show_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , ext='.png')
-
-###
-
-    imc_data, _ = bench.imc_phototourism_bench_setup(bench_path=bench_path)
-    
-    print("*** I M C   P h o t o t o u r i s m ***")
-    for i, pipe in enumerate(pipes):
-        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
-        for pipe_module in pipe:
-            if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'fundamental_matrix')
-        bench.run_pipe(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, ext='.jpg')
-        bench.eval_pipe_fundamental(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, save_to=save_to + '_fundamental_imc_phototourism.pbz2', use_scale=False)
-        bench.eval_pipe_essential(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, essential_th_list=[0.5], save_to=save_to + '_essential_imc_phototourism.pbz2', use_scale=False)
-        bench.show_pipe(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, ext='.jpg')
+####
+#
+#    imc_data, _ = bench.imc_phototourism_bench_setup(bench_path=bench_path)
+#    
+#    print("*** I M C   P h o t o t o u r i s m ***")
+#    for i, pipe in enumerate(pipes):
+#        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
+#        for pipe_module in pipe:
+#            if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'fundamental_matrix')
+#        bench.run_pipe(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, ext='.jpg')
+#        bench.eval_pipe_fundamental(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, save_to=save_to + '_fundamental_imc_phototourism.pbz2', use_scale=False)
+#        bench.eval_pipe_essential(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, essential_th_list=[0.5], save_to=save_to + '_essential_imc_phototourism.pbz2', use_scale=False)
+#        bench.show_pipe(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, ext='.jpg')
