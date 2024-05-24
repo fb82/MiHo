@@ -32,15 +32,13 @@ class disk_lightglue_module:
         self.config.matcher['depth_confidence'] = 0.95
         self.config.matcher['width_confidence'] = 0.99
         self.config.matcher['filter_threshold'] = 0.1
-        print('extractor', self.config.extractor)
-        print('matcher', self.config.matcher)
 
         self.extractor =  dim.extractors.DiskExtractor(self.config)
         self.matcher = dim.matchers.LightGlueMatcher(self.config, local_features="disk")
 
 
     def get_id(self):
-        return ('disk').lower()
+        return ('disk_nfeat_' + str(self.max_keypoints)).lower()
 
             
     def run(self, **args):
@@ -51,7 +49,7 @@ class disk_lightglue_module:
             feats1 = self.extractor._extract(image1)
             feats2 = self.extractor._extract(image2)
             matches = self.matcher._match_pairs(feats1, feats2)
-            #print(feats1['keypoints'].shape, feats2['keypoints'].shape, matches.shape)
+            # print(feats1['keypoints'].shape, feats2['keypoints'].shape, matches.shape)
 
         kps1 = torch.tensor(feats1['keypoints'][matches[:,0],:]).to(device)
         kps2 = torch.tensor(feats2['keypoints'][matches[:,1],:]).to(device)

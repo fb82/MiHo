@@ -11,6 +11,9 @@ from .oan_cuda import device as device_to_use
 
 class oanet_module:
     def __init__(self, **args):  
+        for k, v in args.items():
+           setattr(self, k, v)
+
         oanet_dir = os.path.split(__file__)[0]
         model_file = os.path.join(oanet_dir, 'model_best.pth')
         file_to_download = os.path.join(oanet_dir, 'sift-gl3d.tar.gz')    
@@ -27,10 +30,7 @@ class oanet_module:
                 
         self.lm = LearnedMatcher(model_file, inlier_threshold=1, use_ratio=0, use_mutual=0, corr_file=-1)        
         
-        for k, v in args.items():
-           setattr(self, k, v)
-       
-        
+               
     def get_id(self):
         return ('oanet').lower()
 

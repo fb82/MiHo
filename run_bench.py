@@ -25,12 +25,6 @@ from src.DIM_modules.magsac_module import magsac_module
 
 
 if __name__ == '__main__':
-    bench_path = '../bench_data'   
-    bench_gt = 'gt_data'
-    bench_im = 'imgs'
-    bench_res = 'res'
-    bench_plot = 'plot'
-    save_to = os.path.join(bench_path, bench_res, 'res_')
 
     pipes = [
 
@@ -259,39 +253,56 @@ if __name__ == '__main__':
 
 ###
 
-    bench_file = 'megadepth_scannet'
-    megadepth_data, scannet_data, data_file = bench.bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
-    megadepth_data, scannet_data = bench.setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
+    bench_path = '../bench_data'   
+    save_to = os.path.join(bench_path, 'res', 'res')
+
+###
+
+    megadepth_data, scannet_data, _ = bench.megadepth_scannet_bench_setup(bench_path=bench_path)
 
     print("*** M e g a D e p t h ***")    
     for i, pipe in enumerate(pipes):
         print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
         for pipe_module in pipe:
             if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'fundamental_matrix')
-        bench.run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
-        bench.eval_pipe_fundamental(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', save_to=save_to + '_fundamental_megadepth.pbz2', use_scale=True, err_th_list=list(range(1, 16)))
-        bench.eval_pipe_essential(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5], save_to=save_to + '_essential_megadepth.pbz2', use_scale=True)
-        #bench.show_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)
+        bench.run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, ext='.png')
+        bench.eval_pipe_fundamental(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, save_to=save_to + '_fundamental_megadepth.pbz2', use_scale=True)
+        bench.eval_pipe_essential(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, essential_th_list=[0.5], save_to=save_to + '_essential_megadepth.pbz2', use_scale=True)
+        bench.show_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , ext='.png')
 
     print("*** S c a n N e t ***")    
     for i, pipe in enumerate(pipes):
         print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
         for pipe_module in pipe:
             if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'fundamental_matrix')
-        bench.run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
-        bench.eval_pipe_fundamental(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', save_to=save_to + '_fundamental_scannet.pbz2', use_scale=False, err_th_list=list(range(1, 16)))
-        bench.eval_pipe_essential(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5], save_to=save_to + '_essential_scannet.pbz2', use_scale=False)
-        bench.show_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)
+        bench.run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , ext='.png')
+        bench.eval_pipe_fundamental(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, save_to=save_to + '_fundamental_scannet.pbz2', use_scale=False)
+        bench.eval_pipe_essential(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, essential_th_list=[0.5], save_to=save_to + '_essential_scannet.pbz2', use_scale=False)
+        bench.show_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , ext='.png')
 
 ###
 
-    planar_data, _ = bench.planar_bench_setup(bench_path=bench_path, bench_imgs=bench_im)
+    planar_data, _ = bench.planar_bench_setup(bench_path=bench_path, upright=True)
 
     print("*** P l a n a r ***")    
     for i, pipe in enumerate(pipes):
         print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
         for pipe_module in pipe:
             if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'homography')
-        bench.run_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
-        bench.eval_pipe_homography(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path, bench_res='res', save_to=save_to + '_homography_planar.pbz2', use_scale=False, err_th_list=list(range(1, 16)))
-        bench.show_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res, bench_plot=bench_plot)
+        bench.run_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path, ext='.png')
+        bench.eval_pipe_homography(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path, save_to=save_to + '_homography_planar.pbz2', use_scale=False, save_acc_images=True)
+        bench.show_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , ext='.png')
+
+###
+
+    imc_data, _ = bench.imc_phototourism_bench_setup(bench_path=bench_path)
+    
+    print("*** I M C   P h o t o t o u r i s m ***")
+    for i, pipe in enumerate(pipes):
+        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
+        for pipe_module in pipe:
+            if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'fundamental_matrix')
+        bench.run_pipe(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, ext='.jpg')
+        bench.eval_pipe_fundamental(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, save_to=save_to + '_fundamental_imc_phototourism.pbz2', use_scale=False)
+        bench.eval_pipe_essential(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, essential_th_list=[0.5], save_to=save_to + '_essential_imc_phototourism.pbz2', use_scale=False)
+        bench.show_pipe(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, ext='.jpg')
