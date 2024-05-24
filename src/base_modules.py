@@ -14,7 +14,7 @@ class keynetaffnethardnet_module:
     def __init__(self, **args):
         self.upright = False
         self.th = 0.99
-        self.num_features = 2048
+        self.num_features = 8000
 
         for k, v in args.items():
            setattr(self, k, v)
