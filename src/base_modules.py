@@ -14,7 +14,7 @@ class keynetaffnethardnet_module:
     def __init__(self, **args):
         self.upright = False
         self.th = 0.99
-        self.num_features = 2048
+        self.num_features = 8000
 
         for k, v in args.items():
            setattr(self, k, v)
@@ -23,7 +23,7 @@ class keynetaffnethardnet_module:
             self.detector = K.feature.KeyNetAffNetHardNet(num_features=self.num_features, upright=self.upright, device=device)
         
     def get_id(self):
-        return ('keynetaffnethardnet_upright_' + str(self.upright) + '_th_' + str(self.th)).lower()
+        return ('keynetaffnethardnet_upright_' + str(self.upright) + '_th_' + str(self.th) + '_nfeat_' + str(self.num_features)).lower()
 
     
     def run(self, **args):    
