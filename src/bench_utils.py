@@ -219,7 +219,7 @@ def setup_images(megadepth_data, scannet_data, data_file='bench_data/megadepth_s
     return megadepth_data, scannet_data
 
 
-def relative_pose_error(R_gt, t_gt, R, t, ignore_gt_t_thr=0.0):
+def relative_pose_error_angular(R_gt, t_gt, R, t, ignore_gt_t_thr=0.0):
     # angle error between 2 vectors
     # t_gt = T_0to1[:3, 3]
     n = np.linalg.norm(t) * np.linalg.norm(t_gt)
@@ -233,6 +233,33 @@ def relative_pose_error(R_gt, t_gt, R, t, ignore_gt_t_thr=0.0):
     cos = (np.trace(np.dot(R.T, R_gt)) - 1) / 2
     cos = np.clip(cos, -1., 1.)  # handle numercial errors
     R_err = np.rad2deg(np.abs(np.arccos(cos)))
+
+    return t_err, R_err
+
+
+def relative_pose_error_metric(R_gt, t_gt, R, t, scale_cf=1.0, use_gt_norm=True, t_ambiguity=True):
+    t_gt = t_gt * scale_cf
+    t = t * scale_cf
+    if use_gt_norm: 
+        n_gt = np.linalg.norm(t_gt)
+        n = np.linalg.norm(t)
+        t = t / n * n_gt
+
+    if t_ambiguity:
+        t_err = np.minimum(np.linalg.norm(t_gt - t), np.linalg.norm(t_gt + t))
+    else:
+        t_err = np.linalg.norm(t_gt - t)
+
+    if not isinstance(R, list):
+        R = [R]
+        
+    R_err = []
+    for R_ in R:        
+        cos = (np.trace(np.dot(R_.T, R_gt)) - 1) / 2
+        cos = np.clip(cos, -1., 1.)  # handle numercial errors
+        R_err.append(np.rad2deg(np.abs(np.arccos(cos))))
+    
+    R_err = np.max(R_err)
 
     return t_err, R_err
 
@@ -303,11 +330,15 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
 
 
 # original benchmark metric
-def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to='res_essential.pbz2', force=False, use_scale=False):
+def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to='res_essential.pbz2', force=False, use_scale=False, also_metric=False):
     warnings.filterwarnings("ignore", category=UserWarning)
 
-    angular_thresholds = [5, 10, 20]
 
+    angular_thresholds = [5, 10, 20]
+    metric_thresholds = [0.5, 1, 2]
+    # warning: current metric error requires that angular_thresholds[i] / metric_thresholds[i] = am_scaling
+    am_scaling = 10
+ 
     K1 = dataset_data['K1']
     K2 = dataset_data['K2']
     R_gt = dataset_data['R']
@@ -333,14 +364,23 @@ def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path=
             if ((pipe_name_base + '_essential_th_list_' + str(essential_th)) in eval_data.keys()) and not force:
                 eval_data_ = eval_data[pipe_name_base + '_essential_th_list_' + str(essential_th)]                
                 for a in angular_thresholds:
-                    print(f"mAA@{str(a).ljust(2,' ')} (E) : {eval_data_['pose_error_e_auc_' + str(a)]}")                                    
+                    print(f"mAA@{str(a).ljust(2,' ')} (E) : {eval_data_['pose_error_e_auc_' + str(a)]}")   
+                
+                if also_metric:
+                    for a, m in zip(angular_thresholds, metric_thresholds):    
+                        print(f"mAA@{str(a).ljust(2,' ')},{str(m).ljust(3,' ')} (E) : {eval_data_['pose_error_em_auc_' + str(a) + '_' + str(m)]}")
+
                 continue
                     
             eval_data_ = {}
             eval_data_['R_errs_e'] = []
             eval_data_['t_errs_e'] = []
             eval_data_['inliers_e'] = []
-                
+            
+            if also_metric:
+                eval_data_['R_errm_e'] = []
+                eval_data_['t_errm_e'] = []
+                                
             with progress_bar('Completion') as p:
                 for i in p.track(range(n)):            
                     pipe_f = os.path.join(pipe_name_base, 'base', str(i) + '.pbz2')
@@ -374,12 +414,21 @@ def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path=
                         eval_data_['R_errs_e'].append(np.inf)
                         eval_data_['t_errs_e'].append(np.inf)
                         eval_data_['inliers_e'].append(np.array([]).astype('bool'))
+                        
+                        if also_metric:
+                            eval_data_['R_errm_e'].append(np.inf)
+                            eval_data_['t_errm_e'].append(np.inf)                            
                     else:
                         R, t, inliers = Rt
-                        t_err, R_err = relative_pose_error(R_gt[i], t_gt[i], R, t, ignore_gt_t_thr=0.0)
+                        t_err, R_err = relative_pose_error_angular(R_gt[i], t_gt[i], R, t)
                         eval_data_['R_errs_e'].append(R_err)
                         eval_data_['t_errs_e'].append(t_err)
                         eval_data_['inliers_e'].append(inliers)
+
+                        if also_metric:
+                            t_err, R_err = relative_pose_error_metric(R_gt[i], t_gt[i], R, t, scale=dataset_data['scene_scales'][i])
+                            eval_data_['R_errm_e'].append(R_err)
+                            eval_data_['t_errm_e'].append(t_err)
         
                 aux = np.stack(([eval_data_['R_errs_e'], eval_data_['t_errs_e']]), axis=1)
                 max_Rt_err = np.max(aux, axis=1)
@@ -395,14 +444,34 @@ def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path=
 
                     print(f"mAA@{str(a).ljust(2,' ')} (E) : {eval_data_['pose_error_e_auc_' + str(a)]}")
 
+                if also_metric:
+                    aux = np.stack(([eval_data_['R_errm_e'], eval_data_['t_errm_e'] * am_scaling]), axis=1)
+                    max_Rt_err = np.max(aux, axis=1)
+        
+                    for a, m in zip(angular_thresholds, metric_thresholds):       
+                        auc_R = error_auc(np.squeeze(eval_data_['R_errm_e']), a)
+                        auc_t = error_auc(np.squeeze(eval_data_['t_errm_e']), m)
+                        auc_max_Rt = error_auc(np.squeeze(max_Rt_err), a)
+                        eval_data_['pose_error_em_auc_' + str(a) + '_' + str(m)] = np.asarray([auc_R, auc_t, auc_max_Rt])
+
+                        aa = eval_data_['R_errm_e'] < a
+                        mm = eval_data_['t_errm_e'] < m
+                        tmp = np.concatenate((aa, mm, aa & mm), axis=1)
+                        eval_data_['pose_error_em_acc_' + str(a) + '_' + str(m)] = np.sum(tmp, axis=0)/np.shape(tmp)[0]
+    
+                        print(f"mAA@{str(a).ljust(2,' ')},{str(m).ljust(3,' ')} (E) : {eval_data_['pose_error_em_auc_' + str(a) + '_' + str(m)]}")
+
             eval_data[pipe_name_base + '_essential_th_list_' + str(essential_th)] = eval_data_
             compressed_pickle(save_to, eval_data)
 
 
-def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_fundamental.pbz2', force=False, use_scale=False, err_th_list=list(range(1,16))):
+def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_fundamental.pbz2', force=False, use_scale=False, err_th_list=list(range(1,16)), also_metric=True):
     warnings.filterwarnings("ignore", category=UserWarning)
 
     angular_thresholds = [5, 10, 20]
+    metric_thresholds = [0.5, 1, 2]
+    # warning: current metric error requires that angular_thresholds[i] / metric_thresholds[i] = am_scaling
+    am_scaling = 10
 
     K1 = dataset_data['K1']
     K2 = dataset_data['K2']
@@ -431,6 +500,10 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
             for a in angular_thresholds:
                 print(f"mAA@{str(a).ljust(2,' ')} (F) : {eval_data_['pose_error_f_auc_' + str(a)]}")
 
+            if also_metric:
+                for a, m in zip(angular_thresholds, metric_thresholds):    
+                    print(f"mAA@{str(a).ljust(2,' ')},{str(m).ljust(3,' ')} (F) : {eval_data_['pose_error_fm_auc_' + str(a) + '_' + str(m)]}")
+
             print(f"precision(F) : {eval_data_['epi_global_prec_f']}")
             print(f"recall (F) : {eval_data_['epi_global_recall_f']}")
                                                 
@@ -443,6 +516,10 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
         eval_data_['epi_inliers_f'] = []
         eval_data_['epi_prec_f'] = []
         eval_data_['epi_recall_f'] = []
+        
+        if also_metric:
+            eval_data_['R_errm_f'] = []
+            eval_data_['t_errm_f'] = []        
             
         with progress_bar('Completion') as p:
             for i in p.track(range(n)):            
@@ -524,12 +601,17 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                 if Rt_ is None:
                     eval_data_['R_errs_f'].append(np.inf)
                     eval_data_['t_errs_f'].append(np.inf)
+                    
+                    if also_metric:
+                        eval_data_['R_errm_f'].append(np.inf)
+                        eval_data_['t_errm_f'].append(np.inf)                        
+                    
                 else:
                     R_a, t_a, = Rt_[0], Rt_[2].squeeze()
-                    t_err_a, R_err_a = relative_pose_error(R_gt[i], t_gt[i], R_a, t_a, ignore_gt_t_thr=0.0)
+                    t_err_a, R_err_a = relative_pose_error_angular(R_gt[i], t_gt[i], R_a, t_a)
 
                     R_b, t_b, = Rt_[1], Rt_[2].squeeze()
-                    t_err_b, R_err_b = relative_pose_error(R_gt[i], t_gt[i], R_b, t_b, ignore_gt_t_thr=0.0)
+                    t_err_b, R_err_b = relative_pose_error_angular(R_gt[i], t_gt[i], R_b, t_b)
 
                     if max(R_err_a, t_err_a) < max(R_err_b, t_err_b):
                         R_err, t_err = R_err_a, t_err_b
@@ -538,6 +620,11 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
 
                     eval_data_['R_errs_f'].append(R_err)
                     eval_data_['t_errs_f'].append(t_err)
+                                        
+                    if also_metric:
+                        t_err, R_err = relative_pose_error_metric(R_gt[i], t_gt[i], [Rt_[0], Rt_[1]], Rt_[2], scale=dataset_data['scene_scales'][i])
+                        eval_data_['R_errm_f'].append(R_err)
+                        eval_data_['t_errm_f'].append(t_err)                    
                     
                 eval_data_['epi_max_error_f'].append(epi_max_err)  
                 eval_data_['epi_inliers_f'].append(inl_sum)
@@ -557,6 +644,23 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                 eval_data_['pose_error_f_acc_' + str(a)] = np.sum(tmp < a, axis=0)/np.shape(tmp)[0]
 
                 print(f"mAA@{str(a).ljust(2,' ')} (F) : {eval_data_['pose_error_f_auc_' + str(a)]}")
+            
+            if also_metric:
+                aux = np.stack(([eval_data_['R_errm_f'], eval_data_['t_errm_f'] * am_scaling]), axis=1)
+                max_Rt_err = np.max(aux, axis=1)
+    
+                for a, m in zip(angular_thresholds, metric_thresholds):       
+                    auc_R = error_auc(np.squeeze(eval_data_['R_errm_f']), a)
+                    auc_t = error_auc(np.squeeze(eval_data_['t_errm_f']), m)
+                    auc_max_Rt = error_auc(np.squeeze(max_Rt_err), a)
+                    eval_data_['pose_error_fm_auc_' + str(a) + '_' + str(m)] = np.asarray([auc_R, auc_t, auc_max_Rt])
+
+                    aa = eval_data_['R_errm_f'] < a
+                    mm = eval_data_['t_errm_f'] < m
+                    tmp = np.concatenate((aa, mm, aa & mm), axis=1)
+                    eval_data_['pose_error_fm_acc_' + str(a) + '_' + str(m)] = np.sum(tmp, axis=0)/np.shape(tmp)[0]
+
+                    print(f"mAA@{str(a).ljust(2,' ')},{str(m).ljust(3,' ')} (F) : {eval_data_['pose_error_fm_auc_' + str(a) + '_' + str(m)]}")
             
             eval_data_['epi_global_prec_f'] = torch.tensor(eval_data_['epi_prec_f'], device=device).mean().item()
             eval_data_['epi_global_recall_f'] = torch.tensor(eval_data_['epi_recall_f'], device=device).mean().item()
