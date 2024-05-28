@@ -41,7 +41,7 @@ class oanet_module:
                 
         l = pt1.shape[0]
         
-        if l > 0:                
+        if l > 1:                
             _, _, _, _, mask = self.lm.infer(pt1, pt2)
                     
             pt1 = args['pt1'][mask]
