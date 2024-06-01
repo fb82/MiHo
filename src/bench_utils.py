@@ -426,13 +426,12 @@ def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path=
                         eval_data_['inliers_e'].append(inliers)
 
                         if also_metric:
-                            t_err, R_err = relative_pose_error_metric(R_gt[i], t_gt[i], R, t, scale=dataset_data['scene_scales'][i])
+                            t_err, R_err = relative_pose_error_metric(R_gt[i], t_gt[i], R, t, scale_cf=dataset_data['scene_scales'][i])
                             eval_data_['R_errm_e'].append(R_err)
                             eval_data_['t_errm_e'].append(t_err)
         
-                aux = np.stack(([eval_data_['R_errs_e'], eval_data_['t_errs_e']]), axis=1)
-                max_Rt_err = np.max(aux, axis=1)
-        
+                aux = np.asarray([eval_data_['R_errs_e'], eval_data_['t_errs_e']]).T
+                max_Rt_err = np.max(aux, axis=1)        
                 tmp = np.concatenate((aux, np.expand_dims(max_Rt_err, axis=1)), axis=1)
         
                 for a in angular_thresholds:       
@@ -445,7 +444,8 @@ def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path=
                     print(f"mAA@{str(a).ljust(2,' ')} (E) : {eval_data_['pose_error_e_auc_' + str(a)]}")
 
                 if also_metric:
-                    aux = np.stack(([eval_data_['R_errm_e'], eval_data_['t_errm_e'] * am_scaling]), axis=1)
+                    aux = np.asarray([eval_data_['R_errm_e'], eval_data_['t_errm_e']]).T
+                    aux[:, 1] = aux[:, 1] * am_scaling
                     max_Rt_err = np.max(aux, axis=1)
         
                     for a, m in zip(angular_thresholds, metric_thresholds):       
@@ -454,8 +454,8 @@ def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path=
                         auc_max_Rt = error_auc(np.squeeze(max_Rt_err), a)
                         eval_data_['pose_error_em_auc_' + str(a) + '_' + str(m)] = np.asarray([auc_R, auc_t, auc_max_Rt])
 
-                        aa = eval_data_['R_errm_e'] < a
-                        mm = eval_data_['t_errm_e'] < m
+                        aa = (aux[:, 0] < a)[:, np.newaxis]
+                        mm = (aux[:, 1] < m)[:, np.newaxis]
                         tmp = np.concatenate((aa, mm, aa & mm), axis=1)
                         eval_data_['pose_error_em_acc_' + str(a) + '_' + str(m)] = np.sum(tmp, axis=0)/np.shape(tmp)[0]
     
@@ -465,7 +465,7 @@ def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path=
             compressed_pickle(save_to, eval_data)
 
 
-def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_fundamental.pbz2', force=False, use_scale=False, err_th_list=list(range(1,16)), also_metric=True):
+def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_fundamental.pbz2', force=False, use_scale=False, err_th_list=list(range(1,16)), also_metric=False):
     warnings.filterwarnings("ignore", category=UserWarning)
 
     angular_thresholds = [5, 10, 20]
@@ -504,8 +504,8 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                 for a, m in zip(angular_thresholds, metric_thresholds):    
                     print(f"mAA@{str(a).ljust(2,' ')},{str(m).ljust(3,' ')} (F) : {eval_data_['pose_error_fm_auc_' + str(a) + '_' + str(m)]}")
 
-            print(f"precision(F) : {eval_data_['epi_global_prec_f']}")
-            print(f"recall (F) : {eval_data_['epi_global_recall_f']}")
+            print(f"precision (F) : {eval_data_['epi_global_prec_f']}")
+            print(f"   recall (F) : {eval_data_['epi_global_recall_f']}")
                                                 
             continue
                 
@@ -622,7 +622,7 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                     eval_data_['t_errs_f'].append(t_err)
                                         
                     if also_metric:
-                        t_err, R_err = relative_pose_error_metric(R_gt[i], t_gt[i], [Rt_[0], Rt_[1]], Rt_[2], scale=dataset_data['scene_scales'][i])
+                        t_err, R_err = relative_pose_error_metric(R_gt[i], t_gt[i], [Rt_[0], Rt_[1]], Rt_[2], scale_cf=dataset_data['scene_scales'][i])
                         eval_data_['R_errm_f'].append(R_err)
                         eval_data_['t_errm_f'].append(t_err)                    
                     
@@ -631,9 +631,8 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                 eval_data_['epi_prec_f'].append(avg_prec)                           
                 eval_data_['epi_recall_f'].append(avg_recall)
                     
-            aux = np.stack(([eval_data_['R_errs_f'], eval_data_['t_errs_f']]), axis=1)
-            max_Rt_err = np.max(aux, axis=1)
-        
+            aux = np.asarray([eval_data_['R_errs_f'], eval_data_['t_errs_f']]).T
+            max_Rt_err = np.max(aux, axis=1)        
             tmp = np.concatenate((aux, np.expand_dims(max_Rt_err, axis=1)), axis=1)
     
             for a in angular_thresholds:       
@@ -646,7 +645,8 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                 print(f"mAA@{str(a).ljust(2,' ')} (F) : {eval_data_['pose_error_f_auc_' + str(a)]}")
             
             if also_metric:
-                aux = np.stack(([eval_data_['R_errm_f'], eval_data_['t_errm_f'] * am_scaling]), axis=1)
+                aux = np.asarray([eval_data_['R_errm_f'], eval_data_['t_errm_f']]).T
+                aux[:, 1] = aux[:, 1] * am_scaling
                 max_Rt_err = np.max(aux, axis=1)
     
                 for a, m in zip(angular_thresholds, metric_thresholds):       
@@ -655,8 +655,8 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                     auc_max_Rt = error_auc(np.squeeze(max_Rt_err), a)
                     eval_data_['pose_error_fm_auc_' + str(a) + '_' + str(m)] = np.asarray([auc_R, auc_t, auc_max_Rt])
 
-                    aa = eval_data_['R_errm_f'] < a
-                    mm = eval_data_['t_errm_f'] < m
+                    aa = (aux[:, 0] < a)[:, np.newaxis]
+                    mm = (aux[:, 1] < m)[:, np.newaxis]
                     tmp = np.concatenate((aa, mm, aa & mm), axis=1)
                     eval_data_['pose_error_fm_acc_' + str(a) + '_' + str(m)] = np.sum(tmp, axis=0)/np.shape(tmp)[0]
 
@@ -666,7 +666,7 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
             eval_data_['epi_global_recall_f'] = torch.tensor(eval_data_['epi_recall_f'], device=device).mean().item()
         
             print(f"precision (F) : {eval_data_['epi_global_prec_f']}")
-            print(f"recall (F) : {eval_data_['epi_global_recall_f']}")
+            print(f"   recall (F) : {eval_data_['epi_global_recall_f']}")
 
             eval_data[pipe_name_base] = eval_data_
             compressed_pickle(save_to, eval_data)
