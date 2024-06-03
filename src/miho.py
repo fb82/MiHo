@@ -739,7 +739,7 @@ def dist2p(pt1, pt2):
 
 def cluster_assign_base(Hdata, pt1, pt2, H1_pre, H2_pre, **dummy_args):
     l = len(Hdata)
-    n = Hdata[0][2].shape[0]
+    n = pt1.shape[0]
     
     if not((l>0) and (n>0)):
         return torch.full((n, ), -1, dtype=torch.int, device=device)

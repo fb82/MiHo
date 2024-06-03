@@ -454,8 +454,8 @@ def dist2(pt):
 
 def cluster_assign_base(Hdata, pt1, pt2, **dummy_args):
     l = len(Hdata)
-    n = Hdata[0][1].shape[0]
-    
+    n = pt1.shape[0]
+        
     if not((l>0) and (n>0)):
         return torch.full((n, ), -1, dtype=torch.int, device=device)
     
