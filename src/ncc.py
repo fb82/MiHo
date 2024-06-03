@@ -225,16 +225,22 @@ def go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_'):
     save_patch(patch2, save_prefix=save_prefix, save_suffix='_b.png')
 
 
-def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, img_patches=False):
+def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, img_patches=False, also_laf=False):
     l = pt1.shape[0]
     idx = torch.ones(l, dtype=torch.bool, device=device)
 
     if mihoo is None:
         if Hs_laf is not None:
-            return pt1, pt2, Hs_laf, idx
+            if also_laf:
+                return pt1, pt2, Hs_laf, idx, None
+            else:
+                return pt1, pt2, Hs_laf, idx
         else:
             Hs = torch.eye(3, device=device).repeat(l*2, 1).reshape(l, 2, 3, 3)
-            return pt1, pt2, Hs, idx
+            if also_laf:
+                return pt1, pt2, Hs, idx, None
+            else:
+                return pt1, pt2, Hs, idx
 
     Hs = torch.zeros((l, 2, 3, 3), device=device)
     for i in range(l):
@@ -256,22 +262,34 @@ def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True
         Hs = Hs[mask]
         idx = mask
         
+        if also_laf and (Hs_laf is not None):
+            Hs_laf = Hs_laf[mask]
+        
     if img_patches:
         go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='miho_patch_')
     
-    return pt1, pt2, Hs, idx
+    if not also_laf:
+        return pt1, pt2, Hs, idx
+    else:
+        return pt1, pt2, Hs, idx, Hs_laf
 
 
-def refinement_miho_other(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, patch_ref='left', img_patches=False):
+def refinement_miho_other(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, patch_ref='left', img_patches=False, also_laf=False):
     l = pt1.shape[0]
     idx = torch.ones(l, dtype=torch.bool, device=device)
 
     if mihoo is None:
         if Hs_laf is not None:
-            return pt1, pt2, Hs_laf, idx
+            if also_laf:
+                return pt1, pt2, Hs_laf, idx, None
+            else:
+                return pt1, pt2, Hs_laf, idx
         else:
             Hs = torch.eye(3, device=device).repeat(l*2, 1).reshape(l, 2, 3, 3)
-            return pt1, pt2, Hs, idx
+            if also_laf:
+                return pt1, pt2, Hs, idx, None
+            else:
+                return pt1, pt2, Hs, idx
 
     Hs = torch.zeros((l, 2, 3, 3), device=device)
     for i in range(l):
@@ -297,10 +315,16 @@ def refinement_miho_other(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_ba
         Hs = Hs[mask]
         idx = mask
         
+        if also_laf and (Hs_laf is not None):
+            Hs_laf = Hs_laf[mask]
+        
     if img_patches:
         go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='miho_patch_')
-    
-    return pt1, pt2, Hs, idx
+
+    if not also_laf:
+        return pt1, pt2, Hs, idx
+    else:
+        return pt1, pt2, Hs, idx, Hs_laf
 
 
 def norm_corr(patch1, patch2, subpix=True):     
@@ -451,6 +475,7 @@ class ncc_module:
         self.scale = [[10/14, 1], [10/12, 1], [1, 1], [1, 12/10], [1, 14/10]]
         self.subpix = True
         self.ref_images = 'both'
+        self.also_prev = False
         
         self.transform = transforms.Compose([
             transforms.Grayscale(),
@@ -473,5 +498,16 @@ class ncc_module:
         im2 = self.transform(im2).type(torch.float16).to(device)        
         
         pt1, pt2, Hs_ncc, val, T = refinement_norm_corr_alternate(im1, im2, args['pt1'], args['pt2'], args['Hs'], w=self.w, w_big=self.w_big, ref_image=[self.ref_images], angle=self.angle, scale=self.scale, subpix=self.subpix, img_patches=False)   
-                    
-        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_ncc, 'val': val, 'T': T}
+
+        laf_is_better = np.NaN
+        if self.also_prev and ('Hs_prev' in args.keys()) and (args['Hs'].size()[0] > 0):
+            pt1_, pt2_, Hs_ncc_, val_, T_ = refinement_norm_corr_alternate(im1, im2, args['pt1'], args['pt2'], args['Hs_prev'], w=self.w, w_big=self.w_big, ref_image=[self.ref_images], angle=self.angle, scale=self.scale, subpix=self.subpix, img_patches=False)   
+            replace_idx = torch.argwhere((torch.cat((val.unsqueeze(0),val_.unsqueeze(0)), dim=0)).max(dim=0)[1] == 1)
+            pt1[replace_idx] = pt1_[replace_idx]
+            pt2[replace_idx] = pt2_[replace_idx]
+            Hs_ncc[replace_idx] = Hs_ncc_[replace_idx]
+            val[replace_idx] = val_[replace_idx]
+            T[replace_idx] = T_[replace_idx]
+            laf_is_better = replace_idx.shape[0] / pt1_.shape[0] 
+            
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_ncc, 'val': val, 'T': T, 'laf_is_better': laf_is_better}

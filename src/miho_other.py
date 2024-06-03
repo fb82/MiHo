@@ -757,6 +757,8 @@ class miho_module:
     def run(self, **args):
         self.miho.planar_clustering(args['pt1'], args['pt2'])
         
-        pt1, pt2, Hs_miho, inliers = refinement_miho_other(None, None, args['pt1'], args['pt2'], self.miho, args['Hs'], remove_bad=True, img_patches=False)        
+        pt1, pt2, Hs_miho, inliers, Hs_laf = refinement_miho_other(None, None, args['pt1'], args['pt2'], self.miho, args['Hs'], remove_bad=True, img_patches=False, also_laf=True)        
             
-        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_miho, 'mask': inliers}
+        toreturn = {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_miho, 'mask': inliers}
+        if not (Hs_laf is None): toreturn['Hs_prev'] = Hs_laf
+        return toreturn
