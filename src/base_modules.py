@@ -10,12 +10,22 @@ from .ncc import refinement_laf
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
+# from kornia moons
+def laf_from_opencv_kpts(kpts, mrSize=6.0, device=torch.device('cpu')):
+    N = len(kpts)
+    xy = torch.tensor([(x.pt[0], x.pt[1]) for x in kpts ], device=device, dtype=torch.float).view(1, N, 2)
+    scales = torch.tensor([(mrSize * x.size) for x in kpts ], device=device, dtype=torch.float).view(1, N, 1, 1)
+    angles = torch.tensor([(-x.angle) for x in kpts ], device=device, dtype=torch.float).view(1, N, 1)
+    laf = K.feature.laf_from_center_scale_ori(xy, scales, angles).reshape(1, -1, 2, 3)
+    return laf.reshape(1, -1, 2, 3)
+
+
 class keynetaffnethardnet_module:
     def __init__(self, **args):
         self.upright = False
         self.th = 0.99
         self.num_features = 8000
-
+        
         for k, v in args.items():
            setattr(self, k, v)
 
@@ -214,3 +224,67 @@ class poselib_module:
             Hs = args['Hs'][mask]            
             
         return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs, 'F': F, 'mask': mask}
+
+
+class sift_module:
+    def __init__(self, **args):
+        self.upright = False
+        self.th = 0.99
+        self.num_features = 8000
+        self.rootsift = True
+        
+        for k, v in args.items():
+           setattr(self, k, v)
+
+        with torch.inference_mode():
+            self.detector = cv2.SIFT_create(self.num_features, contrastThreshold=-10000, edgeThreshold=10000)
+
+
+    def get_id(self):
+        return ('sift_upright_' + str(self.upright) + '_rootsift_' + str(self.rootsift) + '_th_' + str(self.th) + '_nfeat_' + str(self.num_features)).lower()
+
+
+    def run(self, **args):    
+        
+        im1 = cv2.imread(args['im1'], cv2.IMREAD_GRAYSCALE)
+        kps1 = self.detector.detect(im1, None)
+
+        if self.upright:
+            idx = np.unique(np.asarray([[k.pt[0], k.pt[1]] for k in kps1]), axis=0, return_index=True)[1]
+            kps1 = [kps1[ii] for ii in idx]
+            for ii in range(len(kps1)):
+                kps1[ii].angle = 0           
+        kps1, descs1 = self.detector.compute(im1, kps1)
+
+        if self.rootsift:
+            descs1 /= descs1.sum(axis=1, keepdims=True) + 1e-8
+            descs1 = np.sqrt(descs1)
+
+        im2 = cv2.imread(args['im2'], cv2.IMREAD_GRAYSCALE)
+        kps2 = self.detector.detect(im2, None)
+
+        if self.upright:
+            idx = np.unique(np.asarray([[k.pt[0], k.pt[1]] for k in kps2]), axis=0, return_index=True)[1]
+            kps2 = [kps2[ii] for ii in idx]
+            for ii in range(len(kps2)):
+                kps2[ii].angle = 0           
+        kps2, descs2 = self.detector.compute(im2, kps2)
+
+        if self.rootsift:
+            descs2 /= descs2.sum(axis=1, keepdims=True) + 1e-8
+            descs2 = np.sqrt(descs2)
+
+        with torch.inference_mode():            
+            val, idxs = K.feature.match_smnn(torch.from_numpy(descs1).cuda(), torch.from_numpy(descs2).cuda(), self.th)
+
+        pt1 = None
+        pt2 = None
+        kps1 = laf_from_opencv_kpts(kps1, device=device)
+        kps2 = laf_from_opencv_kpts(kps2, device=device)
+                
+        kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
+        kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
+
+        pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)    
+
+        return {'pt1': pt1, 'pt2': pt2, 'kp1': kps1, 'kp2': kps2, 'Hs': Hs_laf, 'val': val}

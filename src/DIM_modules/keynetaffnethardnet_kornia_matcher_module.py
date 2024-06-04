@@ -56,13 +56,5 @@ class keynetaffnethardnet_kornia_matcher_module:
         kps2 = torch.tensor(feats2['keypoints'][matches[:,1],:]).to(device)
         # pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)
         pt1, pt2, Hs_laf = refinement_laf(None, None, pt1=kps1, pt2=kps2, img_patches=False) # No refinement LAF!!!
-        # print(pt1.shape)
-        # print(Hs_laf.shape)
-        # with open('/home/threedom/Desktop/prova.txt', 'w') as out:
-        #     for i in range(pt1.shape[0]):
-        #         out.write(f"{pt1[i,0]} {pt1[i,1]} {pt2[i,0]} {pt2[i,1]}\n")
-        #     print(args[0])
-        #     print(args[1])
-        #     quit()
     
         return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_laf}

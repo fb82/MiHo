@@ -114,7 +114,7 @@ if __name__ == '__main__':
 
     bench_path = '../bench_data'   
     save_to = os.path.join(bench_path, 'res', 'res')
-
+    
 ###
 
     megadepth_data, scannet_data, _ = bench.megadepth_scannet_bench_setup(bench_path=bench_path)
@@ -152,16 +152,16 @@ if __name__ == '__main__':
 #        bench.eval_pipe_homography(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path, save_to=save_to + '_homography_planar.pbz2', use_scale=False, save_acc_images=True)
 #        bench.show_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , ext='.png')
 
-####
-#
-#    imc_data, _ = bench.imc_phototourism_bench_setup(bench_path=bench_path)
-#    
-#    print("*** I M C   P h o t o t o u r i s m ***")
-#    for i, pipe in enumerate(pipes):
-#        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
-#        for pipe_module in pipe:
-#            if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'fundamental_matrix')
-#        bench.run_pipe(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, ext='.jpg')
-#        bench.eval_pipe_fundamental(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, save_to=save_to + '_fundamental_imc_phototourism.pbz2', use_scale=False)
-#        bench.eval_pipe_essential(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, essential_th_list=[0.5], save_to=save_to + '_essential_imc_phototourism.pbz2', use_scale=False)
-#        bench.show_pipe(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, ext='.jpg')
+###
+
+    imc_data, _ = bench.imc_phototourism_bench_setup(bench_path=bench_path)
+    
+    print("*** I M C   P h o t o t o u r i s m ***")
+    for i, pipe in enumerate(pipes):
+        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
+        for pipe_module in pipe:
+            if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'fundamental_matrix')
+        bench.run_pipe(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, ext='.jpg')
+        bench.eval_pipe_fundamental(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, save_to=save_to + '_fundamental_imc_phototourism.pbz2', use_scale=False, also_metric=True)
+        bench.eval_pipe_essential(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, essential_th_list=[0.5], save_to=save_to + '_essential_imc_phototourism.pbz2', use_scale=False, also_metric=True)
+        bench.show_pipe(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, ext='.jpg')
