@@ -29,84 +29,22 @@ if __name__ == '__main__':
     pipes = [
 
         [
-            superpoint_lightglue_module(nmax_keypoints=2048),
-            gms.gms_module(),
+            sift_kornia_matcher_module(n_features=8000, th=0.99, contrastThreshold = 0.04),
             pipe_base.magsac_module(px_th=1.0)
         ],
 
         [
-            superpoint_lightglue_module(nmax_keypoints=2048),
-            oanet.oanet_module(),
+            sift_kornia_matcher_module(n_features=8000, th=0.99, contrastThreshold = 0.04),
+            miho_duplex.miho_module(),
             pipe_base.magsac_module(px_th=1.0)
         ],
 
         [
-            superpoint_lightglue_module(nmax_keypoints=4000),
-            gms.gms_module(),
+            sift_kornia_matcher_module(n_features=8000, th=0.99, contrastThreshold = 0.04),
+            miho_duplex.miho_module(),
+            ncc.ncc_module(),
             pipe_base.magsac_module(px_th=1.0)
         ],
-
-        [
-            superpoint_lightglue_module(nmax_keypoints=4000),
-            oanet.oanet_module(),
-            pipe_base.magsac_module(px_th=1.0)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99, num_features=2048),
-            gms.gms_module(),
-            pipe_base.magsac_module(px_th=1.0)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99, num_features=2048),
-            oanet.oanet_module(),
-            pipe_base.magsac_module(px_th=1.0)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99, num_features=8000),
-            gms.gms_module(),
-            pipe_base.magsac_module(px_th=1.0)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=False, th=0.99, num_features=8000),
-            oanet.oanet_module(),
-            pipe_base.magsac_module(px_th=1.0)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=True, th=0.99, num_features=8000),
-            gms.gms_module(),
-            pipe_base.magsac_module(px_th=1.0)
-        ],
-
-        [
-            pipe_base.keynetaffnethardnet_module(upright=True, th=0.99, num_features=8000),
-            oanet.oanet_module(),
-            pipe_base.magsac_module(px_th=1.0)
-        ],
-
-        #[
-        #    sift_kornia_matcher_module(n_features=8000, th=0.99, contrastThreshold = 0.04),
-        #    miho_duplex.miho_module(),
-        #    pipe_base.magsac_module(px_th=1.0)
-        #],
-#
-        #[
-        #    sift_kornia_matcher_module(n_features=8000, th=0.99, contrastThreshold = 0.04),
-        #    miho_duplex.miho_module(),
-        #    ncc.ncc_module(),
-        #    pipe_base.magsac_module(px_th=1.0)
-        #],
-
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=2048),
-        #    miho_duplex.miho_module(),
-        #    ncc.ncc_module(),
-        #    pipe_base.magsac_module(px_th=1.0)
-        #],
 
     ]
 
