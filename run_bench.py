@@ -141,6 +141,7 @@ if __name__ == '__main__':
         print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
         for pipe_module in pipe:
             if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'fundamental_matrix')
+            if hasattr(pipe_module, 'outdoor'): setattr(pipe_module, 'outdoor', True)
         bench.run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, ext='.png')
         bench.eval_pipe_fundamental(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, save_to=save_to + '_fundamental_megadepth.pbz2', use_scale=True)
         bench.eval_pipe_essential(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, essential_th_list=[0.5], save_to=save_to + '_essential_megadepth.pbz2', use_scale=True)
@@ -151,6 +152,7 @@ if __name__ == '__main__':
         print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
         for pipe_module in pipe:
             if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'fundamental_matrix')
+            if hasattr(pipe_module, 'outdoor'): setattr(pipe_module, 'outdoor', False)
         bench.run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , ext='.png')
         bench.eval_pipe_fundamental(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, save_to=save_to + '_fundamental_scannet.pbz2', use_scale=False)
         bench.eval_pipe_essential(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, essential_th_list=[0.5], save_to=save_to + '_essential_scannet.pbz2', use_scale=False)
@@ -165,6 +167,7 @@ if __name__ == '__main__':
         print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
         for pipe_module in pipe:
             if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'homography')
+            if hasattr(pipe_module, 'outdoor'): setattr(pipe_module, 'outdoor', True)
         bench.run_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path, ext='.png')
         bench.eval_pipe_homography(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path, save_to=save_to + '_homography_planar.pbz2', use_scale=False, save_acc_images=True)
         bench.show_pipe(pipe, planar_data, 'planar', 'Planar', bench_path=bench_path , ext='.png')
@@ -178,6 +181,7 @@ if __name__ == '__main__':
         print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
         for pipe_module in pipe:
             if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'fundamental_matrix')
+            if hasattr(pipe_module, 'outdoor'): setattr(pipe_module, 'outdoor', True)            
         bench.run_pipe(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, ext='.jpg')
         bench.eval_pipe_fundamental(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, save_to=save_to + '_fundamental_imc_phototourism.pbz2', use_scale=False, also_metric=True)
         bench.eval_pipe_essential(pipe, imc_data, 'imc_phototourism', 'IMC Phototourism', bench_path=bench_path, essential_th_list=[0.5], save_to=save_to + '_essential_imc_phototourism.pbz2', use_scale=False, also_metric=True)

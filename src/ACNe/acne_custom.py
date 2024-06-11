@@ -115,6 +115,7 @@ class acne_module:
                 zip_ref.extractall(path=acne_dir)
 
         self.outdoor = True
+        self.prev_outdoor = True
 
         for k, v in args.items():
            setattr(self, k, v)
@@ -135,8 +136,24 @@ class acne_module:
         return ('acne_outdoor_' + str(self.outdoor)).lower()
 
         
-    def run(self, **args):  
-        if (acne_module.current_obj_id != self.acne_id):
+    def run(self, **args):
+        
+        force_reload = False
+        if (self.outdoor != self.prev_outdoor):
+            force_reload = True
+            self.prev_outdoor = self.outdoor
+            
+            if self.outdoor:
+                # Model of ACNe_F trained with outdoor dataset.              
+                model_path = "logs/main.py---gcn_opt=reweight_vanilla_sigmoid_softmax---bn_opt=gn---weight_opt=sigmoid_softmax---loss_multi_logit=1---use_fundamental=2---data_name=oan_outdoor/models-best"
+            else:
+                # Model of ACNe_F trained with indoor dataset.                      
+                 model_path = "logs/main.py---gcn_opt=reweight_vanilla_sigmoid_softmax---bn_opt=gn---weight_opt=sigmoid_softmax---loss_multi_logit=1---use_fundamental=2---data_name=oan_indoor/models-best"
+            acne_dir = os.path.split(__file__)[0]
+            self.model_path = os.path.join(acne_dir, model_path)
+
+
+        if (acne_module.current_obj_id != self.acne_id) or force_reload:
             if not (acne_module.current_obj_id is None):
                 acne_module.current_net.sess.close()
                 tf.reset_default_graph()
