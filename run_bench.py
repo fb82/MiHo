@@ -145,3 +145,8 @@ if __name__ == '__main__':
 
                     if show_matches:
                         bench.show_pipe(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, ext=benchmark_data[b]['ext'])
+                        
+            if benchmark_data[b]['is_not_planar']:
+                bench.csv_summary_non_planar(pipe, essential_th_list=[0.5], essential_load_from=to_save_file + 'essential' + to_save_file_suffix, fundamental_load_from=to_save_file + 'fundamental' + to_save_file_suffix, save_to=to_save_file + 'fundamental_and_essential' + to_save_file_suffix[:, -4] + '.csv', also_metric=benchmark_data[b]['also_metric'])
+            else:
+                bench.csv_summary_planar(pipe, load_from=to_save_file + 'homography' + to_save_file_suffix, save_to=to_save_file + 'homography' + to_save_file_suffix[:, -4] + '.csv')

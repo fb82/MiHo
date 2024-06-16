@@ -344,8 +344,66 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
                 for k, v in out_data.items(): pipe_data[k] = v
 
 
+def csv_summary_non_planar(pipe, essential_th_list=[0.5, 1, 1.5], essential_load_from='res_essential.pbz2', fundamental_load_from='res_fundamental.pbz2', save_to='res_non_planar.csv', also_metric=False):
+    warnings.filterwarnings("ignore", category=UserWarning)
+    lines = []
+
+    angular_thresholds = [5, 10, 20]
+    metric_thresholds = [0.5, 1, 2]
+    # warning: current metric error requires that angular_thresholds[i] / metric_thresholds[i] = am_scaling
+ 
+    e_eval_data = decompress_pickle(essential_load_from)
+    f_eval_data = decompress_pickle(fundamental_load_from)
+        
+    l = 0
+    for pname in f_eval_data.keys(): l = max(l, len(pname.split(os.path.sep)))
+        
+    header = ';'.join(['pipe_module_' + str(li) for li in range(l)]) + ';F_precision;F_recall'
+    header = header + ';'.join(['F_mAA@' + str(a) for a in angular_thresholds])
+
+    if also_metric:
+        header = header + ';'.join(['F_mAA@(' + str(a) + ',' + str(m) + ')' for a, m in zip(angular_thresholds, metric_thresholds)])
+    
+    for essential_th in essential_th_list: 
+        if len(essential_th_list) == 1:
+            lname = ''
+        else:
+            lname = '(' + str(essential_th) + ')'
+        
+        header = header + ';'.join(['E' + lname + '_mAA@' + str(a) for a in angular_thresholds])
+        
+        if also_metric:
+            header = header + ';'.join(['E' + lname + '_mAA@(' + str(a) + ',' + str(m) + ')' for a, m in zip(angular_thresholds, metric_thresholds)])
+
+    lines.append(header + '\n')
+        
+    for pname in f_eval_data.keys():    
+        lp = len(pname.split(os.path.sep))
+        row = pname.replace(os.path.sep, ';') + (';' * (l - lp - 1))
+
+        row = row + ';' + str(f_eval_data[pname]['epi_global_prec_f']) + ';' + str(f_eval_data[pname]['epi_global_recall_f']) 
+        row = row + ';'.join([str(f_eval_data[pname]['pose_error_f_auc_' + str(a)]) for a in angular_thresholds])    
+    
+        if also_metric:
+            row + ';'.join([str(f_eval_data[pname]['pose_error_fm_auc_' + str(a) + '_' + str(m)]) for a, m in zip(angular_thresholds, metric_thresholds)])
+
+        for essential_th in essential_th_list:  
+            ppname = e_eval_data[pname + '_essential_th_list_' + str(essential_th)]
+
+            row = row + ';'.join([str(ppname['pose_error_e_auc_' + str(a)]) for a in angular_thresholds])         
+
+            if also_metric:                    
+                row = row + ';'.join([str(ppname['pose_error_em_auc_' + str(a) + '_' + str(m)]) for a, m in zip(angular_thresholds, metric_thresholds)] )
+
+        lines.append(row + '\n')
+        
+    with open(save_to, 'w') as f:
+        for l in lines:
+            f.write(l)    
+
+                                                
 # original benchmark metric
-def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to='res_essential.pbz2', force=False, use_scale=False, also_metric=False):
+def eval_pipe_essential(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data', bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to='res_essential.pbz2', force=False, use_scale=False, also_metric=False):
     warnings.filterwarnings("ignore", category=UserWarning)
 
 
@@ -986,6 +1044,34 @@ def  refine_mask(im1_mask, im2_mask, sz1, sz2, H):
     mask1_reproj[mask1_reproj.clone()] = im2_mask.flatten()[idx.type(torch.long)]
     
     return mask1_reproj
+
+
+def csv_summary_planar(pipe, load_from='res_homography.pbz2', save_to='res_planar.csv'):
+    warnings.filterwarnings("ignore", category=UserWarning)
+    lines = []
+
+    angular_thresholds = [5, 10, 20]
+ 
+    eval_data = decompress_pickle(load_from)
+        
+    l = 0
+    for pname in eval_data.keys(): l = max(l, len(pname.split(os.path.sep)))
+        
+    header = ';'.join(['pipe_module_' + str(li) for li in range(l)]) + ';H_precision;H_recall'
+    header = header + ';'.join(['H_mAA@' + str(a) for a in angular_thresholds])
+    lines.append(header + '\n')
+        
+    for pname in eval_data.keys():    
+        lp = len(pname.split(os.path.sep))
+        row = pname.replace(os.path.sep, ';') + (';' * (l - lp - 1))
+
+        row = row + ';' + str(eval_data[pname]['reproj_global_prec_h']) + ';' + str(eval_data[pname]['reproj_global_recall_h']) 
+        row = row + ';'.join([str(eval_data[pname]['pose_error_h_auc_' + str(a)]) for a in angular_thresholds])    
+        lines.append(row + '\n')
+        
+    with open(save_to, 'w') as f:
+        for l in lines:
+            f.write(l)    
 
 
 def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_homography.pbz2', force=False, use_scale=False, rad=15, err_th_list=list(range(1,16)), bench_plot='plot', save_acc_images=True, **dummy_args):
