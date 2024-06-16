@@ -127,11 +127,26 @@ def scannet_1500_list(ppath='bench_data/gt_data/scannet'):
     return data
 
 
-def megadepth_scannet_bench_setup(bench_path='bench_data', bench_imgs='imgs', bench_gt='gt_data', save_to='megadepth_scannet.pbz2'):
+def megadepth_scannet_bench_setup(bench_path='bench_data', bench_imgs='imgs', bench_gt='gt_data', save_to='megadepth_scannet.pbz2', **dummy_args):
     megadepth_data, scannet_data, data_file = bench_init(bench_path=bench_path, bench_gt=bench_gt, save_to=save_to)
     megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_imgs)
     
     return megadepth_data, scannet_data, data_file
+
+
+def megadepth_bench_setup(bench_path='bench_data', bench_imgs='imgs', bench_gt='gt_data', save_to='megadepth_scannet.pbz2', **dummy_args):
+    megadepth_data, scannet_data, data_file = bench_init(bench_path=bench_path, bench_gt=bench_gt, save_to=save_to)
+    megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_imgs)
+    
+    return megadepth_data, data_file
+
+
+def scannet_bench_setup(bench_path='bench_data', bench_imgs='imgs', bench_gt='gt_data', save_to='megadepth_scannet.pbz2', **dummy_args):
+    megadepth_data, scannet_data, data_file = bench_init(bench_path=bench_path, bench_gt=bench_gt, save_to=save_to)
+    megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_imgs)
+    
+    return scannet_data, data_file
+
 
 def bench_init(bench_path='bench_data', bench_gt='gt_data', save_to='megadepth_scannet.pbz2'):
     download_megadepth_scannet_data(bench_path)
@@ -708,7 +723,7 @@ def download_megadepth_scannet_data(bench_path ='bench_data'):
     return
 
 
-def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='plot', force=False, ext='.png'):
+def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='plot', force=False, ext='.png', fig_scale=3.0):
 
     n = len(dataset_data['im1'])
     im_path = os.path.join(bench_im, dataset_name)    
@@ -758,12 +773,14 @@ def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data
             mpt2 = pt2[idx]
             viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes, fig_num=fig.number)
 
+            fig.set_size_inches(fig.get_figwidth() * fig_scale, fig.get_figheight() * fig_scale)
+
             viz.save_plot(pipe_img_save, fig)
             viz.clear_plot(fig)
     plt.close(fig)
 
 
-def planar_bench_setup(to_exclude =['graf'], max_imgs=6, bench_path='bench_data', bench_imgs='imgs', bench_plot='plot', save_to='planar.pbz2', upright=True, force=False):        
+def planar_bench_setup(to_exclude =['graf'], max_imgs=6, bench_path='bench_data', bench_imgs='imgs', bench_plot='plot', save_to='planar.pbz2', upright=True, force=False, **dummy_args):        
 
     save_to_full = os.path.join(bench_path, save_to)
     if os.path.isfile(save_to_full) and (not force):
@@ -971,7 +988,7 @@ def  refine_mask(im1_mask, im2_mask, sz1, sz2, H):
     return mask1_reproj
 
 
-def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_homography.pbz2', force=False, use_scale=False, rad=15, err_th_list=list(range(1,16)), bench_plot='plot', save_acc_images=True):
+def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_homography.pbz2', force=False, use_scale=False, rad=15, err_th_list=list(range(1,16)), bench_plot='plot', save_acc_images=True, **dummy_args):
     warnings.filterwarnings("ignore", category=UserWarning)
 
     # these are actually pixel errors
@@ -1217,7 +1234,7 @@ def homography_error_heat_map(H12_gt, H12, mask1):
     return heat_map
 
 
-def imc_phototourism_bench_setup(bench_path='bench_data', bench_imgs='imgs', save_to='imc_phototourism.pbz2', sample_size=800, seed=42, covisibility_range=[0.1, 0.7], new_sample=False, force=False):
+def imc_phototourism_bench_setup(bench_path='bench_data', bench_imgs='imgs', save_to='imc_phototourism.pbz2', sample_size=800, seed=42, covisibility_range=[0.1, 0.7], new_sample=False, force=False, **dummy_args):
     
     save_to_full = os.path.join(bench_path, save_to)
     if os.path.isfile(save_to_full) and (not force):
