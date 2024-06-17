@@ -346,7 +346,7 @@ def sampler4_par(n_par, m):
     return sidx.reshape(m, nn, 4)
 
 
-def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=500, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000):
+def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=10000, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000):
     n = pt1.shape[1]
 
     th_in = th_in ** 2
@@ -1011,7 +1011,7 @@ class miho:
     @staticmethod
     def all_params():
         """all MiHo parameters with default values"""
-        ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 500,
+        ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 10000,
                                 'min_iter': 50, 'p' :0.9, 'svd_th': 0.05,
                                 'buffers': 5}
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
@@ -1089,6 +1089,8 @@ class miho_module:
     def run(self, **args):
         self.miho.planar_clustering(args['pt1'], args['pt2'])
         
-        pt1, pt2, Hs_miho, inliers = refinement_miho(None, None, args['pt1'], args['pt2'], self.miho, args['Hs'], remove_bad=True, img_patches=False)        
+        pt1, pt2, Hs_miho, inliers, Hs_laf = refinement_miho(None, None, args['pt1'], args['pt2'], self.miho, args['Hs'], remove_bad=True, img_patches=False, also_laf=True)        
             
-        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_miho, 'mask': inliers}
+        toreturn = {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_miho, 'mask': inliers}
+        if not (Hs_laf is None): toreturn['Hs_prev'] = Hs_laf
+        return toreturn

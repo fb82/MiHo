@@ -76,7 +76,7 @@ class adalam_module:
         if torch.is_tensor(args['pt1']) and (args['pt1'].shape[0] >= 3):           
             k1 = np.ascontiguousarray(args['pt1'].detach().cpu())
             k2 = np.ascontiguousarray(args['pt2'].detach().cpu())
-            
+                        
             o1 = torch.zeros(0)
             o2 = torch.zeros(0)
             s1 = torch.zeros(0)
