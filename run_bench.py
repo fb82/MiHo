@@ -16,76 +16,79 @@ from src.DIM_modules.loftr_module import loftr_module
 
 
 if __name__ == '__main__':
-
     # available RANSAC: pydegensac, magsac, poselib        
-    pipe_init = None
-    pipe_end = None
+
+    pipe_head = lambda: None
+    pipe_head.placeholder = 'head'
+
+    pipe_ransac = lambda: None
+    pipe_ransac.placeholder = 'ransac'
 
     pipes = [
         [
-            pipe_init,
-            pipe_end
+            pipe_head,
+            pipe_ransac
         ],
 
         [
-            pipe_init,
+            pipe_head,
             ncc.ncc_module(also_prev=True),
-            pipe_end
+            pipe_ransac
         ],
 
         [
-            pipe_init,
+            pipe_head,
             miho_duplex.miho_module(),
-            pipe_end
+            pipe_ransac
         ],
 
         [
-            pipe_init,
+            pipe_head,
             miho_duplex.miho_module(),
             ncc.ncc_module(also_prev=True),
-            pipe_end
+            pipe_ransac
         ],
 
         [
-            pipe_init,
+            pipe_head,
             miho_unduplex.miho_module(),
-            pipe_end
+            pipe_ransac
         ],
 
 
         [
-            pipe_init,
+            pipe_head,
             miho_unduplex.miho_module(),
             ncc.ncc_module(also_prev=True),            
-            pipe_end
+            pipe_ransac
         ],
     
         [
-            pipe_init,
+            pipe_head,
             gms.gms_module(),
-            pipe_end
+            pipe_ransac
         ],
 
         [
-            pipe_init,
+            pipe_head,
             oanet.oanet_module(),
-            pipe_end
+            pipe_ransac
         ],
         
         [
-            pipe_init,
+            pipe_head,
             adalam.adalam_module(),
-            pipe_end
+            pipe_ransac
         ],                  
         
         [
-            pipe_init,
+            pipe_head,
             acne.acne_module(),
-            pipe_end
+            pipe_ransac
         ],        
     ]
 
-    pipe_inits = [
+    pipe_heads = [
         pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99),
         pipe_base.sift_module(rootsift=True, num_features=8000, upright=True, th=0.95),     
         superpoint_lightglue_module(nmax_keypoints=8000),
@@ -94,10 +97,13 @@ if __name__ == '__main__':
         loftr_module(nmax_keypoints=8000),
         ]
     
-    pipe_ends = [
+    pipe_ransacs = [
         pipe_base.magsac_module(th=1.00),
         pipe_base.magsac_module(th=0.75),
         ]
+    
+    for pipe_module in pipe_heads: pipe_module.placeholder = 'head'
+    for pipe_module in pipe_ransacs: pipe_module.placeholder = 'ransac'    
 
 ###
 
@@ -122,19 +128,26 @@ if __name__ == '__main__':
         else:
             bench_mode = 'homography'
             
-        for ip in range(len(pipe_inits)):
-            pipe_init = pipe_inits[ip]
-            to_save_file =  os.path.join(bench_path, save_to, save_to + '_' + pipe_init.get_id() + '_')
+        for ip in range(len(pipe_heads)):
+            pipe_head = pipe_heads[ip]
+            
+            to_save_file =  os.path.join(bench_path, save_to, save_to + '_' + pipe_head.get_id() + '_')
             to_save_file_suffix ='_' + benchmark_data[b]['name'] + '.pbz2'
             
-            for jp in range(len(pipe_ends)):
-                pipe_end = pipe_ends[jp]
+            for jp in range(len(pipe_ransacs)):
+                pipe_ransac = pipe_ransacs[jp]
                 
-                for i, pipe in enumerate(pipes):
+                for i, pipe in enumerate(pipes):                                        
                     print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
-                    for pipe_module in pipe:
+
+                    for k, pipe_module in enumerate(pipe):
+                        if hasattr(pipe_module, 'placeholder'):
+                            if pipe_module.placeholder == 'head': pipe[k] = pipe_head
+                            if pipe_module.placeholder == 'ransac': pipe[k] = pipe_ransac
+
                         if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', bench_mode)
                         if hasattr(pipe_module, 'outdoor'): setattr(pipe_module, 'outdoor', benchmark_data[b]['is_outdoor'])
+
                     bench.run_pipe(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, ext=benchmark_data[b]['ext'])
 
                     if benchmark_data[b]['is_not_planar']:
@@ -147,6 +160,6 @@ if __name__ == '__main__':
                         bench.show_pipe(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, ext=benchmark_data[b]['ext'])
                         
             if benchmark_data[b]['is_not_planar']:
-                bench.csv_summary_non_planar(pipe, essential_th_list=[0.5], essential_load_from=to_save_file + 'essential' + to_save_file_suffix, fundamental_load_from=to_save_file + 'fundamental' + to_save_file_suffix, save_to=to_save_file + 'fundamental_and_essential' + to_save_file_suffix[:, -4] + '.csv', also_metric=benchmark_data[b]['also_metric'])
+                bench.csv_summary_non_planar(pipe, essential_th_list=[0.5], essential_load_from=to_save_file + 'essential' + to_save_file_suffix, fundamental_load_from=to_save_file + 'fundamental' + to_save_file_suffix, save_to=to_save_file + 'fundamental_and_essential' + to_save_file_suffix[:-4] + '.csv', also_metric=benchmark_data[b]['also_metric'], to_remove_prefix=os.path.join(bench_path, save_to, benchmark_data[b]['name']))
             else:
-                bench.csv_summary_planar(pipe, load_from=to_save_file + 'homography' + to_save_file_suffix, save_to=to_save_file + 'homography' + to_save_file_suffix[:, -4] + '.csv')
+                bench.csv_summary_planar(pipe, load_from=to_save_file + 'homography' + to_save_file_suffix, save_to=to_save_file + 'homography' + to_save_file_suffix[:-4] + '.csv', to_remove_prefix=os.path.join(bench_path, save_to, benchmark_data[b]['name']))
