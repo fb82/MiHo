@@ -37,9 +37,50 @@ if __name__ == '__main__':
         # ],
 
         # available RANSAC: pydegensac, magsac, poselib  
+
+        # [
+        #     pipe_base.dedodev2_module(),
+        #     pipe_base.magsac_module(px_th=1.0)
+        # ],
+
+        # [
+        #     pipe_base.dedodev2_module(),
+        #     miho_duplex.miho_module(),
+        #     pipe_base.magsac_module(px_th=1.0)
+        # ],
+
+        # [
+        #     pipe_base.dedodev2_module(),
+        #     miho_duplex.miho_module(),
+        #     ncc.ncc_module(also_prev=True),
+        #     pipe_base.magsac_module(px_th=1.0)
+        # ]
+
         [
-            pipe_base.dedodev2_module()
-        ]
+            pipe_base.dedodev2_module(),
+            adalam.adalam_module(),
+            pipe_base.magsac_module(px_th=1.0)
+        ],
+
+        [
+            pipe_base.dedodev2_module(),
+            gms.gms_module(),
+            pipe_base.magsac_module(px_th=1.0)
+        ],
+
+        [
+            pipe_base.dedodev2_module(),
+            oanet.oanet_module(),
+            pipe_base.magsac_module(px_th=1.0)
+        ],
+
+        [
+            pipe_base.dedodev2_module(),
+            acne.acne_module(),
+            # acne.acne_module(outdoor=False),
+            pipe_base.magsac_module(px_th=1.0)
+        ],
+
         # [
         #     pipe_base.sift_module(upright=True, th=0.95),
         #     pipe_base.magsac_module(px_th=0.75)
@@ -103,15 +144,15 @@ if __name__ == '__main__':
         bench.eval_pipe_essential(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, essential_th_list=[0.5], save_to=save_to + '_essential_megadepth.pbz2', use_scale=True)
         # bench.show_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , ext='.png')
 
-    print("*** S c a n N e t ***")    
-    for i, pipe in enumerate(pipes):
-        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
-        for pipe_module in pipe:
-            if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'fundamental_matrix')
-        bench.run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , ext='.png')
-        bench.eval_pipe_fundamental(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, save_to=save_to + '_fundamental_scannet.pbz2', use_scale=False)
-        bench.eval_pipe_essential(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, essential_th_list=[0.5], save_to=save_to + '_essential_scannet.pbz2', use_scale=False)
-        # bench.show_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , ext='.png')
+    # print("*** S c a n N e t ***")    
+    # for i, pipe in enumerate(pipes):
+    #     print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
+    #     for pipe_module in pipe:
+    #         if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', 'fundamental_matrix')
+    #     bench.run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , ext='.png')
+    #     bench.eval_pipe_fundamental(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, save_to=save_to + '_fundamental_scannet.pbz2', use_scale=False)
+    #     bench.eval_pipe_essential(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, essential_th_list=[0.5], save_to=save_to + '_essential_scannet.pbz2', use_scale=False)
+    #     # bench.show_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , ext='.png')
 
 # ###
 

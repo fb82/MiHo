@@ -11,7 +11,6 @@ from .ncc import refinement_miho
 
 # cv2.ocl.setUseOpenCL(False)
 # matplotlib.use('tkagg')
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 EPS_ = torch.finfo(torch.float32).eps
 sqrt2 = np.sqrt(2)
@@ -346,7 +345,7 @@ def sampler4_par(n_par, m):
     return sidx.reshape(m, nn, 4)
 
 
-def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=10000, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000):
+def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=2000, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000):
     n = pt1.shape[1]
 
     th_in = th_in ** 2
@@ -440,7 +439,7 @@ def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=10
         H12 = H12[good_H.repeat(2)]            
         sidx_par = sidx_par[good_H]
         c_par = c_par[good_H]
-
+        
         if not c_par.size()[0]:
             if (c + par_run > Nc) and (c + par_run > min_iter):
                 break
@@ -1011,7 +1010,7 @@ class miho:
     @staticmethod
     def all_params():
         """all MiHo parameters with default values"""
-        ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 10000,
+        ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 2000,
                                 'min_iter': 50, 'p' :0.9, 'svd_th': 0.05,
                                 'buffers': 5}
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,

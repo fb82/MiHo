@@ -58,7 +58,7 @@ def show_matches(img1, img2, k1, k2, target_dim=800.):
 
 class adalam_module:
     def __init__(self, **args):
-        self. matcher = AdalamFilter()
+        self.matcher = AdalamFilter()
         self.th = self.matcher.config['th']        
         self.orientation_difference_threshold = self.matcher.config['orientation_difference_threshold']
         self.scale_rate_threshold = self.matcher.config['scale_rate_threshold']
