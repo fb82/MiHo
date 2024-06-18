@@ -730,7 +730,7 @@ def download_megadepth_scannet_data(bench_path ='bench_data'):
     return
 
 
-def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='plot', force=False, ext='.png', fig_scale=1.0):
+def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='plot', force=False, ext='.png', save_ext='.jpg', fig_min_size=960, fig_max_size=1280):
 
     n = len(dataset_data['im1'])
     im_path = os.path.join(bench_im, dataset_name)    
@@ -752,7 +752,7 @@ def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data
                 pair_data.append(decompress_pickle(pipe_f))
             
             os.makedirs(pipe_img_save, exist_ok=True)
-            pipe_img_save = os.path.join(pipe_img_save, str(i) + '.png')
+            pipe_img_save = os.path.join(pipe_img_save, str(i) + save_ext)
             if os.path.isfile(pipe_img_save) and not force:
                 continue
             
@@ -780,14 +780,27 @@ def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data
             mpt2 = pt2[idx]
             viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes, fig_num=fig.number)
 
-            fig.set_size_inches(fig.get_figwidth() * fig_scale, fig.get_figheight() * fig_scale)
+            fig_dpi = fig.get_dpi()
+            fig_sz = [fig.get_figwidth() * fig_dpi, fig.get_figheight() * fig_dpi]
+
+            fig_cz = min(fig_sz)
+            if fig_cz < fig_min_size:
+                fig_sz[0] = fig_sz[0] / fig_cz * fig_min_size
+                fig_sz[1] = fig_sz[1] / fig_cz * fig_min_size
+
+            fig_cz = max(fig_sz)
+            if fig_cz > fig_min_size:
+                fig_sz[0] = fig_sz[0] / fig_cz * fig_max_size
+                fig_sz[1] = fig_sz[1] / fig_cz * fig_max_size
+                
+            fig.set_size_inches(fig_sz[0] / fig_dpi, fig_sz[1]  / fig_dpi)
 
             viz.save_plot(pipe_img_save, fig)
             viz.clear_plot(fig)
     plt.close(fig)
 
 
-def planar_bench_setup(to_exclude =['graf'], max_imgs=6, bench_path='bench_data', bench_imgs='imgs', bench_plot='plot', save_to='planar.pbz2', upright=True, force=False, **dummy_args):        
+def planar_bench_setup(to_exclude =['graf'], max_imgs=6, bench_path='bench_data', bench_imgs='imgs', bench_plot='plot', save_to='planar.pbz2', upright=True, force=False, save_ext='.jpg', **dummy_args):        
 
     save_to_full = os.path.join(bench_path, save_to)
     if os.path.isfile(save_to_full) and (not force):
@@ -914,10 +927,10 @@ def planar_bench_setup(to_exclude =['graf'], max_imgs=6, bench_path='bench_data'
                 
                 iname = os.path.splitext(img1)[0] + '_' + os.path.splitext(img2)[0]
                             
-                cv2.imwrite(os.path.join(check_path, iname + '_1a.png'), im1i)
-                cv2.imwrite(os.path.join(check_path, iname + '_1b.png'), im1i_)
-                cv2.imwrite(os.path.join(check_path, iname + '_2a.png'), im2i)
-                cv2.imwrite(os.path.join(check_path, iname + '_2b.png'), im2i_)
+                cv2.imwrite(os.path.join(check_path, iname + '_1a' + save_ext), im1i)
+                cv2.imwrite(os.path.join(check_path, iname + '_1b' + save_ext), im1i_)
+                cv2.imwrite(os.path.join(check_path, iname + '_2a' + save_ext), im2i)
+                cv2.imwrite(os.path.join(check_path, iname + '_2b' + save_ext), im2i_)
         
         if upright:
             for scene in planar_scenes:
@@ -940,10 +953,10 @@ def planar_bench_setup(to_exclude =['graf'], max_imgs=6, bench_path='bench_data'
                             
                             iname = os.path.splitext(img1_unrot)[0] + '_' + os.path.splitext(img2_unrot)[0]
                                         
-                            os.remove(os.path.join(check_path, iname + '_1a.png'))
-                            os.remove(os.path.join(check_path, iname + '_1b.png'))
-                            os.remove(os.path.join(check_path, iname + '_2a.png'))
-                            os.remove(os.path.join(check_path, iname + '_2b.png'))
+                            os.remove(os.path.join(check_path, iname + '_1a'  + save_ext))
+                            os.remove(os.path.join(check_path, iname + '_1b'  + save_ext))
+                            os.remove(os.path.join(check_path, iname + '_2a'  + save_ext))
+                            os.remove(os.path.join(check_path, iname + '_2b'  + save_ext))
                                                     
                             del im1[unrot_idx]
                             del im2[unrot_idx]
@@ -1086,7 +1099,7 @@ def csv_summary_planar(pipe, load_from='res_homography.pbz2', save_to='res_plana
             f.write(l)    
 
 
-def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_homography.pbz2', force=False, use_scale=False, rad=15, err_th_list=list(range(1,16)), bench_plot='plot', save_acc_images=True, **dummy_args):
+def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_homography.pbz2', force=False, use_scale=False, rad=15, err_th_list=list(range(1,16)), bench_plot='plot', save_acc_images=True, save_ext='.jpg', **dummy_args):
     warnings.filterwarnings("ignore", category=UserWarning)
 
     # these are actually pixel errors
@@ -1235,12 +1248,12 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                         os.makedirs(pipe_img_save_base, exist_ok=True)
                         iname = os.path.splitext(dataset_data['im1'][i])[0] + '_' + os.path.splitext(dataset_data['im2'][i])[0]
     
-                        pipe_img_save1 = os.path.join(pipe_img_save_base, iname + '_1.png')
+                        pipe_img_save1 = os.path.join(pipe_img_save_base, iname + '_1' + save_ext)
                         if not (os.path.isfile(pipe_img_save1) and not force):
                             im1s = os.path.join(bench_path,'planar',dataset_data['im1'][i])
                             colorize_plane(im1s, heat1, cmap_name='viridis', max_val=45, cf=0.7, save_to=pipe_img_save1)
     
-                        pipe_img_save2 = os.path.join(pipe_img_save_base, iname + '_2.png')
+                        pipe_img_save2 = os.path.join(pipe_img_save_base, iname + '_2' + save_ext)
                         if not (os.path.isfile(pipe_img_save2) and not force):
                             im2s = os.path.join(bench_path,'planar',dataset_data['im2'][i])
                             colorize_plane(im2s, heat2, cmap_name='viridis', max_val=45, cf=0.7, save_to=pipe_img_save2)
