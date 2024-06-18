@@ -98,8 +98,8 @@ if __name__ == '__main__':
         ]
     
     pipe_ransacs = [
-        pipe_base.magsac_module(th=1.00),
-        pipe_base.magsac_module(th=0.75),
+        pipe_base.magsac_module(px_th=1.00),
+        pipe_base.magsac_module(px_th=0.75),
         ]
     
     for pipe_module in pipe_heads: pipe_module.placeholder = 'head'
@@ -115,7 +115,7 @@ if __name__ == '__main__':
             'megadepth': {'name': 'megadepth', 'Name': 'MegaDepth', 'setup': bench.megadepth_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.png', 'use_scale': True, 'also_metric': False},
             'scannet': {'name': 'scannet', 'Name': 'ScanNet', 'setup': bench.scannet_bench_setup, 'is_outdoor': False, 'is_not_planar': True, 'ext': '.png', 'use_scale': False, 'also_metric': False},
             'planar': {'name': 'planar', 'Name': 'Planar', 'setup': bench.planar_bench_setup, 'is_outdoor': True, 'is_not_planar': False, 'ext': '.png', 'use_scale': False, 'also_metric': False},
-            'imc_phototourism': {'name': 'imc_phototourism', 'Name': 'IMC PhotoTourism', 'setup': bench.imc_phototourism_bench_setup, 'is_outdoor': True, 'is_not_planar': False, 'ext': '.jpg', 'use_scale': False, 'also_metric': True},
+            'imc_phototourism': {'name': 'imc_phototourism', 'Name': 'IMC PhotoTourism', 'setup': bench.imc_phototourism_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.jpg', 'use_scale': False, 'also_metric': True},
         }
     
     for b in benchmark_data.keys():
@@ -131,14 +131,18 @@ if __name__ == '__main__':
         for ip in range(len(pipe_heads)):
             pipe_head = pipe_heads[ip]
             
+            print("*** " + pipe_head.get_id() + " ***")
+            
             to_save_file =  os.path.join(bench_path, save_to, save_to + '_' + pipe_head.get_id() + '_')
             to_save_file_suffix ='_' + benchmark_data[b]['name'] + '.pbz2'
             
             for jp in range(len(pipe_ransacs)):
                 pipe_ransac = pipe_ransacs[jp]
+
+                print("*** " + pipe_ransac.get_id() + " ***")
                 
                 for i, pipe in enumerate(pipes):                                        
-                    print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")        
+                    print(f"*** Pipeline {i+1}/{len(pipes)} ***")        
 
                     for k, pipe_module in enumerate(pipe):
                         if hasattr(pipe_module, 'placeholder'):

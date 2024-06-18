@@ -155,6 +155,13 @@ def bench_init(bench_path='bench_data', bench_gt='gt_data', save_to='megadepth_s
     if not os.path.isfile(data_file):      
         megadepth_data = megadepth_1500_list(os.path.join(bench_path, bench_gt, 'megadepth'))
         scannet_data = scannet_1500_list(os.path.join(bench_path, bench_gt, 'scannet'))
+
+        # for debugging, use only first 30 image pairs
+        # for what in megadepth_data.keys():
+        #     megadepth_data[what] = [megadepth_data[what][i] for i in range(30)]
+        # for what in scannet_data.keys():
+        #     scannet_data[what] = [scannet_data[what][i] for i in range(30)]
+
         compressed_pickle(data_file, (megadepth_data, scannet_data))
     else:
         megadepth_data, scannet_data = decompress_pickle(data_file)
@@ -274,7 +281,7 @@ def relative_pose_error_metric(R_gt, t_gt, R, t, scale_cf=1.0, use_gt_norm=True,
         cos = np.clip(cos, -1., 1.)  # handle numercial errors
         R_err.append(np.rad2deg(np.abs(np.arccos(cos))))
     
-    R_err = np.max(R_err)
+    R_err = np.min(R_err)
 
     return t_err, R_err
 
@@ -636,8 +643,8 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                     eval_data_['R_errs_f'].append(R_err)
                     eval_data_['t_errs_f'].append(t_err)
                                         
-                    if also_metric:
-                        t_err, R_err = relative_pose_error_metric(R_gt[i], t_gt[i], [Rt_[0], Rt_[1]], Rt_[2], scale_cf=dataset_data['scene_scales'][i])
+                    if also_metric:                           
+                        t_err, R_err = relative_pose_error_metric(R_gt[i], t_gt[i], [Rt_[0], Rt_[1]], Rt_[2].squeeze(), scale_cf=dataset_data['scene_scales'][i])
                         eval_data_['R_errm_f'].append(R_err)
                         eval_data_['t_errm_f'].append(t_err)                    
                     
@@ -723,7 +730,7 @@ def download_megadepth_scannet_data(bench_path ='bench_data'):
     return
 
 
-def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='plot', force=False, ext='.png', fig_scale=3.0):
+def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='plot', force=False, ext='.png', fig_scale=1.0):
 
     n = len(dataset_data['im1'])
     im_path = os.path.join(bench_im, dataset_name)    
@@ -1033,7 +1040,7 @@ def csv_summary_non_planar(pipe, essential_th_list=[0.5, 1, 1.5], essential_load
             row = row + ';' + ';'.join([str(f_eval_data[pname]['pose_error_f_auc_' + str(a)][-1]) for a in angular_thresholds])        
 
             if also_metric:
-                row + ';' + ';'.join([str(f_eval_data[pname]['pose_error_fm_auc_' + str(a) + '_' + str(m)][-1]) for a, m in zip(angular_thresholds, metric_thresholds)])
+                row = row + ';' + ';'.join([str(f_eval_data[pname]['pose_error_fm_auc_' + str(a) + '_' + str(m)][-1]) for a, m in zip(angular_thresholds, metric_thresholds)])
 
         for essential_th in essential_th_list:  
             ppname = e_eval_data[pname + '_essential_th_list_' + str(essential_th)]
