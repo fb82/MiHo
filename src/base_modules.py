@@ -300,8 +300,9 @@ class lightglue_module:
         self.upright = True
         self.num_features = 8000
         self.what = 'superpoint'
-        self.resize = None # original 1024
-        
+        self.resize = 1024 # this is default, set to None to disable
+        self.aliked_model = "aliked-n16rot" # default is "aliked-n16"
+                
         for k, v in args.items():
            setattr(self, k, v)
 
@@ -310,14 +311,14 @@ class lightglue_module:
                 self.extractor = lg_disk(max_num_keypoints=self.num_features).eval().to(device)
                 self.matcher = lg_lightglue(features='disk').eval().to(device)            
             elif self.what == 'aliked':            
-                self.extractor = lg_aliked(max_num_keypoints=self.num_features).eval().to(device)
-                self.matcher = lg_lightglue(features='disk').eval().to(device)            
+                self.extractor = lg_aliked(max_num_keypoints=self.num_features, model_name=self.aliked_model).eval().to(device)
+                self.matcher = lg_lightglue(features='aliked').eval().to(device)            
             elif self.what == 'sift':            
                 self.extractor = lg_sift(max_num_keypoints=self.num_features).eval().to(device)
-                self.matcher = lg_lightglue(features='disk').eval().to(device)                            
+                self.matcher = lg_lightglue(features='sift').eval().to(device)                            
             elif self.what == 'doghardnet':            
                 self.extractor = lg_doghardnet(max_num_keypoints=self.num_features).eval().to(device)
-                self.matcher = lg_lightglue(features='disk').eval().to(device)            
+                self.matcher = lg_lightglue(features='doghardnet').eval().to(device)            
             else:   
                 self.what = 'superpoint'
                 self.extractor = lg_superpoint(max_num_keypoints=self.num_features).eval().to(device)
@@ -325,7 +326,11 @@ class lightglue_module:
 
 
     def get_id(self):
-        return (self.what + 'lightglue_upright_' + str(self.upright) + '_nfeat_' + str(self.num_features) + '_resize_' + str(self.resize)).lower()
+        if self.what == 'aliked':
+            plus_str = "_model_" + self.aliked_model
+        else:
+            plus_str = ''
+        return (self.what + '_lightglue_upright_' + str(self.upright) + '_nfeat_' + str(self.num_features) + '_resize_' + str(self.resize) + plus_str).lower()
 
 
     def run(self, **args):           

@@ -9,10 +9,10 @@ import src.ACNe.acne_custom as acne
 import src.AdaLAM.adalam_custom as adalam
 import src.bench_utils as bench
 
-from src.DIM_modules.superpoint_lightglue_module import superpoint_lightglue_module
-from src.DIM_modules.disk_lightglue_module import disk_lightglue_module
-from src.DIM_modules.aliked_lightglue_module import aliked_lightglue_module
-from src.DIM_modules.loftr_module import loftr_module
+# from src.DIM_modules.superpoint_lightglue_module import superpoint_lightglue_module
+# from src.DIM_modules.disk_lightglue_module import disk_lightglue_module
+# from src.DIM_modules.aliked_lightglue_module import aliked_lightglue_module
+# from src.DIM_modules.loftr_module import loftr_module
 
 
 if __name__ == '__main__':
@@ -90,17 +90,14 @@ if __name__ == '__main__':
 
     pipe_heads = [
         pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99),
-        pipe_base.sift_module(rootsift=True, num_features=8000, upright=True, th=0.95),     
-        superpoint_lightglue_module(nmax_keypoints=8000),
-        aliked_lightglue_module(nmax_keypoints=8000),
-        disk_lightglue_module(nmax_keypoints=8000),
-        superpoint_lightglue_module(nmax_keypoints=8000),
-        aliked_lightglue_module(nmax_keypoints=8000),
-        disk_lightglue_module(nmax_keypoints=8000),
-        loftr_module(nmax_keypoints=8000),
-#       pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint'),
-#       pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked'),
-#       pipe_base.lightglue_module(num_features=8000, upright=True, what='disk'),        
+        pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True),     
+        pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint'),
+        pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked'),
+        pipe_base.lightglue_module(num_features=8000, upright=True, what='disk'),      
+        # superpoint_lightglue_module(nmax_keypoints=8000),
+        # aliked_lightglue_module(nmax_keypoints=8000),
+        # disk_lightglue_module(nmax_keypoints=8000),
+        # loftr_module(nmax_keypoints=8000),  
         ]
     
     pipe_ransacs = [
