@@ -127,11 +127,26 @@ def scannet_1500_list(ppath='bench_data/gt_data/scannet'):
     return data
 
 
-def megadepth_scannet_bench_setup(bench_path='bench_data', bench_imgs='imgs', bench_gt='gt_data', save_to='megadepth_scannet.pbz2'):
+def megadepth_scannet_bench_setup(bench_path='bench_data', bench_imgs='imgs', bench_gt='gt_data', save_to='megadepth_scannet.pbz2', **dummy_args):
     megadepth_data, scannet_data, data_file = bench_init(bench_path=bench_path, bench_gt=bench_gt, save_to=save_to)
     megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_imgs)
     
     return megadepth_data, scannet_data, data_file
+
+
+def megadepth_bench_setup(bench_path='bench_data', bench_imgs='imgs', bench_gt='gt_data', save_to='megadepth_scannet.pbz2', **dummy_args):
+    megadepth_data, scannet_data, data_file = bench_init(bench_path=bench_path, bench_gt=bench_gt, save_to=save_to)
+    megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_imgs)
+    
+    return megadepth_data, data_file
+
+
+def scannet_bench_setup(bench_path='bench_data', bench_imgs='imgs', bench_gt='gt_data', save_to='megadepth_scannet.pbz2', **dummy_args):
+    megadepth_data, scannet_data, data_file = bench_init(bench_path=bench_path, bench_gt=bench_gt, save_to=save_to)
+    megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_imgs)
+    
+    return scannet_data, data_file
+
 
 def bench_init(bench_path='bench_data', bench_gt='gt_data', save_to='megadepth_scannet.pbz2'):
     download_megadepth_scannet_data(bench_path)
@@ -140,6 +155,13 @@ def bench_init(bench_path='bench_data', bench_gt='gt_data', save_to='megadepth_s
     if not os.path.isfile(data_file):      
         megadepth_data = megadepth_1500_list(os.path.join(bench_path, bench_gt, 'megadepth'))
         scannet_data = scannet_1500_list(os.path.join(bench_path, bench_gt, 'scannet'))
+
+        # for debugging, use only first 30 image pairs
+        # for what in megadepth_data.keys():
+        #     megadepth_data[what] = [megadepth_data[what][i] for i in range(30)]
+        # for what in scannet_data.keys():
+        #     scannet_data[what] = [scannet_data[what][i] for i in range(30)]
+
         compressed_pickle(data_file, (megadepth_data, scannet_data))
     else:
         megadepth_data, scannet_data = decompress_pickle(data_file)
@@ -259,7 +281,7 @@ def relative_pose_error_metric(R_gt, t_gt, R, t, scale_cf=1.0, use_gt_norm=True,
         cos = np.clip(cos, -1., 1.)  # handle numercial errors
         R_err.append(np.rad2deg(np.abs(np.arccos(cos))))
     
-    R_err = np.max(R_err)
+    R_err = np.min(R_err)
 
     return t_err, R_err
 
@@ -328,9 +350,9 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
                     
                 for k, v in out_data.items(): pipe_data[k] = v
 
-
+                                                
 # original benchmark metric
-def eval_pipe_essential(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to='res_essential.pbz2', force=False, use_scale=False, also_metric=False):
+def eval_pipe_essential(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data', bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to='res_essential.pbz2', force=False, use_scale=False, also_metric=False):
     warnings.filterwarnings("ignore", category=UserWarning)
 
 
@@ -621,8 +643,8 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                     eval_data_['R_errs_f'].append(R_err)
                     eval_data_['t_errs_f'].append(t_err)
                                         
-                    if also_metric:
-                        t_err, R_err = relative_pose_error_metric(R_gt[i], t_gt[i], [Rt_[0], Rt_[1]], Rt_[2], scale_cf=dataset_data['scene_scales'][i])
+                    if also_metric:                           
+                        t_err, R_err = relative_pose_error_metric(R_gt[i], t_gt[i], [Rt_[0], Rt_[1]], Rt_[2].squeeze(), scale_cf=dataset_data['scene_scales'][i])
                         eval_data_['R_errm_f'].append(R_err)
                         eval_data_['t_errm_f'].append(t_err)                    
                     
@@ -708,7 +730,7 @@ def download_megadepth_scannet_data(bench_path ='bench_data'):
     return
 
 
-def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='plot', force=False, ext='.png'):
+def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='plot', force=False, ext='.png', save_ext='.jpg', fig_min_size=960, fig_max_size=1280):
 
     n = len(dataset_data['im1'])
     im_path = os.path.join(bench_im, dataset_name)    
@@ -730,7 +752,7 @@ def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data
                 pair_data.append(decompress_pickle(pipe_f))
             
             os.makedirs(pipe_img_save, exist_ok=True)
-            pipe_img_save = os.path.join(pipe_img_save, str(i) + '.png')
+            pipe_img_save = os.path.join(pipe_img_save, str(i) + save_ext)
             if os.path.isfile(pipe_img_save) and not force:
                 continue
             
@@ -758,12 +780,27 @@ def show_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data
             mpt2 = pt2[idx]
             viz.plot_matches(mpt1, mpt2, color=pipe_color[clr], lw=0.2, ps=6, a=0.3, axes=axes, fig_num=fig.number)
 
+            fig_dpi = fig.get_dpi()
+            fig_sz = [fig.get_figwidth() * fig_dpi, fig.get_figheight() * fig_dpi]
+
+            fig_cz = min(fig_sz)
+            if fig_cz < fig_min_size:
+                fig_sz[0] = fig_sz[0] / fig_cz * fig_min_size
+                fig_sz[1] = fig_sz[1] / fig_cz * fig_min_size
+
+            fig_cz = max(fig_sz)
+            if fig_cz > fig_min_size:
+                fig_sz[0] = fig_sz[0] / fig_cz * fig_max_size
+                fig_sz[1] = fig_sz[1] / fig_cz * fig_max_size
+                
+            fig.set_size_inches(fig_sz[0] / fig_dpi, fig_sz[1]  / fig_dpi)
+
             viz.save_plot(pipe_img_save, fig)
             viz.clear_plot(fig)
     plt.close(fig)
 
 
-def planar_bench_setup(to_exclude =['graf'], max_imgs=6, bench_path='bench_data', bench_imgs='imgs', bench_plot='plot', save_to='planar.pbz2', upright=True, force=False):        
+def planar_bench_setup(to_exclude =['graf'], max_imgs=6, bench_path='bench_data', bench_imgs='imgs', bench_plot='plot', save_to='planar.pbz2', upright=True, force=False, save_ext='.jpg', **dummy_args):        
 
     save_to_full = os.path.join(bench_path, save_to)
     if os.path.isfile(save_to_full) and (not force):
@@ -890,10 +927,10 @@ def planar_bench_setup(to_exclude =['graf'], max_imgs=6, bench_path='bench_data'
                 
                 iname = os.path.splitext(img1)[0] + '_' + os.path.splitext(img2)[0]
                             
-                cv2.imwrite(os.path.join(check_path, iname + '_1a.png'), im1i)
-                cv2.imwrite(os.path.join(check_path, iname + '_1b.png'), im1i_)
-                cv2.imwrite(os.path.join(check_path, iname + '_2a.png'), im2i)
-                cv2.imwrite(os.path.join(check_path, iname + '_2b.png'), im2i_)
+                cv2.imwrite(os.path.join(check_path, iname + '_1a' + save_ext), im1i)
+                cv2.imwrite(os.path.join(check_path, iname + '_1b' + save_ext), im1i_)
+                cv2.imwrite(os.path.join(check_path, iname + '_2a' + save_ext), im2i)
+                cv2.imwrite(os.path.join(check_path, iname + '_2b' + save_ext), im2i_)
         
         if upright:
             for scene in planar_scenes:
@@ -916,10 +953,10 @@ def planar_bench_setup(to_exclude =['graf'], max_imgs=6, bench_path='bench_data'
                             
                             iname = os.path.splitext(img1_unrot)[0] + '_' + os.path.splitext(img2_unrot)[0]
                                         
-                            os.remove(os.path.join(check_path, iname + '_1a.png'))
-                            os.remove(os.path.join(check_path, iname + '_1b.png'))
-                            os.remove(os.path.join(check_path, iname + '_2a.png'))
-                            os.remove(os.path.join(check_path, iname + '_2b.png'))
+                            os.remove(os.path.join(check_path, iname + '_1a'  + save_ext))
+                            os.remove(os.path.join(check_path, iname + '_1b'  + save_ext))
+                            os.remove(os.path.join(check_path, iname + '_2a'  + save_ext))
+                            os.remove(os.path.join(check_path, iname + '_2b'  + save_ext))
                                                     
                             del im1[unrot_idx]
                             del im2[unrot_idx]
@@ -971,7 +1008,98 @@ def  refine_mask(im1_mask, im2_mask, sz1, sz2, H):
     return mask1_reproj
 
 
-def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_homography.pbz2', force=False, use_scale=False, rad=15, err_th_list=list(range(1,16)), bench_plot='plot', save_acc_images=True):
+def csv_summary_non_planar(pipe, essential_th_list=[0.5, 1, 1.5], essential_load_from='res_essential.pbz2', fundamental_load_from='res_fundamental.pbz2', save_to='res_non_planar.csv', also_metric=False, to_remove_prefix=''):
+    warnings.filterwarnings("ignore", category=UserWarning)
+    lines = []
+
+    angular_thresholds = [5, 10, 20]
+    metric_thresholds = [0.5, 1, 2]
+    
+    # warning: current metric error requires that angular_thresholds[i] / metric_thresholds[i] = am_scaling
+ 
+    e_eval_data = decompress_pickle(essential_load_from)
+    f_eval_data = decompress_pickle(fundamental_load_from)
+        
+    l = 0
+    for pname in f_eval_data.keys(): l = max(l, len(pname[len(to_remove_prefix) + 1:].split(os.path.sep)))
+
+    header = ';'.join(['pipe_module_' + str(li) for li in range(l)]) + ';F_precision;F_recall'
+    if len(angular_thresholds) > 0:
+        header = header + ';' + ';'.join(['F_mAA@' + str(a) for a in angular_thresholds])
+
+        if also_metric:
+            header = header + ';' + ';'.join(['F_mAA@(' + str(a) + ',' + str(m) + ')' for a, m in zip(angular_thresholds, metric_thresholds)])
+    
+    for essential_th in essential_th_list: 
+        if len(essential_th_list) == 1:
+            lname = ''
+        else:
+            lname = '(' + str(essential_th) + ')'
+        
+        if len(angular_thresholds) > 0:        
+            header = header + ';' + ';'.join(['E' + lname + '_mAA@' + str(a) for a in angular_thresholds])
+        
+            if also_metric:
+                header = header + ';' + ';'.join(['E' + lname + '_mAA@(' + str(a) + ',' + str(m) + ')' for a, m in zip(angular_thresholds, metric_thresholds)])
+
+    lines.append(header + '\n')
+        
+    for pname in f_eval_data.keys():    
+        lp = len(pname[len(to_remove_prefix) + 1:].split(os.path.sep))
+        row = pname[len(to_remove_prefix) + 1:].replace(os.path.sep, ';') + (';' * (l - lp))
+
+        row = row + ';' + str(f_eval_data[pname]['epi_global_prec_f']) + ';' + str(f_eval_data[pname]['epi_global_recall_f']) 
+        if len(angular_thresholds) > 0:
+            row = row + ';' + ';'.join([str(f_eval_data[pname]['pose_error_f_auc_' + str(a)][-1]) for a in angular_thresholds])        
+
+            if also_metric:
+                row = row + ';' + ';'.join([str(f_eval_data[pname]['pose_error_fm_auc_' + str(a) + '_' + str(m)][-1]) for a, m in zip(angular_thresholds, metric_thresholds)])
+
+        for essential_th in essential_th_list:  
+            ppname = e_eval_data[pname + '_essential_th_list_' + str(essential_th)]
+
+            if len(angular_thresholds) > 0:
+                row = row + ';' + ';'.join([str(ppname['pose_error_e_auc_' + str(a)][-1]) for a in angular_thresholds])         
+                
+                if also_metric:                    
+                    row = row + ';' + ';'.join([str(ppname['pose_error_em_auc_' + str(a) + '_' + str(m)][-1]) for a, m in zip(angular_thresholds, metric_thresholds)] )
+
+        lines.append(row + '\n')
+        
+    with open(save_to, 'w') as f:
+        for l in lines:
+            f.write(l)    
+
+
+def csv_summary_planar(pipe, load_from='res_homography.pbz2', save_to='res_planar.csv', to_remove_prefix=''):
+    warnings.filterwarnings("ignore", category=UserWarning)
+    lines = []
+
+    angular_thresholds = [5, 10, 15]
+ 
+    eval_data = decompress_pickle(load_from)
+        
+    l = 0
+    for pname in eval_data.keys(): l = max(l, len(pname[len(to_remove_prefix) + 1:].split(os.path.sep)))
+        
+    header = ';'.join(['pipe_module_' + str(li) for li in range(l)]) + ';H_precision;H_recall'
+    if len(angular_thresholds) > 0: header = header + ';' + ';'.join(['H_mAA@' + str(a) for a in angular_thresholds])
+    lines.append(header + '\n')
+        
+    for pname in eval_data.keys():    
+        lp = len(pname[len(to_remove_prefix) + 1:].split(os.path.sep))
+        row = pname[len(to_remove_prefix) + 1:].replace(os.path.sep, ';') + (';' * (l - lp))
+        row = row + ';' + str(eval_data[pname]['reproj_global_prec_h']) + ';' + str(eval_data[pname]['reproj_global_recall_h']) 
+        
+        if len(angular_thresholds) > 0: row = row + ';' + ';'.join([str(eval_data[pname]['pose_error_h_auc_' + str(a)][-1]) for a in angular_thresholds])    
+        lines.append(row + '\n')
+        
+    with open(save_to, 'w') as f:
+        for l in lines:
+            f.write(l)    
+
+
+def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_homography.pbz2', force=False, use_scale=False, rad=15, err_th_list=list(range(1,16)), bench_plot='plot', save_acc_images=True, save_ext='.jpg', **dummy_args):
     warnings.filterwarnings("ignore", category=UserWarning)
 
     # these are actually pixel errors
@@ -1120,12 +1248,12 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                         os.makedirs(pipe_img_save_base, exist_ok=True)
                         iname = os.path.splitext(dataset_data['im1'][i])[0] + '_' + os.path.splitext(dataset_data['im2'][i])[0]
     
-                        pipe_img_save1 = os.path.join(pipe_img_save_base, iname + '_1.png')
+                        pipe_img_save1 = os.path.join(pipe_img_save_base, iname + '_1' + save_ext)
                         if not (os.path.isfile(pipe_img_save1) and not force):
                             im1s = os.path.join(bench_path,'planar',dataset_data['im1'][i])
                             colorize_plane(im1s, heat1, cmap_name='viridis', max_val=45, cf=0.7, save_to=pipe_img_save1)
     
-                        pipe_img_save2 = os.path.join(pipe_img_save_base, iname + '_2.png')
+                        pipe_img_save2 = os.path.join(pipe_img_save_base, iname + '_2' + save_ext)
                         if not (os.path.isfile(pipe_img_save2) and not force):
                             im2s = os.path.join(bench_path,'planar',dataset_data['im2'][i])
                             colorize_plane(im2s, heat2, cmap_name='viridis', max_val=45, cf=0.7, save_to=pipe_img_save2)
@@ -1217,7 +1345,7 @@ def homography_error_heat_map(H12_gt, H12, mask1):
     return heat_map
 
 
-def imc_phototourism_bench_setup(bench_path='bench_data', bench_imgs='imgs', save_to='imc_phototourism.pbz2', sample_size=800, seed=42, covisibility_range=[0.1, 0.7], new_sample=False, force=False):
+def imc_phototourism_bench_setup(bench_path='bench_data', bench_imgs='imgs', save_to='imc_phototourism.pbz2', sample_size=800, seed=42, covisibility_range=[0.1, 0.7], new_sample=False, force=False, **dummy_args):
     
     save_to_full = os.path.join(bench_path, save_to)
     if os.path.isfile(save_to_full) and (not force):
