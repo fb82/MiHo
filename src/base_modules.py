@@ -1,9 +1,12 @@
 import numpy as np
 import torch
 import kornia as K
+import kornia.feature as KF
 import pydegensac
 import cv2
 import poselib
+from lightglue import LightGlue as lg_lightglue, SuperPoint as lg_superpoint, DISK as lg_disk, SIFT as lg_sift, ALIKED as lg_aliked, DoGHardNet as lg_doghardnet
+from lightglue.utils import load_image as lg_load_image, rbd as lg_rbd
 from .ncc import refinement_laf
 
 
@@ -289,3 +292,101 @@ class sift_module:
         pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)    
 
         return {'pt1': pt1, 'pt2': pt2, 'kp1': kps1, 'kp2': kps2, 'Hs': Hs_laf, 'val': val}
+
+
+# import matplotlib.pyplot as plt
+class lightglue_module:
+    def __init__(self, **args):
+        self.upright = True
+        self.num_features = 8000
+        self.what = 'superpoint'
+        self.resize = None # original 1024
+        
+        for k, v in args.items():
+           setattr(self, k, v)
+
+        with torch.inference_mode():
+            if self.what == 'disk':            
+                self.extractor = lg_disk(max_num_keypoints=self.num_features).eval().to(device)
+                self.matcher = lg_lightglue(features='disk').eval().to(device)            
+            elif self.what == 'aliked':            
+                self.extractor = lg_aliked(max_num_keypoints=self.num_features).eval().to(device)
+                self.matcher = lg_lightglue(features='disk').eval().to(device)            
+            elif self.what == 'sift':            
+                self.extractor = lg_sift(max_num_keypoints=self.num_features).eval().to(device)
+                self.matcher = lg_lightglue(features='disk').eval().to(device)                            
+            elif self.what == 'doghardnet':            
+                self.extractor = lg_doghardnet(max_num_keypoints=self.num_features).eval().to(device)
+                self.matcher = lg_lightglue(features='disk').eval().to(device)            
+            else:   
+                self.what = 'superpoint'
+                self.extractor = lg_superpoint(max_num_keypoints=self.num_features).eval().to(device)
+                self.matcher = lg_lightglue(features='superpoint').eval().to(device)            
+
+
+    def get_id(self):
+        return (self.what + 'lightglue_upright_' + str(self.upright) + '_nfeat_' + str(self.num_features) + '_resize_' + str(self.resize)).lower()
+
+
+    def run(self, **args):           
+        # load each image as a torch.Tensor on GPU with shape (3,H,W), normalized in [0,1]
+        img1 = lg_load_image(args['im1']).to(device)
+        img2 = lg_load_image(args['im2']).to(device)
+        
+        # img2 = (img2.flip(1).permute(0, 2, 1).permute(1,2,0)[:, :, [2, 1, 0]] * 255).type(torch.uint8).detach().cpu().numpy()
+        # cv2.imwrite('rot_test.png', img2)
+        # img2 = lg_load_image('rot_test.png').to(device)
+
+        with torch.inference_mode():
+            feats1 = self.extractor.extract(img1, resize=self.resize)
+            feats2 = self.extractor.extract(img2, resize=self.resize)
+            matches12 = self.matcher({'image0': feats1, 'image1': feats2})
+            feats1_, feats2_, matches12 = [lg_rbd(x) for x in [feats1, feats2, matches12]]
+            idxs = matches12['matches']        
+            kps1 = feats1_['keypoints']
+            kps2 = feats2_['keypoints']
+        
+        hw2 = torch.tensor(img2.shape[1:], device=device)
+        
+        if not self.upright:
+            hw2_orig = hw2
+
+            r_best = 0
+            hw2_best = hw2
+            kps2_best = kps2            
+            idxs_best = idxs
+
+            for r in range(1, 4):
+                img2 = img2.flip(1).permute(0, 2, 1)
+                hw2 = torch.tensor(img2.shape[1:], device=device)
+
+                with torch.inference_mode():
+                    feats2 = self.extractor.extract(img2, resize=self.resize)
+                    matches12 = self.matcher({'image0': feats1, 'image1': feats2})
+                    feats1_, feats2_, matches12 = [lg_rbd(x) for x in [feats1, feats2, matches12]]
+                    idxs = matches12['matches']
+                    kps2 = feats2_['keypoints']
+            
+                if idxs.shape[0] > idxs_best.shape[0]:
+                    idxs_best = idxs
+                    r_best = r
+                    hw2_best = hw2
+                    kps2_best = kps2
+
+            a = -r_best / 2.0 * np.pi
+            R = torch.tensor([[np.cos(a), -np.sin(a)], [np.sin(a), np.cos(a)]], device=device)
+            kps2 = ((R @ (kps2_best.permute(1, 0) - (torch.tensor([[hw2_best[1]], [hw2_best[0]]], device=device) / 2) ).type(torch.double)) + (torch.tensor([[hw2_orig[1]], [hw2_orig[0]]], device=device) / 2).type(torch.double)).permute(1, 0)
+            idxs = idxs_best
+
+            # plt.figure()
+            # plt.axis('off')
+            # img = cv2.imread('rot_test.png', cv2.IMREAD_GRAYSCALE)
+            # plt.imshow(img)
+            # plt.plot(kps2[:, 0].detach().cpu().numpy(), kps2[:, 1].detach().cpu().numpy(), linestyle='', color='red', marker='.')
+    
+        pt1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
+        pt2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
+        
+        pt1, pt2, Hs_laf = refinement_laf(None, None, pt1=pt1, pt2=pt2, img_patches=False) # No refinement LAF!!!
+        
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_laf}
