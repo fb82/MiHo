@@ -338,14 +338,8 @@ class dedodev2_module:
            
         pt1 = None
         pt2 = None
-        # kps1 = kps1.squeeze()[idxs[:, 0],:]
-        # kps2 = kps2.squeeze()[idxs[:, 1],:]
         kps1, kps2 = self.matcher.to_pixel_coords(matches1, matches2, H1, W1, H2, W2)
 
         pt1, pt2, Hs_laf = refinement_laf(None, None, pt1=kps1, pt2=kps2, img_patches=False) # No refinement LAF!!!
-        # print('************* dedodev2 kps1 shape', kps1.shape)
-        # print('************* dedodev2 pt1 shape', pt1.shape)
-   
-        # return {'pt1': pt1, 'pt2': pt2, 'kp1': kps1, 'kp2': kps2, 'Hs': Hs_laf, 'val': val}
-        # return {'pt1': pt1, 'pt2': pt2, 'kp1': kps1, 'kp2': kps2, 'Hs': Hs_laf}
+
         return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_laf}

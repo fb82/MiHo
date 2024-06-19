@@ -90,7 +90,8 @@ if __name__ == '__main__':
 
     pipe_heads = [
         pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99),
-        pipe_base.sift_module(rootsift=True, num_features=8000, upright=True, th=0.95),     
+        pipe_base.sift_module(rootsift=True, num_features=8000, upright=True, th=0.95),  
+        pipe_base.dedodev2_module(num_features=8000, threshold=0.01),   
         superpoint_lightglue_module(nmax_keypoints=8000),
         aliked_lightglue_module(nmax_keypoints=8000),
         disk_lightglue_module(nmax_keypoints=8000),
