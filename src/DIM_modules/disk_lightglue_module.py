@@ -38,7 +38,7 @@ class disk_lightglue_module:
 
 
     def get_id(self):
-        return ('disk_nfeat_' + str(self.max_keypoints)).lower()
+        return ('disk_nfeat_' + str(self.nmax_keypoints)).lower()
 
             
     def run(self, **args):
