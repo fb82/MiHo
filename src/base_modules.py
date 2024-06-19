@@ -347,4 +347,5 @@ class dedodev2_module:
         # print('************* dedodev2 pt1 shape', pt1.shape)
    
         # return {'pt1': pt1, 'pt2': pt2, 'kp1': kps1, 'kp2': kps2, 'Hs': Hs_laf, 'val': val}
-        return {'pt1': pt1, 'pt2': pt2, 'kp1': kps1, 'kp2': kps2, 'Hs': Hs_laf}
+        # return {'pt1': pt1, 'pt2': pt2, 'kp1': kps1, 'kp2': kps2, 'Hs': Hs_laf}
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_laf}
