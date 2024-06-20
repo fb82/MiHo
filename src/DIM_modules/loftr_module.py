@@ -81,15 +81,32 @@ class loftr_module:
 
 
     def run(self, **args):
+        # https://kornia.github.io/tutorials/nbs/image_matching.html
+        img1 = K.io.load_image(str(Path(args['im1'])), K.io.ImageLoadType.RGB32)[None, ...]
+        img2 = K.io.load_image(str(Path(args['im2'])), K.io.ImageLoadType.RGB32)[None, ...]
+
+        #img1 = K.geometry.resize(img1, (480, 640), antialias=True)
+        #img2 = K.geometry.resize(img2, (480, 640), antialias=True)
+
+        matcher = KF.LoFTR(pretrained="outdoor") #pretrained="indoor_new"
+
+        input_dict = {
+            "image0": K.color.rgb_to_grayscale(img1),  # LofTR works on grayscale images only
+            "image1": K.color.rgb_to_grayscale(img2),
+        }
+
         with torch.inference_mode():
-            image0 = load_image_np(Path(args['im1']))
-            image1 = load_image_np(Path(args['im2']))
-            # image0_ = resize_image(Quality.MEDIUM, image0)
-            # image1_ = resize_image(Quality.MEDIUM, image1)
-            timg0_ = frame2tensor(image0, device)
-            timg1_ = frame2tensor(image1, device)
-            input_dict = {"image0": timg0_, "image1": timg1_}
-            correspondences = self.matcher(input_dict)
+            correspondences = matcher(input_dict)
+
+        #with torch.inference_mode():
+        #    image0 = load_image_np(Path(args['im1']))
+        #    image1 = load_image_np(Path(args['im2']))
+        #    # image0_ = resize_image(Quality.MEDIUM, image0)
+        #    # image1_ = resize_image(Quality.MEDIUM, image1)
+        #    timg0_ = frame2tensor(image0, device)
+        #    timg1_ = frame2tensor(image1, device)
+        #    input_dict = {"image0": timg0_, "image1": timg1_}
+        #    correspondences = self.matcher(input_dict)
         
         kps1 = correspondences["keypoints0"].squeeze().detach().to(device)
         kps2 = correspondences["keypoints1"].squeeze().detach().to(device)
