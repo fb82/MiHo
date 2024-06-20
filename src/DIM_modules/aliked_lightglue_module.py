@@ -30,9 +30,9 @@ class aliked_lightglue_module:
 
         self.config.extractor['max_keypoints'] = self.nmax_keypoints
         self.config.extractor['model_name'] = "aliked-n16rot"
-        self.config.extractor['max_num_keypoints'] = 4000
+        self.config.extractor['max_num_keypoints'] = 8000
         self.config.extractor['detection_threshold'] = 0.2
-        self.config.extractor['nms_radius'] = 3
+        self.config.extractor['nms_radius'] = 2
         self.config.matcher['n_layers'] = 9
         self.config.matcher['depth_confidence'] = 0.95
         self.config.matcher['width_confidence'] = 0.99

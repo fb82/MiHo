@@ -70,14 +70,22 @@ def resize_image(quality: Quality, image: np.ndarray, interp: str = "cv2_area") 
 
 class loftr_module:
     def __init__(self, **args):
-        self.pretrained = 'outdoor'
+        self.outdoor = True
+                
         for k, v in args.items():
            setattr(self, k, v)
+           
+        if self.outdoor == True:
+            pretrained = 'outdoor'
+        else:
+            pretrained = 'indoor'
+
         with torch.inference_mode():
-            self.matcher = KF.LoFTR(pretrained=self.pretrained).to(device).eval()
+            self.matcher = KF.LoFTR(pretrained=pretrained).to(device).eval()
+
 
     def get_id(self):
-        return ('loftr').lower()
+        return ('loftr_outdoor_' + str(self.outdoor)).lower()
 
 
     def run(self, **args):

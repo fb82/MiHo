@@ -9,7 +9,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 class keynetaffnethardnet_kornia_matcher_module:
     def __init__(self, **args):
         self.nmax_keypoints = 8000
-        self.upright = False
+        self.upright = True
         self.th = 0.99
         for k, v in args.items():
            setattr(self, k, v)
