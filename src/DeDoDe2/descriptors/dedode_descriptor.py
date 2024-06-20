@@ -45,6 +45,13 @@ class DeDoDeDescriptor(nn.Module):
     def read_image(self, im_path, H = 784, W = 784, device=get_best_device()):
         return self.normalizer(torch.from_numpy(np.array(Image.open(im_path).resize((W,H)))/255.).permute(2,0,1)).float().to(device)[None]
 
+    def read_image_(self, im_path, H = 784, W = 784, device=get_best_device()):
+        return self.normalizer(torch.from_numpy(np.array(im_path.resize((W,H)))/255.).permute(2,0,1)).float().to(device)[None]
+
     def describe_keypoints_from_path(self, im_path, keypoints, H = 784, W = 784):
         batch = {"image": self.read_image(im_path, H = H, W = W)}
+        return self.describe_keypoints(batch, keypoints)
+        
+    def describe_keypoints_from_image(self, im_path, keypoints, H = 784, W = 784):
+        batch = {"image": self.read_image_(im_path, H = H, W = W)}
         return self.describe_keypoints(batch, keypoints)

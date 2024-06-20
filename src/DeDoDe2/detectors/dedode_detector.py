@@ -62,8 +62,20 @@ class DeDoDeDetector(nn.Module):
         standard_im = np.array(pil_im)/255.
         return self.normalizer(torch.from_numpy(standard_im).permute(2,0,1)).float().to(device)[None]
 
+    def read_image_(self, im_path, H = 784, W = 784, device=get_best_device()):
+        pil_im = im_path.resize((W, H))
+        standard_im = np.array(pil_im)/255.
+        return self.normalizer(torch.from_numpy(standard_im).permute(2,0,1)).float().to(device)[None]
+
     def detect_from_path(self, im_path, num_keypoints = 30_000, H = 784, W = 784, dense = False):
         batch = {"image": self.read_image(im_path, H = H, W = W)}
+        if dense:
+            return self.detect_dense(batch)
+        else:
+            return self.detect(batch, num_keypoints = num_keypoints)
+
+    def detect_from_image(self, im_path, num_keypoints = 30_000, H = 784, W = 784, dense = False):
+        batch = {"image": self.read_image_(im_path, H = H, W = W)}
         if dense:
             return self.detect_dense(batch)
         else:

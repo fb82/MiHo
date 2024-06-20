@@ -7,6 +7,7 @@ import src.GMS.gms_custom as gms
 import src.OANet.learnedmatcher_custom as oanet
 import src.ACNe.acne_custom as acne
 import src.AdaLAM.adalam_custom as adalam
+import src.DeDoDe2.dedode2_custom as dedode2
 import src.bench_utils as bench
 
 # from src.DIM_modules.superpoint_lightglue_module import superpoint_lightglue_module
@@ -95,6 +96,7 @@ if __name__ == '__main__':
         pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked'),
         pipe_base.lightglue_module(num_features=8000, upright=True, what='disk'),  
         pipe_base.loftr_module(num_features=8000, upright=True),        
+        dedode2.dedode2_module(num_features=8000, upright=True),                
         # superpoint_lightglue_module(nmax_keypoints=8000),
         # aliked_lightglue_module(nmax_keypoints=8000),
         # disk_lightglue_module(nmax_keypoints=8000),

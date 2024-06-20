@@ -395,3 +395,136 @@ class lightglue_module:
         pt1, pt2, Hs_laf = refinement_laf(None, None, pt1=pt1, pt2=pt2, img_patches=False) # No refinement LAF!!!
         
         return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_laf}
+    
+
+# import matplotlib.pyplot as plt
+class loftr_module:
+    def __init__(self, **args):
+        self.outdoor = True
+        self.upright = True
+        self.resize = None
+        # self.resize = [800, 600]
+
+        for k, v in args.items():
+           setattr(self, k, v)
+
+        if self.outdoor == True:
+            pretrained = 'outdoor'
+        else:
+            pretrained = 'indoor'
+
+        with torch.inference_mode():
+            self.matcher = KF.LoFTR(pretrained=pretrained).to(device).eval()
+
+
+    def get_id(self):
+        return ('loftr_outdoor_' + str(self.outdoor) + '_upright_' + str(self.upright)).lower()
+
+
+    def run(self, **args):
+        image0 = K.io.load_image(args['im1'], K.io.ImageLoadType.GRAY32, device=device)
+        image1 = K.io.load_image(args['im2'], K.io.ImageLoadType.GRAY32, device=device)
+
+        # image1 = (image1 * 255).flip(1).permute(0, 2, 1).squeeze().type(torch.uint8).detach().cpu().numpy()
+        # cv2.imwrite('rot_test.png', image1)
+        # image1 = K.io.load_image('rot_test.png', K.io.ImageLoadType.GRAY32, device=device)
+
+        hw1 = image0.shape[1:]
+        hw2 = image1.shape[1:]
+
+        if not (self.resize is None):        
+            ms = min(self.resize)
+            Ms = max(self.resize)
+
+            if hw1[0] > hw1[1]:
+                sz = [Ms, ms]                
+                ratio_ori = float(hw1[0]) / hw1[1]                 
+            else:
+                sz = [ms, Ms]
+                ratio_ori = float(hw1[1]) / hw1[0]
+
+            ratio_new = float(Ms) / ms
+            if np.abs(ratio_ori - ratio_new) > np.abs(1 - ratio_new):
+                sz = [ms, ms]
+
+            K.geometry.resize(image0, (sz[0], sz[1]), antialias=True)
+
+            if hw2[0] > hw2[1]:
+                sz = [Ms, ms]                
+                ratio_ori = float(hw2[0]) / hw2[1]                 
+            else:
+                sz = [ms, Ms]
+                ratio_ori = float(hw2[1]) / hw2[0]
+
+            ratio_new = float(Ms) / ms
+            if np.abs(ratio_ori - ratio_new) > np.abs(1 - ratio_new):
+                sz = [ms, ms]
+
+            K.geometry.resize(image1, (sz[0], sz[1]), antialias=True)
+                    
+        hw1_ = image0.shape[1:]
+        hw2_ = image1.shape[1:]
+
+        input_dict = {
+            "image0": image0.unsqueeze(0),  # LofTR works on grayscale images only
+            "image1": image1.unsqueeze(0),
+        }
+
+        with torch.inference_mode():
+            correspondences = self.matcher(input_dict)
+
+        kps1 = correspondences["keypoints0"]
+        kps2 = correspondences["keypoints1"]
+        
+        if not self.upright:
+            hw2_orig = hw2_
+
+            r_best = 0
+            hw2_best = hw2_
+            kps1_best = kps1            
+            kps2_best = kps2            
+
+            for r in range(1, 4):
+                image1 = image1.flip(1).permute(0, 2, 1)
+                hw2__ = torch.tensor(image1.shape[1:], device=device)
+
+                input_dict = {
+                    "image0": image0.unsqueeze(0),  # LofTR works on grayscale images only
+                    "image1": image1.unsqueeze(0),
+                }
+        
+                with torch.inference_mode():
+                    correspondences = self.matcher(input_dict)
+        
+                kps1 = correspondences["keypoints0"]
+                kps2 = correspondences["keypoints1"]
+            
+                if kps1.shape[0] > kps1_best.shape[0]:
+                    r_best = r
+                    hw2_best = hw2__
+                    kps1_best = kps1
+                    kps2_best = kps2
+
+            a = -r_best / 2.0 * np.pi
+            R = torch.tensor([[np.cos(a), -np.sin(a)], [np.sin(a), np.cos(a)]], device=device)
+            kps2 = ((R @ (kps2_best.permute(1, 0) - (torch.tensor([[hw2_best[1]], [hw2_best[0]]], device=device) / 2) ).type(torch.double)) + (torch.tensor([[hw2_orig[1]], [hw2_orig[0]]], device=device) / 2).type(torch.double)).permute(1, 0)
+        
+        kps1 = kps1.squeeze().detach().to(device).clone()
+        kps2 = kps2.squeeze().detach().to(device).clone()
+
+        kps1[:, 0] = kps1[:, 0] * (hw1[1] / float(hw1_[1]))
+        kps1[:, 1] = kps1[:, 1] * (hw1[0] / float(hw1_[0]))
+    
+        kps2[:, 0] = kps2[:, 0] * (hw2[1] / float(hw2_[1]))
+        kps2[:, 1] = kps2[:, 1] * (hw2[0] / float(hw2_[0]))
+        
+        # plt.figure()
+        # plt.axis('off')
+        # img = cv2.imread('rot_test.png', cv2.IMREAD_GRAYSCALE)
+        # plt.imshow(img)
+        # plt.plot(kps2[:, 0].detach().cpu().numpy(), kps2[:, 1].detach().cpu().numpy(), linestyle='', color='red', marker='.')
+        
+        pt1, pt2, Hs_laf = refinement_laf(None, None, pt1=kps1, pt2=kps2, img_patches=False)
+        # pt1, pt2, Hs_laf = refinement_laf(None, None, pt1=kps1, pt2=kps2, img_patches=False) # No refinement LAF!!!
+
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_laf}
