@@ -411,7 +411,7 @@ class loftr_module:
         if self.outdoor == True:
             pretrained = 'outdoor'
         else:
-            pretrained = 'indoor'
+            pretrained = 'indoor_new'
 
         with torch.inference_mode():
             self.matcher = KF.LoFTR(pretrained=pretrained).to(device).eval()
