@@ -1156,6 +1156,7 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                 inl_sum = []
                 avg_prec = 0
                 avg_recall = 0
+                valid_matches = None
 
                 if os.path.isfile(pipe_f):
                     out_data = decompress_pickle(pipe_f)
@@ -1225,8 +1226,8 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                         avg_recall = avg_recall.item()
                 else:
                     H = None
-                    
-                    
+                    valid_matches = torch.zeros(nn, device=device, dtype=torch.bool)
+                                        
                 if H is None:
                     # eval_data_['err_plane_1_h'].append([])
                     # eval_data_['err_plane_2_h'].append([])
