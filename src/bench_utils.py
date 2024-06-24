@@ -1313,7 +1313,7 @@ def invalid_matches(mask1, mask2, pts1, pts2, rad):
 
     invalid_ = torch.zeros(pt1.shape[1], device=device, dtype=torch.bool)
 
-    to_exclude = (pt1[0] < 0) & (pt2[0] < 0) & (pt1[0] >= mask1.shape[1]) & (pt2[0] >= mask2.shape[1]) & (pt1[1] < 0) & (pt2[1] < 0) & (pt1[1] >= mask1.shape[0]) & (pt2[1] >= mask2.shape[0])
+    to_exclude = (pt1[0] < 0) | (pt2[0] < 0) | (pt1[0] >= mask1.shape[1]) | (pt2[0] >= mask2.shape[1]) | (pt1[1] < 0) | (pt2[1] < 0) | (pt1[1] >= mask1.shape[0]) | (pt2[1] >= mask2.shape[0])
 
     pt1 = pt1[:, ~to_exclude]
     pt2 = pt2[:, ~to_exclude]
