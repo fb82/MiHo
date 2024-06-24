@@ -45,15 +45,11 @@ class DeDoDeDescriptor(nn.Module):
     def read_image(self, im_path, H = 784, W = 784, device=get_best_device()):
         pil_im = Image.open(im_path).resize((W, H))
         standard_im = np.array(pil_im)/255.
-        if standard_im.ndim == 2:
-            standard_im = np.stack([standard_im] * 3, axis=-1)
         return self.normalizer(torch.from_numpy(standard_im).permute(2,0,1)).float().to(device)[None]
 
     def read_image_(self, im_path, H = 784, W = 784, device=get_best_device()):
         pil_im = im_path.resize((W, H))
         standard_im = np.array(pil_im)/255.
-        if standard_im.ndim == 2:
-            standard_im = np.stack([standard_im] * 3, axis=-1)
         return self.normalizer(torch.from_numpy(standard_im).permute(2,0,1)).float().to(device)[None]
 
     def describe_keypoints_from_path(self, im_path, keypoints, H = 784, W = 784):

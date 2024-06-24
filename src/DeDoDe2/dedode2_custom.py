@@ -31,8 +31,8 @@ class dedode2_module:
 
     
     def run(self, **args):
-        im1 = Image.open(args['im1'])
-        im2 = Image.open(args['im2'])
+        im1 = Image.open(args['im1']).convert('RGB')
+        im2 = Image.open(args['im2']).convert('RGB')
         
         # im2 = Image.fromarray(np.transpose(np.flip(np.asarray(im2), axis=0), (1, 0, 2)))
         # im2.save('rot_test.png')
