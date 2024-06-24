@@ -41,12 +41,20 @@ class DeDoDeDescriptor(nn.Module):
         description_grid = self.forward(batch)["description_grid"]
         described_keypoints = F.grid_sample(description_grid.float(), keypoints[:,None], mode = "bilinear", align_corners = False)[:,:,0].mT
         return {"descriptions": described_keypoints}
-    
+
     def read_image(self, im_path, H = 784, W = 784, device=get_best_device()):
-        return self.normalizer(torch.from_numpy(np.array(Image.open(im_path).resize((W,H)))/255.).permute(2,0,1)).float().to(device)[None]
+        pil_im = Image.open(im_path).resize((W, H))
+        standard_im = np.array(pil_im)/255.
+        if standard_im.ndim == 2:
+            standard_im = np.stack([standard_im] * 3, axis=-1)
+        return self.normalizer(torch.from_numpy(standard_im).permute(2,0,1)).float().to(device)[None]
 
     def read_image_(self, im_path, H = 784, W = 784, device=get_best_device()):
-        return self.normalizer(torch.from_numpy(np.array(im_path.resize((W,H)))/255.).permute(2,0,1)).float().to(device)[None]
+        pil_im = im_path.resize((W, H))
+        standard_im = np.array(pil_im)/255.
+        if standard_im.ndim == 2:
+            standard_im = np.stack([standard_im] * 3, axis=-1)
+        return self.normalizer(torch.from_numpy(standard_im).permute(2,0,1)).float().to(device)[None]
 
     def describe_keypoints_from_path(self, im_path, keypoints, H = 784, W = 784):
         batch = {"image": self.read_image(im_path, H = H, W = W)}
