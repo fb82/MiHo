@@ -1127,7 +1127,7 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
         if (pipe_name_base in eval_data.keys()) and not force:
             eval_data_ = eval_data[pipe_name_base]                
             for a in angular_thresholds:
-                print(f"mAA@{str(a).ljust(2,' ')} (F) : {eval_data_['pose_error_h_auc_' + str(a)]}")
+                print(f"mAA@{str(a).ljust(2,' ')} (H) : {eval_data_['pose_error_h_auc_' + str(a)]}")
 
             print(f"precision(H) : {eval_data_['reproj_global_prec_h']}")
             print(f"recall (H) : {eval_data_['reproj_global_recall_h']}")
