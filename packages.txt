@@ -10,8 +10,8 @@ rich==13.7.1
 sympy==1.12
 matplotlib==3.8.4
 opencv-python==4.9.0.80
-opencv-contrib-python=4.9.0.80
-opencv-python-headless=4.9.0.80
+opencv-contrib-python==4.9.0.80
+opencv-python-headless==4.9.0.80
 einops==0.7.0
 e2cnn==0.2.3
 parse==1.20.1
