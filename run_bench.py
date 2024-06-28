@@ -170,6 +170,6 @@ if __name__ == '__main__':
                         bench.show_pipe(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, ext=benchmark_data[b]['ext'], save_ext='.jpg')
                         
             if benchmark_data[b]['is_not_planar']:
-                bench.csv_summary_non_planar(pipe, essential_th_list=[0.5], essential_load_from=to_save_file + 'essential' + to_save_file_suffix, fundamental_load_from=to_save_file + 'fundamental' + to_save_file_suffix, save_to=to_save_file + 'fundamental_and_essential' + to_save_file_suffix[:-4] + '.csv', also_metric=benchmark_data[b]['also_metric'], to_remove_prefix=os.path.join(bench_path, save_to, benchmark_data[b]['name']))
+                bench.csv_summary_non_planar(pipe, essential_th_list=[0.5], essential_load_from=to_save_file + 'essential' + to_save_file_suffix, fundamental_load_from=to_save_file + 'fundamental' + to_save_file_suffix, save_to=to_save_file + 'fundamental_and_essential' + to_save_file_suffix[:-5] + '.csv', also_metric=benchmark_data[b]['also_metric'], to_remove_prefix=os.path.join(bench_path, save_to, benchmark_data[b]['name']))
             else:
-                bench.csv_summary_planar(pipe, load_from=to_save_file + 'homography' + to_save_file_suffix, save_to=to_save_file + 'homography' + to_save_file_suffix[:-4] + '.csv', to_remove_prefix=os.path.join(bench_path, save_to, benchmark_data[b]['name']))
+                bench.csv_summary_planar(pipe, load_from=to_save_file + 'homography' + to_save_file_suffix, save_to=to_save_file + 'homography' + to_save_file_suffix[:-5] + '.csv', to_remove_prefix=os.path.join(bench_path, save_to, benchmark_data[b]['name']))
