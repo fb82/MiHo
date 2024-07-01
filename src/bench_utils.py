@@ -1238,8 +1238,8 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                     heat1 = homography_error_heat_map(H_gt, H, torch.tensor(dataset_data['im1_full_mask'][i], device=device))
                     heat2 = homography_error_heat_map(H_inv_gt, H.inverse(), torch.tensor(dataset_data['im2_full_mask'][i], device=device))
                     
-                    eval_data_['acc_1_h'].append(heat1[heat1 != 1].mean().detach().cpu().numpy()) 
-                    eval_data_['acc_2_h'].append(heat2[heat2 != 1].mean().detach().cpu().numpy())       
+                    eval_data_['acc_1_h'].append(heat1[heat1 != -1].mean().detach().cpu().numpy()) 
+                    eval_data_['acc_2_h'].append(heat2[heat2 != -1].mean().detach().cpu().numpy())       
 
                     # eval_data_['err_plane_1_h'].append(heat1.type(torch.half).detach().cpu().numpy())
                     # eval_data_['err_plane_2_h'].append(heat2.type(torch.half).detach().cpu().numpy())
@@ -1339,6 +1339,7 @@ def homography_error_heat_map(H12_gt, H12, mask1):
     pt2_ = pt2_[:2] / pt2_[2].unsqueeze(0)
 
     d1 = ((pt2_gt_ - pt2_)**2).sum(dim=0).sqrt()
+    d1[~d1.isfinite()] = np.inf
 
     heat_map = torch.full(mask1.shape, -1, device=device, dtype=torch.float)
     heat_map[mask1] = d1
