@@ -155,6 +155,7 @@ if __name__ == '__main__':
                             if pipe_module.placeholder == 'head': pipe[k] = pipe_head
                             if pipe_module.placeholder == 'ransac': pipe[k] = pipe_ransac
 
+                    for pipe_module in pipe:
                         if hasattr(pipe_module, 'mode'): setattr(pipe_module, 'mode', bench_mode)
                         if hasattr(pipe_module, 'outdoor'): setattr(pipe_module, 'outdoor', benchmark_data[b]['is_outdoor'])
 
