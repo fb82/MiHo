@@ -1496,3 +1496,36 @@ def imc_phototourism_bench_setup(bench_path='bench_data', bench_imgs='imgs', sav
     if new_sample: compressed_pickle(os.path.join(bench_path, 'downloads', 'imc_sampled_idx.pbz2'), sampled_idx)
     
     return imc_data, save_to_full
+
+
+# def cvs_merger(csv_list):
+    
+#     csv_list = [
+#         'res/res_keynetaffnethardnet_upright_true_th_0.99_nfeat_8000_fundamental_and_essential_megadepth.csv',
+#         'res/res_keynetaffnethardnet_upright_true_th_0.99_nfeat_8000_fundamental_and_essential_scannet.csv',
+#         'res/res_keynetaffnethardnet_upright_true_th_0.99_nfeat_8000_homography_planar.csv',
+#         'res/res_keynetaffnethardnet_upright_true_th_0.99_nfeat_8000_fundamental_and_essential_imc_phototourism.csv',
+#         ]
+    
+#     csv_data = []
+
+#     for csv_file in csv_list:
+#         aux = [csv_line.split(';') for csv_line in  open(csv_file, 'r').read().splitlines()]
+#         to_fuse = max([idx for idx, el in enumerate([s.startswith('pipe_module') for s in aux[0]]) if el == True]) + 1
+
+#         tmp = {}
+#         for row in aux:
+#             tmp[';'.join(row[:to_fuse])] = row[to_fuse:]
+
+#         csv_data.append(tmp)
+    
+#     merged_csv = []
+#     for k in csv_data[0].keys():
+#         for curr_csv in csv_data:
+#             print(k)
+#             print(curr_csv[k])
+        
+#         print([k] + [el for curr_csv in csv_data for el in curr_csv[k]])
+#         merged_csv.append(';'.join([k] + [el for curr_csv in csv_data for el in curr_csv[k]]))
+        
+#     return csv_data

@@ -140,7 +140,7 @@ if __name__ == '__main__':
             print("*** " + pipe_head.get_id() + " ***")
             
             to_save_file =  os.path.join(bench_path, save_to, save_to + '_' + pipe_head.get_id() + '_')
-            to_save_file_suffix ='_' + benchmark_data[b]['name'] + '.pbz2'
+            to_save_file_suffix ='_' + benchmark_data[b]['name']
             
             for jp in range(len(pipe_ransacs)):
                 pipe_ransac = pipe_ransacs[jp]
@@ -161,15 +161,32 @@ if __name__ == '__main__':
                     bench.run_pipe(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, ext=benchmark_data[b]['ext'])
 
                     if benchmark_data[b]['is_not_planar']:
-                        bench.eval_pipe_fundamental(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, save_to=to_save_file + 'fundamental' + to_save_file_suffix, use_scale=benchmark_data[b]['use_scale'], also_metric=benchmark_data[b]['also_metric'])
-                        bench.eval_pipe_essential(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, essential_th_list=[0.5], save_to=to_save_file + 'essential' + to_save_file_suffix, use_scale=benchmark_data[b]['use_scale'], also_metric=benchmark_data[b]['also_metric'])
+                        bench.eval_pipe_fundamental(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, save_to=to_save_file + 'fundamental' + to_save_file_suffix + '.pbz2', use_scale=benchmark_data[b]['use_scale'], also_metric=benchmark_data[b]['also_metric'])
+                        bench.eval_pipe_essential(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, essential_th_list=[0.5], save_to=to_save_file + 'essential' + to_save_file_suffix + '.pbz2', use_scale=benchmark_data[b]['use_scale'], also_metric=benchmark_data[b]['also_metric'])
                     else:
-                        bench.eval_pipe_homography(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, save_to=to_save_file + 'homography' + to_save_file_suffix, use_scale=benchmark_data[b]['use_scale'], save_acc_images=show_matches)
+                        bench.eval_pipe_homography(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, save_to=to_save_file + 'homography' + to_save_file_suffix + '.pbz2', use_scale=benchmark_data[b]['use_scale'], save_acc_images=show_matches)
 
                     if show_matches:
                         bench.show_pipe(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, ext=benchmark_data[b]['ext'], save_ext='.jpg')
                         
             if benchmark_data[b]['is_not_planar']:
-                bench.csv_summary_non_planar(pipe, essential_th_list=[0.5], essential_load_from=to_save_file + 'essential' + to_save_file_suffix, fundamental_load_from=to_save_file + 'fundamental' + to_save_file_suffix, save_to=to_save_file + 'fundamental_and_essential' + to_save_file_suffix[:-5] + '.csv', also_metric=benchmark_data[b]['also_metric'], to_remove_prefix=os.path.join(bench_path, save_to, benchmark_data[b]['name']))
+                bench.csv_summary_non_planar(pipe, essential_th_list=[0.5], essential_load_from=to_save_file + 'essential' + to_save_file_suffix + '.pbz2', fundamental_load_from=to_save_file + 'fundamental' + to_save_file_suffix + '.pbz2', save_to=to_save_file + 'fundamental_and_essential' + to_save_file_suffix + '.csv', also_metric=benchmark_data[b]['also_metric'], to_remove_prefix=os.path.join(bench_path, save_to, benchmark_data[b]['name']))
             else:
-                bench.csv_summary_planar(pipe, load_from=to_save_file + 'homography' + to_save_file_suffix, save_to=to_save_file + 'homography' + to_save_file_suffix[:-5] + '.csv', to_remove_prefix=os.path.join(bench_path, save_to, benchmark_data[b]['name']))
+                bench.csv_summary_planar(pipe, load_from=to_save_file + 'homography' + to_save_file_suffix + '.pbz2', save_to=to_save_file + 'homography' + to_save_file_suffix + '.csv', to_remove_prefix=os.path.join(bench_path, save_to, benchmark_data[b]['name']))
+
+###
+
+    # for ip in range(len(pipe_heads)):
+    #     csv_list = []
+    #     pipe_head = pipe_heads[ip]
+
+    #     for b in benchmark_data.keys():
+    #         to_save_file =  os.path.join(bench_path, save_to, save_to + '_' + pipe_head.get_id() + '_')
+    #         to_save_file_suffix ='_' + benchmark_data[b]['name']
+
+    #         if benchmark_data[b]['is_not_planar']:
+    #             csv_list.append(to_save_file + 'fundamental_and_essential' + to_save_file_suffix + '.csv')
+    #         else:
+    #             csv_list.append(save_to=to_save_file + 'homography' + to_save_file_suffix + '.csv')
+                
+    #     bench.csv_merger(csv_list)
