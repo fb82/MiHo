@@ -16,7 +16,7 @@ import src.bench_utils as bench
 # from src.DIM_modules.loftr_module import loftr_module
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':    
     # available RANSAC: pydegensac, magsac, poselib        
 
     pipe_head = lambda: None
@@ -174,20 +174,3 @@ if __name__ == '__main__':
                 bench.csv_summary_non_planar(pipe, essential_th_list=[0.5], essential_load_from=to_save_file + 'essential' + to_save_file_suffix + '.pbz2', fundamental_load_from=to_save_file + 'fundamental' + to_save_file_suffix + '.pbz2', save_to=to_save_file + 'fundamental_and_essential' + to_save_file_suffix + '.csv', also_metric=benchmark_data[b]['also_metric'], to_remove_prefix=os.path.join(bench_path, save_to, benchmark_data[b]['name']))
             else:
                 bench.csv_summary_planar(pipe, load_from=to_save_file + 'homography' + to_save_file_suffix + '.pbz2', save_to=to_save_file + 'homography' + to_save_file_suffix + '.csv', to_remove_prefix=os.path.join(bench_path, save_to, benchmark_data[b]['name']))
-
-###
-
-    # for ip in range(len(pipe_heads)):
-    #     csv_list = []
-    #     pipe_head = pipe_heads[ip]
-
-    #     for b in benchmark_data.keys():
-    #         to_save_file =  os.path.join(bench_path, save_to, save_to + '_' + pipe_head.get_id() + '_')
-    #         to_save_file_suffix ='_' + benchmark_data[b]['name']
-
-    #         if benchmark_data[b]['is_not_planar']:
-    #             csv_list.append(to_save_file + 'fundamental_and_essential' + to_save_file_suffix + '.csv')
-    #         else:
-    #             csv_list.append(save_to=to_save_file + 'homography' + to_save_file_suffix + '.csv')
-                
-    #     bench.csv_merger(csv_list)
