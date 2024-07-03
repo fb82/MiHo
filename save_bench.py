@@ -25,15 +25,15 @@ def csv_write(lines, save_to='nameless.csv'):
 
 
 def csv_merger(csv_list):
-    avg_idx = [[ 3,  6, 'F_mAA@avg'],
-               [ 6,  9, 'E_mAA@avg'],
-               [11, 14, 'F_mAA@avg'],
-               [14, 17, 'E_mAA@avg'],
-               [19, 22, 'H_mAA@avg'],
-               [24, 27, 'F_mAA@avg'],
-               [27, 30, 'F_mAA@avg'],
-               [30, 33, 'E_mAA@avg'],
-               [33, 36, 'E_mAA@avg'],
+    avg_idx = [[ 3,  6, 'F_mAA@avg_a'],
+               [ 6,  9, 'E_mAA@avg_a'],
+               [11, 14, 'F_mAA@avg_a'],
+               [14, 17, 'E_mAA@avg_a'],
+               [19, 22, 'H_mAA@avg_m'],
+               [24, 27, 'F_mAA@avg_a'],
+               [27, 30, 'F_mAA@avg_m'],
+               [30, 33, 'E_mAA@avg_a'],
+               [33, 36, 'E_mAA@avg_m'],
                ]
         
     csv_data = []
@@ -87,7 +87,41 @@ def csv_merger(csv_list):
     return fused_csv, fused_csv_order
 
 
-def to_latex(csv_data, csv_order, renaming_list):
+def to_latex(csv_data, csv_order, renaming_list, header_hold=None):    
+    header_type = 'nmmmmmmmmmmsssssssssshhhhhhpppppppppppppppppp'
+  # header_hold = 'nmm---m---mss---s---shh---hpp---p---p---p---p'
+    
+    if header_hold is None:
+        header_hold = header_type
+
+    use_ghost = True
+    header_dict = {
+        'n': '',
+        'm': 'MegaDepth',
+        's': 'ScanNet',
+        'h': 'Planar',
+        'p': 'PhotoTourism'
+        }
+
+    # removed unwanted columns
+    csv_data_new = []
+    csv_order_new = []
+    header_type_new = ''
+
+    for i in range(len(csv_data)):
+        csv_data_new.append([csv_data[i][j] for j in range(len(header_hold)) if header_hold[j] != '-'])
+        csv_order_new.append([csv_order[i][j] for j in range(len(header_hold)) if header_hold[j] != '-'])
+
+    for i in range(len(header_hold)):
+        if header_hold[i] != '-':
+            header_type_new = header_type_new + header_type[i]
+
+    csv_data = csv_data_new
+    csv_order = csv_order_new
+    header_type = header_type_new
+    header_hold = header_hold.replace('-','') 
+        
+    # starting
     csv_head = csv_data[0]
     csv_head[0] = 'pipeline'
     
@@ -118,18 +152,165 @@ def to_latex(csv_data, csv_order, renaming_list):
             clean_pipe_renamed.append(pipe.replace(pipe_renamed[base_index], ''))
             
     clean_csv = [csv_head] + [[clean_pipe_renamed[i]] + csv_data[i][1:] for i in sort_idx]
-    clean_csv_order = [csv_order[i] for i in sort_idx]
+    clean_csv_order = [csv_order[0]] + [csv_order[i + 1] for i in sort_idx]
         
     # csv_write([';'.join(csv_row) + '\n' for csv_row in clean_csv],'clean_table.csv')
     
-    return 0
+    for i in range(1, len(clean_csv)):
+        for j in range(len(clean_csv[0])):
+            vv = clean_csv[i][j]
+            
+            try:
+                v = float(vv)
+            except:
+                v = vv
+
+            # numeric value            
+            if isinstance(v, (int, float)):
+                v = "{n:6.2f}".format(n=v*100)
+
+                # avoid alignement issues
+                if use_ghost == True:
+                    for g in range(len(v)):
+                        if v[g] != ' ':
+                            break
+                    v = "\hphantom{" + "0" * g + "}" + v[g:]
+
+                # highlight top pipelines for each column
+                c_rank = int(clean_csv_order[i][j])        
+                if c_rank < 9:
+                    v = '\\textcolor{C' + str(c_rank) + '}{\\contour{C' + str(c_rank) + '}{' + v + '}}'
+
+            # text data in latex
+            v = v.replace('MOP','\\textbf{MOP}')                  
+            v = v.replace('NCC','\\textbf{NCC}')                  
+            v = v.replace('MiHo','\\textbf{MiHo}')                  
+            v = v.replace('MAGSAC^','MAGSAC$_\\uparrow$')                  
+            v = v.replace('MAGSACv','MAGSAC$_\\downarrow$')                  
+
+            # row alternate gray color    
+            if (i != 0) and (j == 0) and (i % 2 == 0):
+                v = '\\rowcolor{gray!15} ' + v
+
+            # add tabs
+            if (j == 0):
+                v = '\t' * 4 + v
+            
+            clean_csv[i][j] = v
+            
+    # add the & separator and the \\ at the end of the row
+    latex_table = [' & '.join(row) + " \\\\\n" for i, row in enumerate(clean_csv) if i > 0]
+
+    header = [
+        '\\documentclass[a4paper,landscape,10pt]{article}\n',
+        '\\usepackage[empty]{fullpage}\n',        
+        '\\usepackage{graphicx}\n',
+        '\\usepackage{caption}\n',
+        '\\usepackage{color}\n',
+        '\\usepackage{adjustbox}\n',
+        '\\usepackage{multirow}\n',
+        '\\usepackage{booktabs}\n',
+        '\\usepackage{amssymb}\n',
+        '\\usepackage[table,usenames,dvipsnames]{xcolor}\n',
+        '\\usepackage{amsmath}\n',
+        '\\usepackage{multirow}\n',
+        '\\usepackage{calc}\n',
+        '\\usepackage{ulem}\n',
+        '\\usepackage{nicefrac}\n',
+        '\\usepackage[outline]{contour}\n',
+        '\n',
+        '\\newlength\\MAX\\setlength\\MAX{\\widthof{999999999}}\n',
+        '\\newcommand*\\Chart[5]{\\rlap{\\textcolor{#3!#5}{\\rule[-0.5ex]{\\MAX}{3ex}}}\\rlap{\\textcolor{#3!#4}{\\rule[-0.5ex]{#2\\MAX}{3ex}}}#1}\n',
+        '\n',
+        '\\newcolumntype{L}[1]{>{\\raggedright\\let\\newline\\\\\\arraybackslash\\hspace{0pt}}m{#1}}\n',
+        '\\newcolumntype{C}[1]{>{\\centering\\let\\newline\\\\\\arraybackslash\\hspace{0pt}}m{#1}}\n',
+        '\\newcolumntype{R}[1]{>{\\raggedleft\\let\\newline\\\\\\arraybackslash\\hspace{0pt}}m{#1}}\n',
+        '\n',
+        # colors from https://github.com/riccardosven/tableaucolors
+        '\\definecolor{C0}{HTML}{1F77B4}\n',
+        '\\definecolor{C1}{HTML}{FF7F0E}\n',
+        '\\definecolor{C2}{HTML}{2CA02C}\n',
+        '\\definecolor{C3}{HTML}{D62728}\n',
+        '\\definecolor{C4}{HTML}{9467BD}\n',
+        '\\definecolor{C5}{HTML}{8C564B}\n',
+        '\\definecolor{C6}{HTML}{E377C2}\n',
+        '\\definecolor{C7}{HTML}{7F7F7F}\n',
+        '\\definecolor{C8}{HTML}{BCBD22}\n',
+        '\\definecolor{C9}{HTML}{17BECF}\n',
+        '\n',        
+        '\\begin{document}\n',        
+        '\t\\contourlength{0.1pt}\n',
+        '\t\\contournumber{10}\n',
+        '\t\\begin{table}[t!]\n',
+		'\t\\renewcommand{\\arraystretch}{0}\n',
+        '\t\\setlength{\\tabcolsep}{4pt}\n',
+        '\t\\centering\n',
+        '\t\t\\resizebox{\\textwidth}{!}{\n',
+        '\t\t\\begin{tabular}{l' + ('L{\\MAX}' * (len(header_type)-1)) + '}\n',
+    ]
+    
+    # header formatting
+    l=0
+    header_current = header_type[0]
+    header_multi = []
+    header_rule = []
+    header_type_ = header_type + '$'
+    for i in range(1,len(header_type_)):
+        if header_type_[i] != header_current:
+            header_multi.append('\\multicolumn{' + str(i-l)  + '}{c}{' + header_dict[header_current] + '}')
+            if l + 1 != i: header_rule.append('\\cmidrule(lr){' +  str(l + 1)  + '-' + str(i) + '}')
+            l = i
+            header_current = header_type_[i]
+        
+    header.append('\t\t\t\t' + ' & '.join(header_multi) + ' \\\\\n')
+    header.append('\t\t\t\t' + ''.join(header_rule) + '\n')
+    
+    header_spec = []               
+    for v in csv_head:
+        v = v.replace('pipeline', 'Pipeline')
+        v = v.replace('F_precision', 'Prec.')
+        v = v.replace('F_recall', 'Recall')
+        v = v.replace('H_precision', 'Prec.')
+        v = v.replace('H_recall', 'Recall')
+        v = v.replace('F_mAA', 'mAA$^{F}$')
+        v = v.replace('E_mAA', 'mAA$^{E}$')
+        v = v.replace('H_mAA', 'mAA$^{H}$')
+        v = v.replace('@5', '$_{\\text{@}5}$')
+        v = v.replace('@10', '$_{\\text{@}10}$')
+        v = v.replace('@15', '$_{\\text{@}15}$')
+        v = v.replace('@20', '$_{\\text{@}20}$')
+        v = v.replace('@(5,0.5)', '$_{\\text{@}(5,.5)}$')
+        v = v.replace('@(10,1)', '$_{\\text{@}(10,1)}$')
+        v = v.replace('@(20,2)', '$_{\\text{@}(20,2)}$')
+        v = v.replace('@avg_a', '$_\\measuredangle$')
+        v = v.replace('@avg_m', '$_\\square$')
+        v = v.replace('$$', '')
+        header_spec.append(v)
+        
+    header.append('\t\t\t\t' + ' & '.join(header_spec) + ' \\\\\n')    
+    header.append('\t\t\t\t\\midrule\n')
+
+    
+    footer = [
+        '\t\t\t\end{tabular}\n',
+        '\t\t}\n',
+        '\t\t\\caption{No caption (best viewed in color and zoomed in).}\\label{none}\n',
+        '\t\\end{table}\n',
+        '\\end{document}\n',
+    ]
+    
+    latex_table = header + latex_table + footer
+    
+    csv_write(latex_table, save_to='la.tex')
+        
+    return latex_table
 
 
 if __name__ == '__main__':    
 
     pipes = [
-        [  'MAGSAC', pipe_base.magsac_module(px_th=1.00)],
-        [ 'MAGSAC*', pipe_base.magsac_module(px_th=0.75)],
+        [ 'MAGSAC^', pipe_base.magsac_module(px_th=1.00)],
+        [ 'MAGSACv', pipe_base.magsac_module(px_th=0.75)],
         [     'NCC', ncc.ncc_module(also_prev=True)],
         ['MOP+MiHo', miho_duplex.miho_module()],
         [     'MOP', miho_unduplex.miho_module()],
@@ -140,7 +321,7 @@ if __name__ == '__main__':
     ]
 
     pipe_heads = [
-        # [             'Key.Net', pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99)],
+        [             'Key.Net', pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99)],
         # [                'SIFT', pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True)],     
         # ['SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
         [    'ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
