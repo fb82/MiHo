@@ -211,7 +211,10 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
             v = v.replace('NCC','\\textbf{NCC}')                  
             v = v.replace('MiHo','\\textbf{MiHo}')                  
             v = v.replace('MAGSAC^','MAGSAC$_\\uparrow$')                  
-            v = v.replace('MAGSACv','MAGSAC$_\\downarrow$')                  
+            v = v.replace('MAGSACv','MAGSAC$_\\downarrow$') 
+
+            if (i > 1) and (j == 0):
+                v = '\\hspace{0.33em}' + v                 
 
             # row alternate gray color    
             if (i != 0) and (j == 0) and (i % 2 == 0):
@@ -271,7 +274,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         '\\usepackage{nicefrac}\n',
         '\\usepackage[outline]{contour}\n',
         '\n',
-        '\\newlength\\MAX\\setlength\\MAX{\\widthof{999999999}}\n',
+        '\\newlength\\MAX\\setlength\\MAX{\\widthof{9999999999}}\n',
         '\\newcommand*\\Chart[5]{\\rlap{\\textcolor{#3!#5}{\\rule[-0.5ex]{\\MAX}{3ex}}}\\rlap{\\textcolor{#3!#4}{\\rule[-0.5ex]{#2\\MAX}{3ex}}}#1}\n',
         '\n',
         '\\newcolumntype{L}[1]{>{\\raggedright\\let\\newline\\\\\\arraybackslash\\hspace{0pt}}m{#1}}\n',
@@ -320,9 +323,9 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
     header_spec = []               
     for v in csv_head:
         v = v.replace('pipeline', 'Pipeline')
-        v = v.replace('F_precision', 'Prec.')
+        v = v.replace('F_precision', 'Precision')
         v = v.replace('F_recall', 'Recall')
-        v = v.replace('H_precision', 'Prec.')
+        v = v.replace('H_precision', 'Precision')
         v = v.replace('H_recall', 'Recall')
         v = v.replace('F_AUC', 'AUC$^{F}$')
         v = v.replace('E_AUC', 'AUC$^{E}$')
@@ -331,13 +334,17 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         v = v.replace('@10', '$_{\\text{@}10}$')
         v = v.replace('@15', '$_{\\text{@}15}$')
         v = v.replace('@20', '$_{\\text{@}20}$')
-        v = v.replace('@(5,0.5)', '$_{\\text{@}(5,.5)}$')
+        v = v.replace('@(5,0.5)', '$_{\\text{@}(5,\\frac{1}{2})}$')
         v = v.replace('@(10,1)', '$_{\\text{@}(10,1)}$')
         v = v.replace('@(20,2)', '$_{\\text{@}(20,2)}$')
         v = v.replace('@avg_a', '$_\\measuredangle$')
         v = v.replace('@avg_m', '$_\\square$')
         v = v.replace('$$', '')
         header_spec.append(v)
+        
+    for i in range(len(header_spec)):
+        if i > 0:
+            header_spec[i] = '\\multicolumn{1}{c}{' + header_spec[i] + '}'
         
     header.append('\t\t\t\t' + ' & '.join(header_spec) + ' \\\\\n')    
     header.append('\t\t\t\t\\midrule\n')
