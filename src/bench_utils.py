@@ -386,11 +386,11 @@ def eval_pipe_essential(pipe, dataset_data, dataset_name, bar_name, bench_path='
             if ((pipe_name_base + '_essential_th_list_' + str(essential_th)) in eval_data.keys()) and not force:
                 eval_data_ = eval_data[pipe_name_base + '_essential_th_list_' + str(essential_th)]                
                 for a in angular_thresholds:
-                    print(f"mAA@{str(a).ljust(2,' ')} (E) : {eval_data_['pose_error_e_auc_' + str(a)]}")   
+                    print(f"AUC@{str(a).ljust(2,' ')} (E) : {eval_data_['pose_error_e_auc_' + str(a)]}")   
                 
                 if also_metric:
                     for a, m in zip(angular_thresholds, metric_thresholds):    
-                        print(f"mAA@{str(a).ljust(2,' ')},{str(m).ljust(3,' ')} (E) : {eval_data_['pose_error_em_auc_' + str(a) + '_' + str(m)]}")
+                        print(f"AUC@{str(a).ljust(2,' ')},{str(m).ljust(3,' ')} (E) : {eval_data_['pose_error_em_auc_' + str(a) + '_' + str(m)]}")
 
                 continue
                     
@@ -463,7 +463,7 @@ def eval_pipe_essential(pipe, dataset_data, dataset_name, bar_name, bench_path='
                     eval_data_['pose_error_e_auc_' + str(a)] = np.asarray([auc_R, auc_t, auc_max_Rt])
                     eval_data_['pose_error_e_acc_' + str(a)] = np.sum(tmp < a, axis=0)/np.shape(tmp)[0]
 
-                    print(f"mAA@{str(a).ljust(2,' ')} (E) : {eval_data_['pose_error_e_auc_' + str(a)]}")
+                    print(f"AUC@{str(a).ljust(2,' ')} (E) : {eval_data_['pose_error_e_auc_' + str(a)]}")
 
                 if also_metric:
                     aux = np.asarray([eval_data_['R_errm_e'], eval_data_['t_errm_e']]).T
@@ -481,7 +481,7 @@ def eval_pipe_essential(pipe, dataset_data, dataset_name, bar_name, bench_path='
                         tmp = np.concatenate((aa, mm, aa & mm), axis=1)
                         eval_data_['pose_error_em_acc_' + str(a) + '_' + str(m)] = np.sum(tmp, axis=0)/np.shape(tmp)[0]
     
-                        print(f"mAA@{str(a).ljust(2,' ')},{str(m).ljust(3,' ')} (E) : {eval_data_['pose_error_em_auc_' + str(a) + '_' + str(m)]}")
+                        print(f"AUC@{str(a).ljust(2,' ')},{str(m).ljust(3,' ')} (E) : {eval_data_['pose_error_em_auc_' + str(a) + '_' + str(m)]}")
 
             eval_data[pipe_name_base + '_essential_th_list_' + str(essential_th)] = eval_data_
             compressed_pickle(save_to, eval_data)
@@ -520,11 +520,11 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
         if (pipe_name_base in eval_data.keys()) and not force:
             eval_data_ = eval_data[pipe_name_base]                
             for a in angular_thresholds:
-                print(f"mAA@{str(a).ljust(2,' ')} (F) : {eval_data_['pose_error_f_auc_' + str(a)]}")
+                print(f"AUC@{str(a).ljust(2,' ')} (F) : {eval_data_['pose_error_f_auc_' + str(a)]}")
 
             if also_metric:
                 for a, m in zip(angular_thresholds, metric_thresholds):    
-                    print(f"mAA@{str(a).ljust(2,' ')},{str(m).ljust(3,' ')} (F) : {eval_data_['pose_error_fm_auc_' + str(a) + '_' + str(m)]}")
+                    print(f"AUC@{str(a).ljust(2,' ')},{str(m).ljust(3,' ')} (F) : {eval_data_['pose_error_fm_auc_' + str(a) + '_' + str(m)]}")
 
             print(f"precision (F) : {eval_data_['epi_global_prec_f']}")
             print(f"   recall (F) : {eval_data_['epi_global_recall_f']}")
@@ -664,7 +664,7 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                 eval_data_['pose_error_f_auc_' + str(a)] = np.asarray([auc_R, auc_t, auc_max_Rt])
                 eval_data_['pose_error_f_acc_' + str(a)] = np.sum(tmp < a, axis=0)/np.shape(tmp)[0]
 
-                print(f"mAA@{str(a).ljust(2,' ')} (F) : {eval_data_['pose_error_f_auc_' + str(a)]}")
+                print(f"AUC@{str(a).ljust(2,' ')} (F) : {eval_data_['pose_error_f_auc_' + str(a)]}")
             
             if also_metric:
                 aux = np.asarray([eval_data_['R_errm_f'], eval_data_['t_errm_f']]).T
@@ -682,7 +682,7 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                     tmp = np.concatenate((aa, mm, aa & mm), axis=1)
                     eval_data_['pose_error_fm_acc_' + str(a) + '_' + str(m)] = np.sum(tmp, axis=0)/np.shape(tmp)[0]
 
-                    print(f"mAA@{str(a).ljust(2,' ')},{str(m).ljust(3,' ')} (F) : {eval_data_['pose_error_fm_auc_' + str(a) + '_' + str(m)]}")
+                    print(f"@AUC{str(a).ljust(2,' ')},{str(m).ljust(3,' ')} (F) : {eval_data_['pose_error_fm_auc_' + str(a) + '_' + str(m)]}")
             
             eval_data_['epi_global_prec_f'] = torch.tensor(eval_data_['epi_prec_f'], device=device).mean().item()
             eval_data_['epi_global_recall_f'] = torch.tensor(eval_data_['epi_recall_f'], device=device).mean().item()
@@ -1025,10 +1025,10 @@ def csv_summary_non_planar(pipe, essential_th_list=[0.5, 1, 1.5], essential_load
 
     header = ';'.join(['pipe_module_' + str(li) for li in range(l)]) + ';F_precision;F_recall'
     if len(angular_thresholds) > 0:
-        header = header + ';' + ';'.join(['F_mAA@' + str(a) for a in angular_thresholds])
+        header = header + ';' + ';'.join(['F_AUC@' + str(a) for a in angular_thresholds])
 
         if also_metric:
-            header = header + ';' + ';'.join(['F_mAA@(' + str(a) + ',' + str(m) + ')' for a, m in zip(angular_thresholds, metric_thresholds)])
+            header = header + ';' + ';'.join(['F_AUC@(' + str(a) + ',' + str(m) + ')' for a, m in zip(angular_thresholds, metric_thresholds)])
     
     for essential_th in essential_th_list: 
         if len(essential_th_list) == 1:
@@ -1037,10 +1037,10 @@ def csv_summary_non_planar(pipe, essential_th_list=[0.5, 1, 1.5], essential_load
             lname = '(' + str(essential_th) + ')'
         
         if len(angular_thresholds) > 0:        
-            header = header + ';' + ';'.join(['E' + lname + '_mAA@' + str(a) for a in angular_thresholds])
+            header = header + ';' + ';'.join(['E' + lname + '_AUC@' + str(a) for a in angular_thresholds])
         
             if also_metric:
-                header = header + ';' + ';'.join(['E' + lname + '_mAA@(' + str(a) + ',' + str(m) + ')' for a, m in zip(angular_thresholds, metric_thresholds)])
+                header = header + ';' + ';'.join(['E' + lname + '_AUC@(' + str(a) + ',' + str(m) + ')' for a, m in zip(angular_thresholds, metric_thresholds)])
 
     lines.append(header + '\n')
         
@@ -1083,7 +1083,7 @@ def csv_summary_planar(pipe, load_from='res_homography.pbz2', save_to='res_plana
     for pname in eval_data.keys(): l = max(l, len(pname[len(to_remove_prefix) + 1:].split(os.path.sep)))
         
     header = ';'.join(['pipe_module_' + str(li) for li in range(l)]) + ';H_precision;H_recall'
-    if len(angular_thresholds) > 0: header = header + ';' + ';'.join(['H_mAA@' + str(a) for a in angular_thresholds])
+    if len(angular_thresholds) > 0: header = header + ';' + ';'.join(['H_AUC@' + str(a) for a in angular_thresholds])
     lines.append(header + '\n')
         
     for pname in eval_data.keys():    
@@ -1127,7 +1127,7 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
         if (pipe_name_base in eval_data.keys()) and not force:
             eval_data_ = eval_data[pipe_name_base]                
             for a in angular_thresholds:
-                print(f"mAA@{str(a).ljust(2,' ')} (H) : {eval_data_['pose_error_h_auc_' + str(a)]}")
+                print(f"AUC@{str(a).ljust(2,' ')} (H) : {eval_data_['pose_error_h_auc_' + str(a)]}")
 
             print(f"precision(H) : {eval_data_['reproj_global_prec_h']}")
             print(f"recall (H) : {eval_data_['reproj_global_recall_h']}")
@@ -1277,7 +1277,7 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                 eval_data_['pose_error_h_acc_' + str(a)] = np.sum(tmp < a, axis=0)/np.shape(tmp)[0]
 
                 # accuracy using 1st, 2nd image as reference, and the maximum accuracy
-                print(f"mAA@{str(a).ljust(2,' ')} (H) : {eval_data_['pose_error_h_auc_' + str(a)]}")
+                print(f"AUC@{str(a).ljust(2,' ')} (H) : {eval_data_['pose_error_h_auc_' + str(a)]}")
             
             eval_data_['reproj_global_prec_h'] = torch.tensor(eval_data_['reproj_prec_h'], device=device).mean().item()
             eval_data_['reproj_global_recall_h'] = torch.tensor(eval_data_['reproj_recall_h'], device=device).mean().item()

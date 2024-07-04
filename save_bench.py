@@ -10,6 +10,8 @@ import src.AdaLAM.adalam_custom as adalam
 import src.DeDoDe2.dedode2_custom as dedode2
 import src.bench_utils as bench
 import numpy as np
+import os
+import shutil
 
 # from src.DIM_modules.superpoint_lightglue_module import superpoint_lightglue_module
 # from src.DIM_modules.disk_lightglue_module import disk_lightglue_module
@@ -25,15 +27,15 @@ def csv_write(lines, save_to='nameless.csv'):
 
 
 def csv_merger(csv_list):
-    avg_idx = [[ 3,  6, 'F_mAA@avg_a'],
-               [ 6,  9, 'E_mAA@avg_a'],
-               [11, 14, 'F_mAA@avg_a'],
-               [14, 17, 'E_mAA@avg_a'],
-               [19, 22, 'H_mAA@avg_m'],
-               [24, 27, 'F_mAA@avg_a'],
-               [27, 30, 'F_mAA@avg_m'],
-               [30, 33, 'E_mAA@avg_a'],
-               [33, 36, 'E_mAA@avg_m'],
+    avg_idx = [[ 3,  6, 'F_AUC@avg_a'],
+               [ 6,  9, 'E_AUC@avg_a'],
+               [11, 14, 'F_AUC@avg_a'],
+               [14, 17, 'E_AUC@avg_a'],
+               [19, 22, 'H_AUC@avg_m'],
+               [24, 27, 'F_AUC@avg_a'],
+               [27, 30, 'F_AUC@avg_m'],
+               [30, 33, 'E_AUC@avg_a'],
+               [33, 36, 'E_AUC@avg_m'],
                ]
         
     csv_data = []
@@ -87,12 +89,15 @@ def csv_merger(csv_list):
     return fused_csv, fused_csv_order
 
 
-def to_latex(csv_data, csv_order, renaming_list, header_hold=None):    
+def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=None, prev_latex_table=None, add_footer=True, caption_string=None, page_align='landscape'):    
     header_type = 'nmmmmmmmmmmsssssssssshhhhhhpppppppppppppppppp'
-  # header_hold = 'nmm---m---mss---s---shh---hpp---p---p---p---p'
-    
+    header_clr =  '-brtopvtopvbrtopvtopvbrtovpbrtopvtopvtopvtopv'
+      
     if header_hold is None:
         header_hold = header_type
+
+    if header_bar is None:
+        header_bar = header_clr
 
     use_ghost = True
     header_dict = {
@@ -102,6 +107,21 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None):
         'h': 'Planar',
         'p': 'PhotoTourism'
         }
+    
+    bar_off = 0.05
+    bar_dict = {
+        '-': None,
+        'b': 'blue',
+        'r': 'red',
+        't': 'teal',
+        'o': 'orange',
+        'p': 'purple',
+        'v': 'violet',
+        'l': 'olive',
+        }
+    bar_grad = np.asarray([ 0.5, 0.75, 0.9,   2  ])
+    bar_grad_in =         ['65', '50', '40', '30']   
+    bar_grad_out = '15'
 
     # removed unwanted columns
     csv_data_new = []
@@ -119,6 +139,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None):
     csv_data = csv_data_new
     csv_order = csv_order_new
     header_type = header_type_new
+    header_bar = [header_bar[i] for i in range(len(header_hold)) if header_hold[i] != '-']    
     header_hold = header_hold.replace('-','') 
         
     # starting
@@ -156,6 +177,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None):
         
     # csv_write([';'.join(csv_row) + '\n' for csv_row in clean_csv],'clean_table.csv')
     
+    np_data = np.zeros((len(clean_csv), len(clean_csv[0])))
     for i in range(1, len(clean_csv)):
         for j in range(len(clean_csv[0])):
             vv = clean_csv[i][j]
@@ -168,6 +190,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None):
             # numeric value            
             if isinstance(v, (int, float)):
                 v = "{n:6.2f}".format(n=v*100)
+                np_data[i, j] = v
 
                 # avoid alignement issues
                 if use_ghost == True:
@@ -178,8 +201,10 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None):
 
                 # highlight top pipelines for each column
                 c_rank = int(clean_csv_order[i][j])        
-                if c_rank < 9:
-                    v = '\\textcolor{C' + str(c_rank) + '}{\\contour{C' + str(c_rank) + '}{' + v + '}}'
+                if c_rank < 3:
+                    # color_rank = 'C' + str(c_rank)
+                    color_rank = 'black'
+                    v = '\\textcolor{' + color_rank + '}{\\contour{' + color_rank + '}{' + v + '}}'
 
             # text data in latex
             v = v.replace('MOP','\\textbf{MOP}')                  
@@ -197,13 +222,40 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None):
                 v = '\t' * 4 + v
             
             clean_csv[i][j] = v
-            
+
+    # bar data
+    v_min = np_data[1:].min(axis=0)            
+    v_max = np_data[1:].max(axis=0)
+    v_off = (v_max - v_min) * bar_off   
+    v_min = np.maximum(v_min - v_off, 0)
+    v_max = v_max + v_off
+    val = (np_data[1:] - v_min) / (v_max - v_min)
+    bar_val = np.full(np_data.shape, np.NaN)
+    bar_val[1:,1:] = val[:,1:]
+    bar_val = np.round(bar_val * 1000) / 1000
+    bar_vag = np.full(np_data.shape, np.NaN, dtype=int)
+    for i in range(bar_val.shape[0]):
+        for j in range(bar_val.shape[1]):
+            if np.isfinite(bar_val[i, j]):
+                bar_vag[i, j] = np.sum(bar_val[i, j] < bar_grad) - 1
+
+    # add bars
+    bar_csv = []
+    for i in range(len(clean_csv)):
+        row = []
+        for j in range(len(clean_csv[0])):
+            if np.isfinite(bar_val[i, j]):
+                row.append('\\Chart{' + clean_csv[i][j] + '}{' + str(bar_val[i, j]) + '}{' + bar_dict[header_bar[j]] + '}{' + bar_grad_in[bar_vag[i, j]] + '}{' + bar_grad_out + '}')
+            else:
+                row.append(clean_csv[i][j])
+        bar_csv.append(row)
+    
     # add the & separator and the \\ at the end of the row
-    latex_table = [' & '.join(row) + " \\\\\n" for i, row in enumerate(clean_csv) if i > 0]
+    latex_table = [' & '.join(row) + " \\\\\n" for i, row in enumerate(bar_csv) if i > 0]
 
     header = [
-        '\\documentclass[a4paper,landscape,10pt]{article}\n',
-        '\\usepackage[empty]{fullpage}\n',        
+        '\\documentclass[a4paper,' + page_align + ',10pt]{article}\n',
+        '\\usepackage{fullpage}\n',        
         '\\usepackage{graphicx}\n',
         '\\usepackage{caption}\n',
         '\\usepackage{color}\n',
@@ -243,10 +295,10 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None):
         '\t\\contournumber{10}\n',
         '\t\\begin{table}[t!]\n',
 		'\t\\renewcommand{\\arraystretch}{0}\n',
-        '\t\\setlength{\\tabcolsep}{4pt}\n',
+        '\t\\setlength{\\tabcolsep}{0pt}\n',
         '\t\\centering\n',
         '\t\t\\resizebox{\\textwidth}{!}{\n',
-        '\t\t\\begin{tabular}{l' + ('L{\\MAX}' * (len(header_type)-1)) + '}\n',
+        '\t\t\\begin{tabular}{L{\\widthof{+MOP+MiHo+NCC+MAGSAC++++}}' + ('L{\\MAX}' * (len(header_type)-1)) + '}\n',
     ]
     
     # header formatting
@@ -272,9 +324,9 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None):
         v = v.replace('F_recall', 'Recall')
         v = v.replace('H_precision', 'Prec.')
         v = v.replace('H_recall', 'Recall')
-        v = v.replace('F_mAA', 'mAA$^{F}$')
-        v = v.replace('E_mAA', 'mAA$^{E}$')
-        v = v.replace('H_mAA', 'mAA$^{H}$')
+        v = v.replace('F_AUC', 'AUC$^{F}$')
+        v = v.replace('E_AUC', 'AUC$^{E}$')
+        v = v.replace('H_AUC', 'AUC$^{H}$')
         v = v.replace('@5', '$_{\\text{@}5}$')
         v = v.replace('@10', '$_{\\text{@}10}$')
         v = v.replace('@15', '$_{\\text{@}15}$')
@@ -289,21 +341,40 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None):
         
     header.append('\t\t\t\t' + ' & '.join(header_spec) + ' \\\\\n')    
     header.append('\t\t\t\t\\midrule\n')
-
     
+    if caption_string is None:
+        caption_string =  bar_csv[1][0]
+        
     footer = [
         '\t\t\t\end{tabular}\n',
         '\t\t}\n',
-        '\t\t\\caption{No caption (best viewed in color and zoomed in).}\\label{none}\n',
+        '\t\t\\caption{' + caption_string + ' (best viewed in color and zoomed in).}\\label{none}\n',
         '\t\\end{table}\n',
         '\\end{document}\n',
     ]
     
-    latex_table = header + latex_table + footer
-    
-    csv_write(latex_table, save_to='la.tex')
+    # can be set to concatenate tables
+    if prev_latex_table is None:
+        latex_table = header + latex_table
+    else:
+        latex_table = prev_latex_table + [header[-1]] + latex_table
         
+    if add_footer:
+        latex_table = latex_table + footer
+            
     return latex_table
+
+
+def compile_latex(latex_file):
+    # require pdflatex to be installed
+
+    os.makedirs('tmp', exist_ok=True)
+    shutil.copy(latex_file, 'tmp/aux.tex') 
+    os.system('cd tmp; pdflatex aux.tex')
+    os.system('cd tmp; pdflatex aux.tex')
+    os.system('export LD_LIBRARY_PATH= && gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/printer -dNOPAUSE -dQUIET -dBATCH -dCompressFonts=true -dSubsetFonts=true -dColorConversionStrategy=/LeaveColorUnchanged -dPrinted=false -sOutputFile=tmp/aux_.pdf tmp/aux.pdf');
+    shutil.copy('tmp/aux_.pdf', latex_file[:-4] + '.pdf');
+    os.system('rm -R tmp');
 
 
 if __name__ == '__main__':    
@@ -321,7 +392,7 @@ if __name__ == '__main__':
     ]
 
     pipe_heads = [
-        [             'Key.Net', pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99)],
+        ['Key.Net+AffNet+HardNet', pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99)],
         # [                'SIFT', pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True)],     
         # ['SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
         [    'ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
@@ -347,8 +418,11 @@ if __name__ == '__main__':
         old_name = pipe[1].get_id().replace('_outdoor_true','').replace('_outdoor_false','').replace('_fundamental_matrix','').replace('_homography','')
         pipe_renamed.append([old_name, new_name])
 
-    bench_path = '../test_csv_merger'   
+    bench_path = '../bench_data'   
     save_to = 'res'
+    latex_path = 'latex'    
+    latex_folder = os.path.join(bench_path, save_to, latex_path)
+    os.makedirs(latex_folder, exist_ok=True)     
     
     benchmark_data = {
             'megadepth': {'name': 'megadepth', 'Name': 'MegaDepth', 'setup': bench.megadepth_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.png', 'use_scale': True, 'also_metric': False},
@@ -358,7 +432,11 @@ if __name__ == '__main__':
         }
     
 ###    
+
+    header_hold = 'nmm---m---mss---s---shh---hpp---p---p---p---p'
+    header_bar =  '-brttttoooobrttttoooobrppppbrttttppppoooollll'
     
+    latex_table_full = None
     for ip in range(len(pipe_heads)):
         csv_list = []
         pipe_head = pipe_heads[ip][1]
@@ -374,5 +452,16 @@ if __name__ == '__main__':
                 
         fused_csv, fused_csv_order = csv_merger(csv_list)
         csv_write([';'.join(csv_row) + '\n' for csv_row in fused_csv], to_save_file.replace('_outdoor_true','').replace('_outdoor_false','') + '.csv')
+
+        latex_table_full = to_latex(fused_csv, fused_csv_order, pipe_renamed, prev_latex_table=latex_table_full, add_footer=(ip == (len(pipe_heads) - 1)), caption_string='Full results')
+
+        latex_table_full_standalone = to_latex(fused_csv, fused_csv_order, pipe_renamed)
+        csv_write(latex_table_full_standalone, save_to=os.path.join(latex_folder, pipe_head.get_id() + '_full.tex'))
+        compile_latex(os.path.join(latex_folder, pipe_head.get_id() + '_full.tex'))
+
+        latex_table_standalone = to_latex(fused_csv, fused_csv_order, pipe_renamed, header_hold=header_hold, header_bar=header_bar)
+        csv_write(latex_table_standalone, save_to=os.path.join(latex_folder, pipe_head.get_id() + '.tex'))
+        compile_latex(os.path.join(latex_folder, pipe_head.get_id() + '.tex'))
         
-        to_latex(fused_csv, fused_csv_order, pipe_renamed)
+    csv_write(latex_table_full, save_to=os.path.join(latex_folder, 'all.tex'))
+    compile_latex(os.path.join(latex_folder, 'all.tex'))
