@@ -438,7 +438,7 @@ if __name__ == '__main__':
             'imc_phototourism': {'name': 'imc_phototourism', 'Name': 'IMC PhotoTourism', 'setup': bench.imc_phototourism_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.jpg', 'use_scale': False, 'also_metric': True},
         }
     
-###    
+###
 
     header_hold = 'nmm---m---mss---s---shh---hpp---p---p---p---p'
     header_bar =  '-brttttoooobrttttoooobrppppbrttttppppoooollll'
