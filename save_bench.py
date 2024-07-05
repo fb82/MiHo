@@ -8,6 +8,7 @@ import src.OANet.learnedmatcher_custom as oanet
 import src.ACNe.acne_custom as acne
 import src.AdaLAM.adalam_custom as adalam
 import src.DeDoDe2.dedode2_custom as dedode2
+import src.ConsensusClustering.consensusclustering_custom as consensusclustering
 import src.bench_utils as bench
 import numpy as np
 import os
@@ -396,16 +397,18 @@ if __name__ == '__main__':
         [   'OANet', oanet.oanet_module()],
         [  'AdaLAM', adalam.adalam_module()],
         [    'ACNe', acne.acne_module()],
+        [      'CC', consensusclustering.consensusclustering_module()],
+
     ]
 
     pipe_heads = [
-        ['Key.Net+AffNet+HardNet', pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99)],
-        # [                'SIFT', pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True)],     
-        # ['SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
-        [    'ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
-        # [      'DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
-        # [               'LoFTr', pipe_base.loftr_module(num_features=8000, upright=True)],        
-        # [             'DeDoDe2', dedode2.dedode2_module(num_features=8000, upright=True)],                
+          [    'Key.Net+AffNet+HardNet', pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99)],
+        # [                      'SIFT', pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True)],     
+        # [      'SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
+          [          'ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
+        # [            'DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
+        # [                     'LoFTr', pipe_base.loftr_module(num_features=8000, upright=True)],        
+        # [                   'DeDoDe2', dedode2.dedode2_module(num_features=8000, upright=True)],                
       # # ['SuperPoint+LightGlue (DIM)', superpoint_lightglue_module(nmax_keypoints=8000)],
       # # [    'ALIKED+LightGlue (DIM)', aliked_lightglue_module(nmax_keypoints=8000)],
       # # [      'DISK+LightGlue (DIM)', disk_lightglue_module(nmax_keypoints=8000)],
