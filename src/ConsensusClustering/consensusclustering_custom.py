@@ -29,7 +29,15 @@ class consensusclustering_module:
     def run(self, **args):        
         k1 = np.ascontiguousarray(args['pt1'].detach().cpu())
         k2 = np.ascontiguousarray(args['pt2'].detach().cpu())
-
+        
+        if k1.shape[0] <= 4:
+            mask = []
+            pt1 = args['pt1']
+            pt2 = args['pt2']     
+            Hs = args['Hs']
+           
+            return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs, 'mask': mask}
+        
         correspondences = np.ascontiguousarray(np.concatenate([k1, k2], axis=1))      
         
         sz1 = Image.open(args['im1']).size
