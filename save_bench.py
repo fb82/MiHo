@@ -51,13 +51,25 @@ def csv_merger(csv_list):
 
         csv_data.append(tmp)
     
+    pipe_set = {}
+    for k in csv_data:
+        for w in csv_data[0].keys():
+            pipe_set[w] = '0'
+        
     merged_csv = []
-    for k in csv_data[0].keys():
-        merged_csv.append([k] + [el for curr_csv in csv_data for el in curr_csv[k]])
+    for k in pipe_set.keys():        
+        row = [k]
+        for curr_csv in csv_data:
+            if k in curr_csv:            
+                 to_add = [el for el in curr_csv[k]]
+            else:
+                to_add = ['nan' for el in curr_csv[list(curr_csv.keys())[0]]]                
+            row.extend(to_add)
+        merged_csv.append(row)
         
     avg_csv = []
-    for k, row in enumerate(merged_csv):
-        if k==0:
+    for row in merged_csv:        
+        if 'pipe_module' in row[0]:
             avg_list = [rrange[2] for rrange in avg_idx]
         else:
             avg_list = [np.mean([float(i) for i in row[rrange[0]:rrange[1]]]) for rrange in avg_idx]
@@ -90,7 +102,7 @@ def csv_merger(csv_list):
     return fused_csv, fused_csv_order
 
 
-def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=None, prev_latex_table=None, add_footer=True, caption_string=None, page_align='landscape'):    
+def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=None, prev_latex_table=None, add_footer=True, caption_string=None, page_align='landscape', remove_nan_column=False):
     header_type = 'nmmmmmmmmmmsssssssssshhhhhhpppppppppppppppppp'
     header_clr =  '-brtopvtopvbrtopvtopvbrtovpbrtopvtopvtopvtopv'
       
@@ -124,6 +136,26 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
     bar_grad_in =         ['65', '50', '40', '30']   
     bar_grad_out = '15'
 
+    # removed unwanted rows
+    if remove_nan_column == True:    
+        csv_data_new = []
+        csv_order_new = []
+        
+        for i in range(len(csv_data)):
+            to_remove = False
+            
+            for j in csv_data[i]:
+                if j == 'nan':
+                    to_remove = True
+                    break
+
+            if to_remove == False:            
+                csv_data_new.append(csv_data[i])
+                csv_order_new.append(csv_order[i])
+    
+        csv_data = csv_data_new
+        csv_order = csv_order_new
+    
     # removed unwanted columns
     csv_data_new = []
     csv_order_new = []
@@ -190,15 +222,18 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
 
             # numeric value            
             if isinstance(v, (int, float)):
-                v = "{n:6.2f}".format(n=v*100)
-                np_data[i, j] = v
-
-                # avoid alignement issues
-                if use_ghost == True:
-                    for g in range(len(v)):
-                        if v[g] != ' ':
-                            break
-                    v = "\hphantom{" + "0" * g + "}" + v[g:]
+                if np.isfinite(v):                
+                    v = "{n:6.2f}".format(n=v*100)
+                    np_data[i, j] = v
+    
+                    # avoid alignement issues
+                    if use_ghost == True:
+                        for g in range(len(v)):
+                            if v[g] != ' ':
+                                break
+                        v = "\hphantom{" + "0" * g + "}" + v[g:]
+                else:
+                    v = '\\hspace{0.5em}n/a'
 
                 # highlight top pipelines for each column
                 c_rank = int(clean_csv_order[i][j])        
@@ -228,8 +263,8 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
             clean_csv[i][j] = v
 
     # bar data
-    v_min = np_data[1:].min(axis=0)            
-    v_max = np_data[1:].max(axis=0)
+    v_min = np.nanmin(np_data[1:], axis=0)            
+    v_max = np.nanmax(np_data[1:], axis=0)
     v_off = (v_max - v_min) * bar_off   
     v_min = np.maximum(v_min - v_off, 0)
     v_max = v_max + v_off
@@ -250,6 +285,8 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         for j in range(len(clean_csv[0])):
             if np.isfinite(bar_val[i, j]):
                 row.append('\\Chart{' + clean_csv[i][j] + '}{' + str(bar_val[i, j]) + '}{' + bar_dict[header_bar[j]] + '}{' + bar_grad_in[bar_vag[i, j]] + '}{' + bar_grad_out + '}')
+            elif (i > 0) and (j > 0):
+                row.append('\\Chart{' + clean_csv[i][j] + '}{' + str(v_min[j - 1]) + '}{' + bar_dict[header_bar[j]] + '}{' + bar_grad_in[0] + '}{' + bar_grad_out + '}')
             else:
                 row.append(clean_csv[i][j])
         bar_csv.append(row)
@@ -428,7 +465,7 @@ if __name__ == '__main__':
         old_name = pipe[1].get_id().replace('_outdoor_true','').replace('_outdoor_false','').replace('_fundamental_matrix','').replace('_homography','')
         pipe_renamed.append([old_name, new_name])
 
-    bench_path = '../bench_data'   
+    bench_path = '../test_csv_merger'   
     save_to = 'res'
     latex_path = 'latex'    
     latex_folder = os.path.join(bench_path, save_to, latex_path)
