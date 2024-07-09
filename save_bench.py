@@ -339,7 +339,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         '\t\\setlength{\\tabcolsep}{0pt}\n',
         '\t\\centering\n',
         '\t\t\\resizebox{\\textwidth}{!}{\n',
-        '\t\t\\begin{tabular}{L{\\widthof{+MOP+MiHo+NCC+MAGSAC++++}}' + ('L{\\MAX}' * (len(header_type)-1)) + '}\n',
+        '\t\t\t\\begin{tabular}{L{\\widthof{+MOP+MiHo+NCC+MAGSAC++++}}' + ('L{\\MAX}' * (len(header_type)-1)) + '}\n',
     ]
     
     # header formatting
@@ -388,7 +388,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
     header.append('\t\t\t\t\\midrule\n')
     
     if caption_string is None:
-        caption_string =  bar_csv[1][0]
+        caption_string =  bar_csv[1][0][4:]
         
     footer = [
         '\t\t\t\end{tabular}\n',
@@ -441,7 +441,7 @@ if __name__ == '__main__':
     pipe_heads = [
           [    'Key.Net+AffNet+HardNet', pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99)],
         # [                      'SIFT', pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True)],     
-        # [      'SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
+          [      'SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
           [          'ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
         # [            'DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
         # [                     'LoFTr', pipe_base.loftr_module(num_features=8000, upright=True)],        
