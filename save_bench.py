@@ -335,10 +335,11 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         '\t\\contourlength{0.1pt}\n',
         '\t\\contournumber{10}\n',
         '\t\\begin{table}[t!]\n',
-		'\t\\renewcommand{\\arraystretch}{0}\n',
+        '\t\\renewcommand{\\arraystretch}{0}\n',
         '\t\\setlength{\\tabcolsep}{0pt}\n',
         '\t\\centering\n',
-        '\t\t\\resizebox{\\textwidth}{!}{\n',
+        '\t\t\\resizebox*{!}{\\textheight}{\n',
+      # '\t\t\\resizebox{\\textwidth}{!}{\n',
         '\t\t\t\\begin{tabular}{L{\\widthof{+MOP+MiHo+NCC+MAGSAC++++}}' + ('L{\\MAX}' * (len(header_type)-1)) + '}\n',
     ]
     
@@ -443,7 +444,7 @@ if __name__ == '__main__':
         # [                      'SIFT', pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True)],     
           [      'SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
           [          'ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
-        # [            'DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
+          [            'DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
         # [                     'LoFTr', pipe_base.loftr_module(num_features=8000, upright=True)],        
         # [                   'DeDoDe2', dedode2.dedode2_module(num_features=8000, upright=True)],                
       # # ['SuperPoint+LightGlue (DIM)', superpoint_lightglue_module(nmax_keypoints=8000)],
