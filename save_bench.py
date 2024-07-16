@@ -102,7 +102,7 @@ def csv_merger(csv_list):
     return fused_csv, fused_csv_order
 
 
-def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=None, prev_latex_table=None, add_footer=True, caption_string=None, page_align='landscape', remove_nan_column=False):
+def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=None, prev_latex_table=None, add_footer=True, caption_string=None, page_align='landscape', remove_nan_column=False, resize_mode='width'):
     header_type = 'nmmmmmmmmmmsssssssssshhhhhhpppppppppppppppppp'
     header_clr =  '-brtopvtopvbrtopvtopvbrtovpbrtopvtopvtopvtopv'
       
@@ -294,6 +294,11 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
     # add the & separator and the \\ at the end of the row
     latex_table = [' & '.join(row) + " \\\\\n" for i, row in enumerate(bar_csv) if i > 0]
 
+    if resize_mode == 'width':
+        resize_what = '\t\t\\resizebox{\\textwidth}{!}{\n'
+    else:
+        resize_what = '\t\t\\resizebox*{!}{\\textheight}{\n'
+
     header = [
         '\\documentclass[a4paper,' + page_align + ',10pt]{article}\n',
         '\\usepackage{fullpage}\n',        
@@ -338,8 +343,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         '\t\\renewcommand{\\arraystretch}{0}\n',
         '\t\\setlength{\\tabcolsep}{0pt}\n',
         '\t\\centering\n',
-        '\t\t\\resizebox*{!}{\\textheight}{\n',
-      # '\t\t\\resizebox{\\textwidth}{!}{\n',
+        resize_what,
         '\t\t\t\\begin{tabular}{L{\\widthof{+MOP+MiHo+NCC+MAGSAC++++}}' + ('L{\\MAX}' * (len(header_type)-1)) + '}\n',
     ]
     
@@ -445,8 +449,8 @@ if __name__ == '__main__':
           [      'SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
           [          'ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
           [            'DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
-        # [                     'LoFTr', pipe_base.loftr_module(num_features=8000, upright=True)],        
-        # [                   'DeDoDe2', dedode2.dedode2_module(num_features=8000, upright=True)],                
+          [                     'LoFTr', pipe_base.loftr_module(num_features=8000, upright=True)],        
+          [                   'DeDoDe2', dedode2.dedode2_module(num_features=8000, upright=True)],                
       # # ['SuperPoint+LightGlue (DIM)', superpoint_lightglue_module(nmax_keypoints=8000)],
       # # [    'ALIKED+LightGlue (DIM)', aliked_lightglue_module(nmax_keypoints=8000)],
       # # [      'DISK+LightGlue (DIM)', disk_lightglue_module(nmax_keypoints=8000)],
@@ -466,7 +470,7 @@ if __name__ == '__main__':
         old_name = pipe[1].get_id().replace('_outdoor_true','').replace('_outdoor_false','').replace('_fundamental_matrix','').replace('_homography','')
         pipe_renamed.append([old_name, new_name])
 
-    bench_path = '../bench_data'   
+    bench_path = '../test_csv_merger'   
     save_to = 'res'
     latex_path = 'latex'    
     latex_folder = os.path.join(bench_path, save_to, latex_path)
@@ -483,6 +487,7 @@ if __name__ == '__main__':
 
     header_hold = 'nmm---m---mss---s---shh---hpp---p---p---p---p'
     header_bar =  '-brttttoooobrttttoooobrppppbrttttppppoooollll'
+    full_el = 3
     
     latex_table_full = None
     for ip in range(len(pipe_heads)):
@@ -499,9 +504,14 @@ if __name__ == '__main__':
                 csv_list.append(to_save_file + 'homography' + to_save_file_suffix + '.csv')
                 
         fused_csv, fused_csv_order = csv_merger(csv_list)
-        csv_write([';'.join(csv_row) + '\n' for csv_row in fused_csv], to_save_file.replace('_outdoor_true','').replace('_outdoor_false','') + '.csv')
+        csv_write([';'.join(csv_row) + '\n' for csv_row in fused_csv], to_save_file.replace('_outdoor_true','').replace('_outdoor_false','')[:-1] + '.csv')
 
-        latex_table_full = to_latex(fused_csv, fused_csv_order, pipe_renamed, prev_latex_table=latex_table_full, add_footer=(ip == (len(pipe_heads) - 1)), caption_string='Full results')
+        if (ip % full_el == 0) and (ip != 0):
+            csv_write(latex_table_full, save_to=os.path.join(latex_folder, 'all_' + str((ip // full_el) - 1)  + '.tex'))
+            compile_latex(os.path.join(latex_folder, 'all_' + str((ip // full_el) - 1)  + '.tex'))
+            latex_table_full = None
+
+        latex_table_full = to_latex(fused_csv, fused_csv_order, pipe_renamed, prev_latex_table=latex_table_full, add_footer=((ip + 1) % full_el == 0), caption_string='Full results ' + str(ip // full_el))
 
         latex_table_full_standalone = to_latex(fused_csv, fused_csv_order, pipe_renamed)
         csv_write(latex_table_full_standalone, save_to=os.path.join(latex_folder, pipe_head.get_id() + '_full.tex'))
@@ -510,6 +520,7 @@ if __name__ == '__main__':
         latex_table_standalone = to_latex(fused_csv, fused_csv_order, pipe_renamed, header_hold=header_hold, header_bar=header_bar)
         csv_write(latex_table_standalone, save_to=os.path.join(latex_folder, pipe_head.get_id() + '.tex'))
         compile_latex(os.path.join(latex_folder, pipe_head.get_id() + '.tex'))
-        
-    csv_write(latex_table_full, save_to=os.path.join(latex_folder, 'all.tex'))
-    compile_latex(os.path.join(latex_folder, 'all.tex'))
+    
+    if not (latex_table_full is None):
+        csv_write(latex_table_full, save_to=os.path.join(latex_folder, 'all_' + str(ip // full_el)  + '.tex'))
+        compile_latex(os.path.join(latex_folder, 'all_' + str(ip // full_el)  + '.tex'))
