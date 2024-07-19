@@ -4,3 +4,5 @@
 run_bench
 logs*
 acne_weights.zip
+dematch_weights.zip
+dematch_models

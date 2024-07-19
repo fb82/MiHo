@@ -156,7 +156,7 @@ def bench_init(bench_path='bench_data', bench_gt='gt_data', save_to='megadepth_s
         megadepth_data = megadepth_1500_list(os.path.join(bench_path, bench_gt, 'megadepth'))
         scannet_data = scannet_1500_list(os.path.join(bench_path, bench_gt, 'scannet'))
 
-        # for debugging, use only first 30 image pairs
+        # # for debugging, use only first 30 image pairs
         # for what in megadepth_data.keys():
         #     megadepth_data[what] = [megadepth_data[what][i] for i in range(30)]
         # for what in scannet_data.keys():

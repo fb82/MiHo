@@ -7,6 +7,7 @@ import src.GMS.gms_custom as gms
 import src.OANet.learnedmatcher_custom as oanet
 import src.ACNe.acne_custom as acne
 import src.AdaLAM.adalam_custom as adalam
+import src.DeMatch.dematch_custom as dematch
 import src.DeDoDe2.dedode2_custom as dedode2
 import src.ConsensusClustering.consensusclustering_custom as consensusclustering
 import src.bench_utils as bench
@@ -440,7 +441,7 @@ if __name__ == '__main__':
         [  'AdaLAM', adalam.adalam_module()],
         [    'ACNe', acne.acne_module()],
         [      'CC', consensusclustering.consensusclustering_module()],
-
+        [ 'DeMatch', dematch.dematch_module()],
     ]
 
     pipe_heads = [
