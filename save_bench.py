@@ -445,7 +445,7 @@ if __name__ == '__main__':
 
     pipe_heads = [
           [    'Key.Net+AffNet+HardNet', pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99)],
-        # [                      'SIFT', pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True)],     
+          [                      'SIFT', pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True)],     
           [      'SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
           [          'ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
           [            'DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
@@ -511,7 +511,7 @@ if __name__ == '__main__':
             compile_latex(os.path.join(latex_folder, 'all_' + str((ip // full_el) - 1)  + '.tex'))
             latex_table_full = None
 
-        latex_table_full = to_latex(fused_csv, fused_csv_order, pipe_renamed, prev_latex_table=latex_table_full, add_footer=((ip + 1) % full_el == 0), caption_string='Full results ' + str(ip // full_el))
+        latex_table_full = to_latex(fused_csv, fused_csv_order, pipe_renamed, prev_latex_table=latex_table_full, add_footer=((ip + 1) % full_el == 0) or (ip == len(pipe_heads) - 1), caption_string='Full results ' + str(ip // full_el))
 
         latex_table_full_standalone = to_latex(fused_csv, fused_csv_order, pipe_renamed)
         csv_write(latex_table_full_standalone, save_to=os.path.join(latex_folder, pipe_head.get_id() + '_full.tex'))
