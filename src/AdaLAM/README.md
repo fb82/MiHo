@@ -1,7 +1,6 @@
 # AdaLAM
 
 [AdaLAM: Revisiting Handcrafted Outlier Detection](https://arxiv.org/abs/2006.04250)
-<img src="media/teaser.jpg" width="1000"/>
 
 Local feature matching is a critical component of many computer vision pipelines, including among others Structure-from-Motion, SLAM, and Visual Localization. However, due to limitations in the descriptors, raw matches are often contaminated by a majority of outliers. Filtering outliers is a vital step in any sparse vision pipeline which is based on local feature matching.
 
