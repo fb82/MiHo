@@ -9,6 +9,7 @@ import src.ACNe.acne_custom as acne
 import src.AdaLAM.adalam_custom as adalam
 import src.DeDoDe2.dedode2_custom as dedode2
 import src.DeMatch.dematch_custom as dematch
+import src.FCGNN.fcgnn_custom as fcgnn
 import src.bench_utils as bench
 import src.ConsensusClustering.consensusclustering_custom as consensusclustering
 
@@ -99,7 +100,13 @@ if __name__ == '__main__':
             pipe_head,
             dematch.dematch_module(),
             pipe_ransac
-        ],          
+        ], 
+
+        [
+            pipe_head,
+            fcgnn.fcgnn_module(),
+            pipe_ransac
+        ],           
     ]
 
     pipe_heads = [
