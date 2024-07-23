@@ -11,6 +11,7 @@ import src.DeDoDe2.dedode2_custom as dedode2
 import src.DeMatch.dematch_custom as dematch
 import src.FCGNN.fcgnn_custom as fcgnn
 import src.bench_utils as bench
+import src.ConvMatch.convmatch_custom as convmatch
 import src.ConsensusClustering.consensusclustering_custom as consensusclustering
 
 # from src.DIM_modules.superpoint_lightglue_module import superpoint_lightglue_module
@@ -99,6 +100,12 @@ if __name__ == '__main__':
         [
             pipe_head,
             dematch.dematch_module(),
+            pipe_ransac
+        ], 
+
+        [
+            pipe_head,
+            convmatch.convmatch_module(),
             pipe_ransac
         ], 
 

@@ -8,7 +8,9 @@ import src.OANet.learnedmatcher_custom as oanet
 import src.ACNe.acne_custom as acne
 import src.AdaLAM.adalam_custom as adalam
 import src.DeMatch.dematch_custom as dematch
+import src.ConvMatch.convmatch_custom as convmatch
 import src.DeDoDe2.dedode2_custom as dedode2
+import src.FCGNN.fcgnn_custom as fcgnn
 import src.ConsensusClustering.consensusclustering_custom as consensusclustering
 import src.bench_utils as bench
 import numpy as np
@@ -431,17 +433,19 @@ def compile_latex(latex_file):
 if __name__ == '__main__':    
 
     pipes = [
-        [ 'MAGSAC^', pipe_base.magsac_module(px_th=1.00)],
-        [ 'MAGSACv', pipe_base.magsac_module(px_th=0.75)],
-        [     'NCC', ncc.ncc_module(also_prev=True)],
-        ['MOP+MiHo', miho_duplex.miho_module()],
-        [     'MOP', miho_unduplex.miho_module()],
-        [     'GMS', gms.gms_module()],
-        [   'OANet', oanet.oanet_module()],
-        [  'AdaLAM', adalam.adalam_module()],
-        [    'ACNe', acne.acne_module()],
-        [      'CC', consensusclustering.consensusclustering_module()],
-        [ 'DeMatch', dematch.dematch_module()],
+        [  'MAGSAC^', pipe_base.magsac_module(px_th=1.00)],
+        [  'MAGSACv', pipe_base.magsac_module(px_th=0.75)],
+        [      'NCC', ncc.ncc_module(also_prev=True)],
+        [ 'MOP+MiHo', miho_duplex.miho_module()],
+        [      'MOP', miho_unduplex.miho_module()],
+        [      'GMS', gms.gms_module()],
+        [    'OANet', oanet.oanet_module()],
+        [   'AdaLAM', adalam.adalam_module()],
+        [     'ACNe', acne.acne_module()],
+        [       'CC', consensusclustering.consensusclustering_module()],
+        [  'DeMatch', dematch.dematch_module()],
+        ['ConvMatch', convmatch.convmatch_module()],
+        [   'FC-GNN', fcgnn.fcgnn_module()],
     ]
 
     pipe_heads = [
