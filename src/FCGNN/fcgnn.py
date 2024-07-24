@@ -43,18 +43,22 @@ class GNN(nn.Module):
             
             relative_pos = id1 - id2
             b, l, c = idx.shape
-            
-            b_ids = torch.arange(0, b, device=id1.device).view(-1, 1).repeat(1, l*n).view(-1)
-            l_ids = torch.arange(0, l, device=id1.device).view(-1, 1).repeat(1, b*n).view(-1)
-            
+
             map = - (relative_pos**2).sum(dim=-1)
 
-            if map.shape[1] > n:
-                _, query = map.topk(k=n, dim=2, largest=True, sorted=True)
-            else:
-                _, query = map.topk(k=map.shape[1], dim=2, largest=True, sorted=True)
+            n_neighbors = min(n, map.shape[1])
+            
+            b_ids = torch.arange(0, b, device=id1.device).view(-1, 1).repeat(1, l*n_neighbors).view(-1)
+            l_ids = torch.arange(0, l, device=id1.device).view(-1, 1).repeat(1, b*n_neighbors).view(-1)
+            
+            _, query = map.topk(k=n_neighbors, dim=2, largest=True, sorted=True)
 
-            return query, relative_pos[b_ids, l_ids, query.view(-1), :].reshape(b, l, n*4)
+            relative_pos = relative_pos[b_ids, l_ids, query.view(-1), :].reshape(b, l, n_neighbors*4)
+
+            if n_neighbors < n:
+                relative_pos = torch.cat([relative_pos, torch.zeros((b, l, (n - n_neighbors)*4), device=relative_pos.device)], dim=2)
+
+            return query, relative_pos
 
         f = self.extract(img1, img2, matches.long())
         f = self.embd_f(f)

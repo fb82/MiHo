@@ -41,7 +41,7 @@ class fcgnn_module:
                 
         l = pt1.shape[0]
                         
-        if l > 8:            
+        if l > 1:            
             mask = torch.zeros(l, dtype=torch.bool, device=device)
 
             to_take =  ~(((pt1 < self.pad) | (pt2 < self.pad) | (pt1 > torch.tensor([img1.shape[1], img1.shape[0]], device=device) - self.pad) | (pt2 > torch.tensor([img2.shape[1], img2.shape[0]], device=device) - self.pad)).any(dim=1))
