@@ -240,7 +240,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
 
                 # highlight top pipelines for each column
                 c_rank = int(clean_csv_order[i][j])        
-                if c_rank < 3:
+                if c_rank < 5:
                     # color_rank = 'C' + str(c_rank)
                     color_rank = 'black'
                     v = '\\textcolor{' + color_rank + '}{\\contour{' + color_rank + '}{' + v + '}}'
