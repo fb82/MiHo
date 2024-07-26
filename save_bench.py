@@ -135,8 +135,8 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         'v': 'violet',
         'l': 'olive',
         }
-    bar_grad = np.asarray([ 0.5, 0.75, 0.9,   2  ])
-    bar_grad_in =         ['65', '50', '40', '30']   
+    bar_grad = np.asarray([ 0.5, 0.75, 0.875,   2  ])
+    bar_grad_in =         ['70', '45', '35', '25']   
     bar_grad_out = '15'
 
     # removed unwanted rows
@@ -240,7 +240,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
 
                 # highlight top pipelines for each column
                 c_rank = int(clean_csv_order[i][j])        
-                if c_rank < 5:
+                if c_rank < 3:
                     # color_rank = 'C' + str(c_rank)
                     color_rank = 'black'
                     v = '\\textcolor{' + color_rank + '}{\\contour{' + color_rank + '}{' + v + '}}'
