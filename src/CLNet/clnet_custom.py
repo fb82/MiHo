@@ -1,21 +1,15 @@
 import numpy as np
 import torch
-import cv2
-import sys
 import os
+import cv2
 import gdown
 import zipfile
 from PIL import Image
-from .config_test import get_config
-import uuid
-import shutil
-
-torch.set_grad_enabled(False)
-sys.path.append(os.path.join(os.path.split(__file__)[0], 'core'))
-
-from dematch import DeMatch
+from .model import CLNet
+from .config import get_config
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+torch.set_grad_enabled(False)
 
 
 def norm_kp(cx, cy, fx, fy, kp):
@@ -42,10 +36,10 @@ def computeNN(desc_ii, desc_jj):
 def draw_matching(img1, img2, pt1, pt2):
     h1, w1 = img1.shape[:2]
     h2, w2 = img2.shape[:2]
-    vis = np.zeros((max(h1,h2), w1+w2, 3), np.uint8)
+    vis = np.zeros((h1 + h2, max(w1, w2), 3), np.uint8)
     vis[:h1, :w1] = img1
 
-    vis[:h2, w1:w1+w2] = img2
+    vis[h1:h1 + h2, :w2] = img2
 
     green = (0, 255, 0)
     thickness = 1
@@ -53,8 +47,8 @@ def draw_matching(img1, img2, pt1, pt2):
     for i in range(pt1.shape[0]):
         x1 = int(pt1[i, 0])
         y1 = int(pt1[i, 1])
-        x2 = int(pt2[i, 0] + w1)
-        y2 = int(pt2[i, 1])
+        x2 = int(pt2[i, 0])
+        y2 = int(pt2[i, 1] + h1)
 
         cv2.line(vis, (x1, y1), (x2, y2), green, int(thickness))
     return vis
@@ -66,7 +60,7 @@ class ExtractSIFT(object):
         self.num_kp = num_kp
     def run(self, img):
         img = img.astype(np.uint8)
-    #   img = cv2.imread(img)
+    #    img = cv2.imread(img)
         cv_kp, desc = self.sift.detectAndCompute(img, None)
 
         kp = np.array([[_kp.pt[0], _kp.pt[1]] for _kp in cv_kp]) # N*2
@@ -104,90 +98,90 @@ def demo(opt, img1_path, img2_path):
     ys = np.ones(xs.shape[0])
 
     print("=======> Loading pretrained model")
-    model = DeMatch(opt)
-    checkpoint = torch.load('../pretrained-model/yfcc100m/model_best.pth', map_location=torch.device('cuda'))
+    model = CLNet(opt)
+    checkpoint = torch.load('../pretrained_models/clnet_yfcc_sift.pth', map_location=torch.device('cpu'))
 
-    model.load_state_dict(checkpoint['state_dict'])
-    model.cuda()
+    state_dict = {}
+    for key in checkpoint['state_dict'].keys():
+        key_new = key.split('module')[1][1:]
+        state_dict[key_new] = checkpoint['state_dict'][key]
+    model.load_state_dict(state_dict)
     model.eval()
 
-    xs = torch.from_numpy(xs).float().cuda()
+    xs = torch.from_numpy(xs).float()
+    ys = torch.from_numpy(ys).float()
 
     print("=======> Pruning")
-    data = {}
-    data['xs'] = xs.unsqueeze(0).unsqueeze(1)
-    y_hat, e_hat = model(data)
-    y = y_hat[-1][0, :].cpu().numpy()  
-    matching = draw_matching(img1, img2, kpts1[y > opt.inlier_threshold], kpts2[y > opt.inlier_threshold])
-    cv2.imwrite('./inliers.jpg', matching)
+    ws, _, e_hat, y_hat = model(xs[None, None], ys[None])
+
+    w0 = ws[1].squeeze(0) ## weights for 1st pruning
+    w1 = ws[3].squeeze(0) ## weights for 2nd pruning
+    w2 = ws[4].squeeze(0) ## weights for picking up inliers from candidates
+
+    w0 = torch.sort(w0, dim=-1, descending=True)[1][:1000].numpy().astype(np.int32)
+    w1 = torch.sort(w1, dim=-1, descending=True)[1][:500].numpy().astype(np.int32)
+    w2 = w2.numpy()
+
+    print("=======> Done")
+    ## init matching
+    init_matching = draw_matching(img1, img2, kpts1, kpts2)
+    cv2.imwrite('./init_matching.png', init_matching)
+
+    ## 1st pruning
+    kpts1 = kpts1[w0]
+    kpts2 = kpts2[w0]
+    matching = draw_matching(img1, img2, kpts1, kpts2)
+    cv2.imwrite('./1st_prune_matching.png', matching)
+
+    ## 2nd pruning
+    kpts1 = kpts1[w1]
+    kpts2 = kpts2[w1]
+    matching = draw_matching(img1, img2, kpts1, kpts2)
+    cv2.imwrite('./2nd_prune_matching.png', matching)
+
+    ## picking up inliers from candidates
+    matching = draw_matching(img1, img2, kpts1[w2 >= 0], kpts2[w2 >= 0])
+    cv2.imwrite('./inliers.png', matching)
 
 
-class dematch_module:
-    current_net = None
-    current_obj_id = None
-    
+class clnet_module:    
     def __init__(self, **args):
-        dematch_dir = os.path.split(__file__)[0]
-        model_dir = os.path.join(dematch_dir, 'dematch_models')
+        clnet_dir = os.path.split(__file__)[0]
+        model_dir = os.path.join(clnet_dir, 'clnet_models')
 
-        file_to_download = os.path.join(dematch_dir, 'dematch_weights.zip')    
+        file_to_download = os.path.join(clnet_dir, 'clnet_weights.zip')    
         if not os.path.isfile(file_to_download):    
-            url = "https://drive.google.com/file/d/1jwkrV6Z9iKwWJoCoH-HtAUZqtJEKj6Zi/view?usp=drive_link"
+            url = "https://drive.google.com/file/d/1y-8xQ22byGeop3ZBbyxZ_2GVLoebxvk8/view?usp=drive_link"
             gdown.download(url, file_to_download, fuzzy=True)        
 
         file_to_unzip = file_to_download
         if not os.path.isdir(model_dir):    
             with zipfile.ZipFile(file_to_unzip,"r") as zip_ref:
-                zip_ref.extractall(path=dematch_dir)
-                shutil.move(os.path.join(dematch_dir, 'models'), model_dir) 
-
-        self.outdoor = True
-        self.prev_outdoor = True
+                zip_ref.extractall(path=clnet_dir)
+                # shutil.move(os.path.join(clnet_dir, 'models'), model_dir) 
 
         self.opt, unparsed = get_config()    
-        self.model = DeMatch(self.opt)
-        self.inlier_threshold = self.opt.inlier_threshold
+        self.model = CLNet(self.opt)
+        checkpoint = torch.load(os.path.join(clnet_dir, 'CLNet_models/clnet_yfcc_sift.pth'), map_location=torch.device(device))
+    
+        state_dict = {}
+        for key in checkpoint['state_dict'].keys():
+            key_new = key.split('module')[1][1:]
+            state_dict[key_new] = checkpoint['state_dict'][key]
+        self.model.load_state_dict(state_dict)
+        self.model.eval()
+        
+        self.inlier_threshold = 1e-4
 
         for k, v in args.items():
            setattr(self, k, v)
 
-        if self.outdoor:
-            model_path = os.path.join(dematch_dir, 'dematch_models', 'yfcc100m', 'model_best.pth')
-        else:
-            model_path = os.path.join(dematch_dir, 'dematch_models', 'sun3d', 'model_best.pth')
- 
-        checkpoint = torch.load(model_path, map_location=torch.device(device))
-        self.model.load_state_dict(checkpoint['state_dict'])
-        self.model.cuda()
-        self.model.eval()
-        
-        self.dematch_id = uuid.uuid4()
-                           
-        
+
     def get_id(self):
-        return ('dematch_outdoor_' + str(self.outdoor) + '_inlier_threshold_' + str(self.inlier_threshold)).lower()
+        return ('clnet_inlier_threshold_' + str(self.inlier_threshold)).lower()
 
 
     def run(self, **args):
-        
-        force_reload = False
-        if (self.outdoor != self.prev_outdoor):
-            force_reload = True
-            self.prev_outdoor = self.outdoor
-
-            dematch_dir = os.path.split(__file__)[0]     
-            if self.outdoor:
-                model_path = os.path.join(dematch_dir, 'dematch_models', 'yfcc100m', 'model_best.pth')
-            else:
-                model_path = os.path.join(dematch_dir, 'dematch_models', 'sun3d', 'model_best.pth')
-
-        if (dematch_module.current_obj_id != self.dematch_id) or force_reload:
-            if not (dematch_module.current_obj_id is None):
-                checkpoint = torch.load(model_path, map_location=torch.device(device))
-                self.model.load_state_dict(checkpoint['state_dict'])
-                self.model.cuda()
-                self.model.eval()      
-                
         sz1 = Image.open(args['im1']).size
         sz2 = Image.open(args['im2']).size              
         
@@ -209,13 +203,14 @@ class dematch_module:
             kpts2_n = norm_kp(cx2, cy2, f2, f2, pt2)
 
             xs = np.concatenate([kpts1_n, kpts2_n], axis=-1)
-            
-            data = {}
-            data['xs'] = torch.tensor(xs, dtype=torch.float, device=device).unsqueeze(0).unsqueeze(1)
-            y_hat, e_hat = self.model(data)
-            y = y_hat[-1][0, :].cpu().numpy()
+            ys = np.ones(xs.shape[0])
 
-            mask = y > self.inlier_threshold
+            xs = torch.from_numpy(xs).float()
+            ys = torch.from_numpy(ys).float()
+
+            ws, _, e_hat, y_hat = self.model(xs[None, None], ys[None])
+        
+            mask = y_hat.squeeze(0) < self.inlier_threshold
 
             pt1 = args['pt1'][mask]
             pt2 = args['pt2'][mask]            

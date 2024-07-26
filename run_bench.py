@@ -9,6 +9,7 @@ import src.ACNe.acne_custom as acne
 import src.AdaLAM.adalam_custom as adalam
 import src.DeDoDe2.dedode2_custom as dedode2
 import src.DeMatch.dematch_custom as dematch
+import src.CLNet.clnet_custom as clnet
 import src.FCGNN.fcgnn_custom as fcgnn
 import src.bench_utils as bench
 import src.ConvMatch.convmatch_custom as convmatch
@@ -112,6 +113,12 @@ if __name__ == '__main__':
         [
             pipe_head,
             fcgnn.fcgnn_module(),
+            pipe_ransac
+        ],  
+
+        [
+            pipe_head,
+            clnet.clnet_module(),
             pipe_ransac
         ],           
     ]

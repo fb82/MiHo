@@ -197,7 +197,6 @@ class convmatch_module:
         l = pt1.shape[0]
         
         if l > 1:                
-
             cx1 = (sz1[1] - 1.0) * 0.5
             cy1 = (sz1[0] - 1.0) * 0.5
             f1 = max(sz1[1] - 1.0, sz1[0] - 1.0)

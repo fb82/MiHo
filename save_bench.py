@@ -11,6 +11,7 @@ import src.DeMatch.dematch_custom as dematch
 import src.ConvMatch.convmatch_custom as convmatch
 import src.DeDoDe2.dedode2_custom as dedode2
 import src.FCGNN.fcgnn_custom as fcgnn
+import src.CLNet.clnet_custom as clnet
 import src.ConsensusClustering.consensusclustering_custom as consensusclustering
 import src.bench_utils as bench
 import numpy as np
@@ -445,6 +446,7 @@ if __name__ == '__main__':
         [       'CC', consensusclustering.consensusclustering_module()],
         [  'DeMatch', dematch.dematch_module()],
         ['ConvMatch', convmatch.convmatch_module()],
+        [    'CLNet', clnet.clnet_module()],
         [   'FC-GNN', fcgnn.fcgnn_module()],
     ]
 

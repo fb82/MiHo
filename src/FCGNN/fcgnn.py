@@ -32,7 +32,7 @@ class GNN(nn.Module):
             state_dict = torch.hub.load_state_dict_from_url(url, map_location='cpu')
             self.load_state_dict(state_dict, strict=False)
 
-        print('FC-GNN weights loaded')
+        # print('FC-GNN weights loaded')
         
     def forward(self, img1, img2, matches):
 
