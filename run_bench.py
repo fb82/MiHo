@@ -123,11 +123,13 @@ if __name__ == '__main__':
             clnet.clnet_module(),
             pipe_ransac
         ],
+        
         [
             pipe_head,
             ms2dgnet.ms2dgnet_module(),
             pipe_ransac
         ],
+        
         [
             pipe_head,
             ncmnet.ncmnet_module(),
