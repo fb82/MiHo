@@ -20,7 +20,7 @@ class ms2dgnet_module:
 
         file_to_download = os.path.join(ms2dgnet_dir, 'ms2dgnet_weights.zip')    
         if not os.path.isfile(file_to_download):    
-            url = "https://drive.google.com/file/d/13r8UA7kbUrqsi4_fat1VECdlhcg4QVdv/view?usp=drive_link"
+            url = "https://drive.google.com/file/d/1ykbCLoANiE3v5ov9rb8eXH67ZK5uExeH/view?usp=drive_link"
             gdown.download(url, file_to_download, fuzzy=True)
 
         file_to_unzip = file_to_download
