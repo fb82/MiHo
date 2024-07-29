@@ -5,8 +5,8 @@ import gdown
 import zipfile
 from PIL import Image
 
-from .ncmnet import NCMNet as Model
-
+from .code.ncmnet import NCMNet as Model
+from .code.config import get_config
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 torch.set_grad_enabled(False)
@@ -19,7 +19,7 @@ class ncmnet_module:
 
         file_to_download = os.path.join(ncmnet_dir, 'ncmnet_weights.zip')    
         if not os.path.isfile(file_to_download):    
-            url = "https://drive.google.com/file/d/1UZA8ypbwu1jozWJg7vvSSqrQY9HfsbIP/view"
+            url = "https://drive.google.com/file/d/1UZA8ypbwu1jozWJg7vvSSqrQY9HfsbIP/view?usp=drive_link"
             gdown.download(url, file_to_download, fuzzy=True)
 
         file_to_unzip = file_to_download
@@ -27,10 +27,10 @@ class ncmnet_module:
             with zipfile.ZipFile(file_to_unzip,"r") as zip_ref:
                 zip_ref.extractall(path=ncmnet_dir)
 
-        self.sampling_rate = 0.5
-        self.obj_geod_th = 1e-4
+        self.config, unparsed = get_config()
+        self.obj_geod_th = self.config.obj_geod_th
 
-        self.model = Model(self.sampling_rate)
+        self.model = Model(self.config)
         checkpoint = torch.load(os.path.join(model_dir, 'model_best.pth'))
         self.model.load_state_dict(checkpoint['state_dict'])
         self.model.eval().to(device)
@@ -38,14 +38,17 @@ class ncmnet_module:
         for k, v in args.items():
            setattr(self, k, v)
 
+
     def get_id(self):
-        return ('ncmnet_obj_geod_th_' + str(self.obj_geod_th) + '_sampling_rate_' + str(self.sampling_rate)).lower()
+        return ('ncmnet_obj_geod_th_' + str(self.obj_geod_th)).lower()
+
     
     def norm_kp(self, cx, cy, fx, fy, kp):
         # New kp
         kp = (kp - np.array([[cx, cy]])) / np.asarray([[fx, fy]])
         return kp
-    
+
+
     def run(self, **args):
         sz1 = Image.open(args['im1']).size
         sz2 = Image.open(args['im2']).size
@@ -55,7 +58,7 @@ class ncmnet_module:
 
         l = pt1.shape[0]
 
-        if l > 1:
+        if l > 11:
             cx1 = (sz1[0] - 1.0) * 0.5
             cy1 = (sz1[1] - 1.0) * 0.5
             f1 = max(sz1[1] - 1.0, sz1[0] - 1.0)

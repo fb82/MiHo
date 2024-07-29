@@ -43,7 +43,7 @@ def batch_symeig(X):
     bv = X.new(b,d,d)
     for batch_idx in range(X.shape[0]):
         # e,v = torch.symeig(X[batch_idx,:,:].squeeze(), True)
-        e,v = torch.linalg.eigh(X[batch_idx,:,:].squeeze(), UPLO='U')
+        e,v = torch.linalg.eigh(X[batch_idx,:,:].squeeze())
         bv[batch_idx,:,:] = v
     bv = bv.cuda()
     return bv
@@ -489,11 +489,11 @@ class DS_Block(nn.Module):
             return x_ds, y_ds, [w0, w1, w2[:, 0, :, 0]], [w0_ds, w1_ds], e_hat
 
 class NCMNet(nn.Module):
-    def __init__(self, sr):
+    def __init__(self, config):
         super(NCMNet, self).__init__()
 
-        self.ds_0 = DS_Block(initial=True, predict=False, out_channel=128, k_num=9, sampling_rate=sr)
-        self.ds_1 = DS_Block(initial=False, predict=True, out_channel=128, k_num=6, sampling_rate=sr)
+        self.ds_0 = DS_Block(initial=True, predict=False, out_channel=128, k_num=9, sampling_rate=config.sr)
+        self.ds_1 = DS_Block(initial=False, predict=True, out_channel=128, k_num=6, sampling_rate=config.sr)
 
     def forward(self, x, y):
         B, _, N, _ = x.shape
