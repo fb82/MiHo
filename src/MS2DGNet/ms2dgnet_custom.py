@@ -5,8 +5,8 @@ import gdown
 import zipfile
 from PIL import Image
 
-from .ms2dgnet import MS2DNET as Model
-from .config import get_config
+from .core.config import get_config
+from .core.ms2dgnet import MS2DNET as Model
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -29,25 +29,31 @@ class ms2dgnet_module:
                 zip_ref.extractall(path=ms2dgnet_dir)
 
         self.config, unparsed = get_config()
-
-        self.sampling_rate = 0.5
-        self.obj_geod_th = 1e-4
-
         self.model = Model(self.config)
-        checkpoint = torch.load(os.path.join(model_dir, 'model_best.pth'))
+        checkpoint = torch.load(os.path.join(model_dir, 'yfcc', 'model_best.pth'))
+        
+        ###
+        del checkpoint['state_dict']['weights_init.att1_1.attk2.weight']
+        del checkpoint['state_dict']['weights_init.att1_1.attk2.bias']
+        del checkpoint['state_dict']['weights_iter.0.att1_1.attk2.weight']
+        del checkpoint['state_dict']['weights_iter.0.att1_1.attk2.bias']
+        
         self.model.load_state_dict(checkpoint['state_dict'])
         self.model.eval().to(device)
 
         for k, v in args.items():
            setattr(self, k, v)
 
+
     def get_id(self):
-        return ('ms2dgnet_clusters_' + str(self.config.clusters) + '_niter_' + str(self.config.iter_num) + '_ratio_' + str(self.config.use_ratio) + '_mutual_' + str(self.config.use_mutual)).lower()
+        return ('ms2dgnet').lower()
+    
     
     def norm_kp(self, cx, cy, fx, fy, kp):
         # New kp
         kp = (kp - np.array([[cx, cy]])) / np.asarray([[fx, fy]])
         return kp
+    
     
     def run(self, **args):
         sz1 = Image.open(args['im1']).size
@@ -58,7 +64,7 @@ class ms2dgnet_module:
 
         l = pt1.shape[0]
 
-        if l > 1:
+        if l > 19:
             cx1 = (sz1[0] - 1.0) * 0.5
             cy1 = (sz1[1] - 1.0) * 0.5
             f1 = max(sz1[1] - 1.0, sz1[0] - 1.0)
@@ -70,9 +76,8 @@ class ms2dgnet_module:
             x1 = self.norm_kp(cx1, cy1, f1, f1, pt1)
             x2 = self.norm_kp(cx2, cy2, f2, f2, pt2)
 
-            xs = np.concatenate([x1, x2], axis=1).reshape(1,-1,4)
-
-            xs = torch.from_numpy(xs).float().unsqueeze(0).to(device)
+            xs = {'xs': np.concatenate([x1, x2], axis=1).reshape(1,-1,4)}
+            xs['xs'] = torch.from_numpy(xs['xs']).float().unsqueeze(0).to(device)
 
             res_logits, _ = self.model(xs)
             y_hat = res_logits[-1]

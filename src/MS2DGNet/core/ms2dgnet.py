@@ -309,19 +309,22 @@ class MS2DNET(nn.Module):
         self.weights_iter = nn.Sequential(*self.weights_iter)
         
 
-    def forward(self, x):
-        assert x.dim() == 4 and x.shape[1] == 1
-        batch_size, num_pts = x.shape[0], x.shape[2]
+    def forward(self, data):
+        assert data['xs'].dim() == 4 and data['xs'].shape[1] == 1
+        batch_size, num_pts = data['xs'].shape[0], data['xs'].shape[2]
         #data: b*1*n*c
-        input = x.transpose(1,3)
+        input = data['xs'].transpose(1,3)
+        if self.side_channel > 0:
+            sides = data['sides'].transpose(1,2).unsqueeze(3)
+            input = torch.cat([input, sides], dim=1)
 
         res_logits, res_e_hat = [], []
-        logits, e_hat, residual = self.weights_init(input, x)
+        logits, e_hat, residual = self.weights_init(input, data['xs'])
         res_logits.append(logits), res_e_hat.append(e_hat)
         for i in range(self.iter_num):
             logits, e_hat, residual = self.weights_iter[i](
                 torch.cat([input, residual.detach(), torch.relu(torch.tanh(logits)).reshape(residual.shape).detach()], dim=1),
-                x)
+                data['xs'])
             res_logits.append(logits), res_e_hat.append(e_hat)
         return res_logits, res_e_hat  
 
@@ -334,7 +337,7 @@ def batch_symeig(X):
     bv = X.new(b,d,d)
     for batch_idx in range(X.shape[0]):
         # e,v = torch.symeig(X[batch_idx,:,:].squeeze(), True)
-        e,v = torch.linalg.eigh(X[batch_idx,:,:].squeeze(), UPLO='U')
+        e, v = torch.linalg.eigh(X[batch_idx,:,:].squeeze())
         bv[batch_idx,:,:] = v
     bv = bv.cuda()
     return bv

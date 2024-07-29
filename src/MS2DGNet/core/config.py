@@ -65,7 +65,7 @@ data_arg.add_argument(
 # Objective
 obj_arg = add_argument_group("obj")
 obj_arg.add_argument(
-    "--obj_num_kp", type=int, default=2, help="" #设定了点的数目
+    "--obj_num_kp", type=int, default=2000, help="" 
     "number of keypoints per image")
 obj_arg.add_argument(
     "--obj_top_k", type=int, default=-1, help=""
