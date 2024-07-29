@@ -5,32 +5,35 @@ import gdown
 import zipfile
 from PIL import Image
 
-from .ncmnet import NCMNet as Model
+from .ms2dgnet import MS2DNET as Model
+from .config import get_config
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 torch.set_grad_enabled(False)
 
 
-class ncmnet_module:    
+class ms2dgnet_module:    
     def __init__(self, **args):
-        ncmnet_dir = os.path.split(__file__)[0]
-        model_dir = os.path.join(ncmnet_dir, 'NCMNet_models')
+        ms2dgnet_dir = os.path.split(__file__)[0]
+        model_dir = os.path.join(ms2dgnet_dir, 'MS2DGNet_models')
 
-        file_to_download = os.path.join(ncmnet_dir, 'ncmnet_weights.zip')    
+        file_to_download = os.path.join(ms2dgnet_dir, 'ms2dgnet_weights.zip')    
         if not os.path.isfile(file_to_download):    
-            url = "https://drive.google.com/file/d/1UZA8ypbwu1jozWJg7vvSSqrQY9HfsbIP/view"
+            url = "https://drive.google.com/file/d/13r8UA7kbUrqsi4_fat1VECdlhcg4QVdv/view?usp=drive_link"
             gdown.download(url, file_to_download, fuzzy=True)
 
         file_to_unzip = file_to_download
         if not os.path.isdir(model_dir):    
             with zipfile.ZipFile(file_to_unzip,"r") as zip_ref:
-                zip_ref.extractall(path=ncmnet_dir)
+                zip_ref.extractall(path=ms2dgnet_dir)
+
+        self.config, unparsed = get_config()
 
         self.sampling_rate = 0.5
         self.obj_geod_th = 1e-4
 
-        self.model = Model(self.sampling_rate)
+        self.model = Model(self.config)
         checkpoint = torch.load(os.path.join(model_dir, 'model_best.pth'))
         self.model.load_state_dict(checkpoint['state_dict'])
         self.model.eval().to(device)
@@ -39,7 +42,7 @@ class ncmnet_module:
            setattr(self, k, v)
 
     def get_id(self):
-        return ('ncmnet_obj_geod_th_' + str(self.obj_geod_th) + '_sampling_rate_' + str(self.sampling_rate)).lower()
+        return ('ms2dgnet_clusters_' + str(self.config.clusters) + '_niter_' + str(self.config.iter_num) + '_ratio_' + str(self.config.use_ratio) + '_mutual_' + str(self.config.use_mutual)).lower()
     
     def norm_kp(self, cx, cy, fx, fy, kp):
         # New kp
@@ -68,14 +71,13 @@ class ncmnet_module:
             x2 = self.norm_kp(cx2, cy2, f2, f2, pt2)
 
             xs = np.concatenate([x1, x2], axis=1).reshape(1,-1,4)
-            ys = np.ones(xs.shape[1]).reshape(-1,1)
 
             xs = torch.from_numpy(xs).float().unsqueeze(0).to(device)
-            ys = torch.from_numpy(ys).float().unsqueeze(0).to(device)
 
-            _, _, _, y_hat = self.model(xs, ys.squeeze(-1))
+            res_logits, _ = self.model(xs)
+            y_hat = res_logits[-1]
 
-            mask = y_hat.squeeze(0) < self.obj_geod_th
+            mask = y_hat.squeeze(0) > 0
 
             pt1 = args['pt1'][mask]
             pt2 = args['pt2'][mask]            
@@ -86,6 +88,4 @@ class ncmnet_module:
             Hs = args['Hs']   
             mask = []
 
-        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs, 'mask': mask}          
-
-
+        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs, 'mask': mask}

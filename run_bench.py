@@ -11,6 +11,7 @@ import src.DeDoDe2.dedode2_custom as dedode2
 import src.DeMatch.dematch_custom as dematch
 import src.CLNet.clnet_custom as clnet
 import src.FCGNN.fcgnn_custom as fcgnn
+import src.MS2DGNet.ms2dgnet_custom as ms2dgnet
 import src.NCMNet.ncmnet_custom as ncmnet
 import src.bench_utils as bench
 import src.ConvMatch.convmatch_custom as convmatch
@@ -120,6 +121,11 @@ if __name__ == '__main__':
         [
             pipe_head,
             clnet.clnet_module(),
+            pipe_ransac
+        ],
+        [
+            pipe_head,
+            ms2dgnet.ms2dgnet_module(),
             pipe_ransac
         ],
         [
