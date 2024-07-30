@@ -500,7 +500,7 @@ if __name__ == '__main__':
 
     header_hold = 'nmm---m---mss---s---shh---hpp---p---p---p---p'
     header_bar =  '-brttttoooobrttttoooobrppppbrttttppppoooollll'
-    full_el = 3
+    full_el = 2
     
     latex_table_full = None
     for ip in range(len(pipe_heads)):
