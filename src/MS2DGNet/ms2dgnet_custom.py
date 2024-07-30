@@ -33,10 +33,10 @@ class ms2dgnet_module:
         checkpoint = torch.load(os.path.join(model_dir, 'yfcc', 'model_best.pth'))
         
         ###
-        del checkpoint['state_dict']['weights_init.att1_1.attk2.weight']
-        del checkpoint['state_dict']['weights_init.att1_1.attk2.bias']
-        del checkpoint['state_dict']['weights_iter.0.att1_1.attk2.weight']
-        del checkpoint['state_dict']['weights_iter.0.att1_1.attk2.bias']
+        # del checkpoint['state_dict']['weights_init.att1_1.attk2.weight']
+        # del checkpoint['state_dict']['weights_init.att1_1.attk2.bias']
+        # del checkpoint['state_dict']['weights_iter.0.att1_1.attk2.weight']
+        # del checkpoint['state_dict']['weights_iter.0.att1_1.attk2.bias']
         
         self.model.load_state_dict(checkpoint['state_dict'])
         self.model.eval().to(device)
