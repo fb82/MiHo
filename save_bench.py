@@ -462,12 +462,12 @@ if __name__ == '__main__':
           [      'SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
           [          'ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
           [            'DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
-          [                     'LoFTr', pipe_base.loftr_module(num_features=8000, upright=True)],        
+          [                     'LoFTR', pipe_base.loftr_module(num_features=8000, upright=True)],        
           [                   'DeDoDe2', dedode2.dedode2_module(num_features=8000, upright=True)],                
       # # ['SuperPoint+LightGlue (DIM)', superpoint_lightglue_module(nmax_keypoints=8000)],
       # # [    'ALIKED+LightGlue (DIM)', aliked_lightglue_module(nmax_keypoints=8000)],
       # # [      'DISK+LightGlue (DIM)', disk_lightglue_module(nmax_keypoints=8000)],
-      # # [               'LoFTr (DIM)', loftr_module(nmax_keypoints=8000)],  
+      # # [               'LoFTR (DIM)', loftr_module(nmax_keypoints=8000)],  
         ]
     
 ###
