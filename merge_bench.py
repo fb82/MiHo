@@ -191,7 +191,7 @@ if __name__ == '__main__':
     for b in benchmark_data.keys():
         # print("*** " + benchmark_data[b]['Name'] + " ***")
         
-        b_data, _ = benchmark_data[b]['setup'](bench_path=bench_path, upright=True)
+        # b_data, _ = benchmark_data[b]['setup'](bench_path=bench_path, upright=True)
         
         if benchmark_data[b]['is_not_planar']:
             bench_mode = 'fundamental_matrix'
