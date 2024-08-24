@@ -161,26 +161,43 @@ if __name__ == '__main__':
 
 ###
 
-    split_path = '../split'
-    split = os.listdir(split_path)
-    split_file = []
-    split_data = []
+    split_path = 'split'
+    bench_path = 'merged'   
+    bench_res = 'res'
+    save_to = 'res'
+    show_matches = False
+    force_list = False
+    force_merge = False
+    
+    essential_th = [0.5]
+    split = os.listdir(split_path)    
+    
+    split_list_file = os.path.join(bench_path, 'split_list.pbz2')
+    if os.path.isfile(split_list_file) and (not force_list):
+        split_file, split_data = bench.decompress_pickle(split_list_file)
+    else:    
+        split_file = []
+        split_data = []
+        
     for d in split:
         dd = os.path.join(split_path,d)
         eval_file = os.listdir(dd)
         for f in eval_file:
             if f[-4:] == 'pbz2':
                 ff = os.path.join(dd, f)
-                kk = bench.decompress_pickle(ff).keys()             
-                for k in kk:
-                    split_file.append(ff)
-                    split_data.append(k + '$')
-                    
-    bench_path = '../bench_data'   
-    bench_res = 'res'
-    save_to = 'res'
-    show_matches = False
-    
+                
+                if not (ff in split_file):  
+                    print(f'processing: {ff}')
+                    kk = bench.decompress_pickle(ff).keys()             
+                    for k in kk:
+                        split_file.append(ff)
+                        split_data.append(k + '$')
+                    bench.compressed_pickle(split_list_file, (split_file, split_data))
+                else:
+                    print(f'skipping: {ff}')
+
+    print("*** file list done ***")
+                        
     benchmark_data = {
             'megadepth': {'name': 'megadepth', 'Name': 'MegaDepth', 'setup': bench.megadepth_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.png', 'use_scale': True, 'also_metric': False},
             'scannet': {'name': 'scannet', 'Name': 'ScanNet', 'setup': bench.scannet_bench_setup, 'is_outdoor': False, 'is_not_planar': True, 'ext': '.png', 'use_scale': False, 'also_metric': False},
@@ -234,42 +251,58 @@ if __name__ == '__main__':
                         split_file_ = [s for s in split_file if rr in s]                        
                         split_data_ = [s2 for s1, s2 in zip(split_file, split_data) if rr in s1]                        
 
-                        pipe_name_base = os.path.join(bench_res, benchmark_data[b]['name'])
-                        for pipe_module in pipe:
-                            pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
-                            ll = [[b, a] for a, b in zip(split_data_, split_file_) if pipe_name_base + '$'  in a]
-                            ll.sort()
-                            
-                            if len(ll) == 0:
-                                print(f'missing: {pipe_name_base}')
+                        for essn, ess_th in enumerate(essential_th):
+    
+                            if rr != 'essential' and (essn > 0):                        
                                 continue
-                            
-                            to_open = ll[-1][0]
-                            to_dict = ll[-1][1]
-                            
-                            if not(to_open in working_dict[rr].keys()):
-                                working_dict[rr][to_open] = []
-                                
-                            isin = False
-                            for cc in working_dict[rr][to_open]:
-                                if cc == to_dict:
-                                    isin = True
-                                    break
+    
+                            pipe_name_base = os.path.join(bench_res, benchmark_data[b]['name'])                                
+                            for pipe_module in pipe:
+                                pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
 
-                            if not isin:
-                                working_dict[rr][to_open].append(to_dict)
+                                if rr == 'essential':
+                                    pipe_name_base_ok = pipe_name_base + '_essential_th_list_' + str(ess_th)
+                                else:
+                                    pipe_name_base_ok = pipe_name_base
+
+                                ll = [[b, a] for a, b in zip(split_data_, split_file_) if pipe_name_base_ok + '$'  in a]
+                                ll.sort()
+                                
+                                if len(ll) == 0:
+                                    print(f'missing: {pipe_name_base_ok}')
+                                    continue
+                                
+                                to_open = ll[-1][0]
+                                to_dict = ll[-1][1]
+                                
+                                if not(to_open in working_dict[rr].keys()):
+                                    working_dict[rr][to_open] = []
+                                    
+                                isin = False
+                                for cc in working_dict[rr][to_open]:
+                                    if cc == to_dict:
+                                        isin = True
+                                        break
+    
+                                if not isin:
+                                    working_dict[rr][to_open].append(to_dict)
                             
             for rr in to_retain:            
                 save_to_ = to_save_file + rr + to_save_file_suffix + '.pbz2' 
                 eval_data = {}
                 
-                for kk in working_dict[rr].keys():
-                    old_eval = bench.decompress_pickle(kk)
-                    for vv in  working_dict[rr][kk]:
-                        eval_data[vv[:-1]] = old_eval[vv[:-1]]
-
-                os.makedirs(os.path.split(save_to_)[0], exist_ok=True)
-                bench.compressed_pickle(save_to_, eval_data)                   
+                if (not os.path.isfile(save_to_)) or force_merge:   
+                    print(f'generating: {save_to_}')
+                    
+                    for kk in working_dict[rr].keys():
+                        old_eval = bench.decompress_pickle(kk)
+                        for vv in  working_dict[rr][kk]:
+                            eval_data[vv[:-1]] = old_eval[vv[:-1]]
+    
+                    os.makedirs(os.path.split(save_to_)[0], exist_ok=True)
+                    bench.compressed_pickle(save_to_, eval_data)    
+                else:
+                    print(f'skipping: {save_to_}')
 
             if benchmark_data[b]['is_not_planar']:
                 bench.csv_summary_non_planar(essential_th_list=[0.5], essential_load_from=to_save_file + 'essential' + to_save_file_suffix + '.pbz2', fundamental_load_from=to_save_file + 'fundamental' + to_save_file_suffix + '.pbz2', save_to=to_save_file + 'fundamental_and_essential' + to_save_file_suffix + '.csv', also_metric=benchmark_data[b]['also_metric'], to_remove_prefix=pipe_head.get_id())
