@@ -159,6 +159,8 @@ if __name__ == '__main__':
     for pipe_module in pipe_heads: pipe_module.placeholder = 'head'
     for pipe_module in pipe_ransacs: pipe_module.placeholder = 'ransac'    
 
+    pipe_save_to = [pipe_head.get_id() for pipe_head in pipe_heads]
+
 ###
 
     split_path = 'split'
@@ -222,7 +224,7 @@ if __name__ == '__main__':
             
             # print("*** " + pipe_head.get_id() + " ***")
             
-            to_save_file =  os.path.join(bench_path, save_to, save_to + '_' + pipe_head.get_id() + '_')
+            to_save_file =  os.path.join(bench_path, save_to, save_to + '_' + pipe_save_to[ip] + '_')
             to_save_file_suffix ='_' + benchmark_data[b]['name']
             
             working_dict = {}
@@ -287,7 +289,7 @@ if __name__ == '__main__':
                                 if not isin:
                                     working_dict[rr][to_open].append(to_dict)
                             
-            for rr in to_retain:            
+            for rr in to_retain:
                 save_to_ = to_save_file + rr + to_save_file_suffix + '.pbz2' 
                 eval_data = {}
                 

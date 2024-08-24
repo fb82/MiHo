@@ -44,6 +44,8 @@ if __name__ == '__main__':
     for pipe_module in pipe_heads: pipe_module.placeholder = 'head'
     for pipe_module in pipe_ransacs: pipe_module.placeholder = 'ransac'    
 
+    pipe_save_to = [pipe_head.get_id() for pipe_head in pipe_heads]
+
 ###
 
     bench_path = '../bench_ransac_ablation'   
@@ -70,7 +72,7 @@ if __name__ == '__main__':
             
             print("*** " + pipe_head.get_id() + " ***")
             
-            to_save_file =  os.path.join(bench_path, save_to, save_to + '_' + pipe_head.get_id() + '_')
+            to_save_file =  os.path.join(bench_path, save_to, save_to + '_' + pipe_save_to[ip] + '_')
             to_save_file_suffix ='_' + benchmark_data[b]['name']
             
             for jp in range(len(pipe_ransacs)):
