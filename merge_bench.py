@@ -174,6 +174,7 @@ if __name__ == '__main__':
     essential_th = [0.5]
     split = os.listdir(split_path)    
     
+    os.makedirs(bench_path, exist_ok=True)
     split_list_file = os.path.join(bench_path, 'split_list.pbz2')
     if os.path.isfile(split_list_file) and (not force_list):
         split_file, split_data = bench.decompress_pickle(split_list_file)
