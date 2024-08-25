@@ -1497,3 +1497,73 @@ def imc_phototourism_bench_setup(bench_path='bench_data', bench_imgs='imgs', sav
     if new_sample: compressed_pickle(os.path.join(bench_path, 'downloads', 'imc_sampled_idx.pbz2'), sampled_idx)
     
     return imc_data, save_to_full
+
+
+def count_pipe_match(pipe, dataset_data,  dataset_name, bench_path='bench_data', bench_res='res', save_to='res_count.pbz2', force=False):
+    warnings.filterwarnings("ignore", category=UserWarning)
+
+    if os.path.isfile(save_to):
+        eval_data = decompress_pickle(save_to)
+    else:
+        eval_data = {}
+        
+    n = len(dataset_data['im1'])
+    
+    pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
+    pipe_name_base_small = ''
+    pipe_name_root = os.path.join(pipe_name_base, pipe[0].get_id())
+
+    for pipe_module in pipe:
+        pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
+        pipe_name_base_small = os.path.join(pipe_name_base_small, pipe_module.get_id())
+
+        print('Pipeline: ' + pipe_name_base_small)
+
+        if (pipe_name_base in eval_data.keys()) and not force:
+            eval_data_ = eval_data[pipe_name_base]
+            print(f"filtered {round(eval_data_['filtered_avg']*100*100)/100}% of {eval_data_['matches_avg']} matches")                                             
+            continue
+                
+        eval_data_ = {}
+        eval_data_['matches'] = []
+        eval_data_['filtered'] = []
+
+        with progress_bar('Counting completion') as p:
+            for i in p.track(range(n)):            
+                pipe_f = os.path.join(pipe_name_base, 'base', str(i) + '.pbz2')
+
+                if os.path.isfile(pipe_f):
+                    out_data = decompress_pickle(pipe_f)
+
+                    pts1 = out_data['pt1']
+                                            
+                    if torch.is_tensor(pts1):
+                        pts1 = pts1.detach().cpu().numpy()
+                        
+                    nn = pts1.shape[0]
+                    eval_data_['matches'].append(nn)
+                    
+                    if pipe_name_base==pipe_name_root:
+                        filtered_normalizer = nn
+                    else:
+                        filtered_normalizer = eval_data[pipe_name_root]['matches'][i]
+                        
+                    filtered = (filtered_normalizer - nn) / filtered_normalizer
+                    if not np.isfinite(filtered): filtered = 0                   
+                    eval_data_['filtered'].append(filtered)
+                else:
+                    eval_data_['matches'].append(np.NaN)
+                    eval_data_['filtered'].append(np.NaN)
+                    
+            eval_data_['matches'] = np.asarray(eval_data_['matches'])
+            eval_data_['filtered'] = np.asarray(eval_data_['filtered'])                    
+            
+            valid = np.isfinite(eval_data_['matches'].astype(float))
+            
+            eval_data_['matches_avg'] = int(np.mean(eval_data_['matches'][valid]))
+            eval_data_['filtered_avg'] = np.mean(eval_data_['filtered'][valid])
+        
+            print(f"filtered {round(eval_data_['filtered_avg']*100*100)/100}% of {eval_data_['matches_avg']} matches")
+
+            eval_data[pipe_name_base] = eval_data_
+            compressed_pickle(save_to, eval_data)
