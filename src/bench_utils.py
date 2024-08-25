@@ -1521,7 +1521,7 @@ def count_pipe_match(pipe, dataset_data,  dataset_name, bench_path='bench_data',
 
         if (pipe_name_base in eval_data.keys()) and not force:
             eval_data_ = eval_data[pipe_name_base]
-            print(f"filtered {round(eval_data_['filtered_avg']*100*100)/100}% of {eval_data_['matches_avg']} matches")                                             
+            print(f"filtered {round(eval_data_['filtered_avg']*100*100)/100}%, {eval_data_['matches_avg']} matches on average")
             continue
                 
         eval_data_ = {}
@@ -1563,7 +1563,7 @@ def count_pipe_match(pipe, dataset_data,  dataset_name, bench_path='bench_data',
             eval_data_['matches_avg'] = int(np.mean(eval_data_['matches'][valid]))
             eval_data_['filtered_avg'] = np.mean(eval_data_['filtered'][valid])
         
-            print(f"filtered {round(eval_data_['filtered_avg']*100*100)/100}% of {eval_data_['matches_avg']} matches")
+            print(f"filtered {round(eval_data_['filtered_avg']*100*100)/100}%, {eval_data_['matches_avg']} matches on average")
 
             eval_data[pipe_name_base] = eval_data_
             compressed_pickle(save_to, eval_data)
