@@ -33,17 +33,30 @@ def csv_write(lines, save_to='nameless.csv'):
             f.write(l)   
 
 
-def csv_merger(csv_list):
-    avg_idx = [[ 3,  6, 'F_AUC@avg_a'],
-               [ 6,  9, 'E_AUC@avg_a'],
-               [11, 14, 'F_AUC@avg_a'],
-               [14, 17, 'E_AUC@avg_a'],
-               [19, 22, 'H_AUC@avg_m'],
-               [24, 27, 'F_AUC@avg_a'],
-               [27, 30, 'F_AUC@avg_m'],
-               [30, 33, 'E_AUC@avg_a'],
-               [33, 36, 'E_AUC@avg_m'],
-               ]
+def csv_merger(csv_list, include_match_count=False):
+
+    if not include_match_count:
+        avg_idx = [[ 3,  6, 'F_AUC@avg_a'], # MegaDepth
+                   [ 6,  9, 'E_AUC@avg_a'],
+                   [11, 14, 'F_AUC@avg_a'], # ScanNet
+                   [14, 17, 'E_AUC@avg_a'],
+                   [19, 22, 'H_AUC@avg_m'], # Planar
+                   [24, 27, 'F_AUC@avg_a'], # PhotoTourism
+                   [27, 30, 'F_AUC@avg_m'],
+                   [30, 33, 'E_AUC@avg_a'],
+                   [33, 36, 'E_AUC@avg_m'],
+                   ]
+    else:           
+        avg_idx = [[ 4,  7, 'F_AUC@avg_a'], # MegaDepth
+                   [ 7, 10, 'E_AUC@avg_a'], 
+                   [13, 16, 'F_AUC@avg_a'], # ScanNet
+                   [16, 19, 'E_AUC@avg_a'],
+                   [21, 25, 'H_AUC@avg_m'], # Planar
+                   [28, 31, 'F_AUC@avg_a'], # PhotoTourism
+                   [31, 34, 'F_AUC@avg_m'],
+                   [34, 37, 'E_AUC@avg_a'],
+                   [37, 40, 'E_AUC@avg_m'],
+                   ]               
         
     csv_data = []
     for csv_file in csv_list:
@@ -73,27 +86,33 @@ def csv_merger(csv_list):
             row.extend(to_add)
         merged_csv.append(row)
         
+    trimmed_avg_idx = []
+    for avg_i in avg_idx:
+        if avg_i[1] <= len(row):
+            trimmed_avg_idx.append(avg_i)
+    
+        
     avg_csv = []
     for row in merged_csv:        
         if 'pipe_module' in row[0]:
-            avg_list = [rrange[2] for rrange in avg_idx]
+            avg_list = [rrange[2] for rrange in trimmed_avg_idx]
         else:
-            avg_list = [np.mean([float(i) for i in row[rrange[0]:rrange[1]]]) for rrange in avg_idx]
+            avg_list = [np.mean([float(i) for i in row[rrange[0]:rrange[1]]]) for rrange in trimmed_avg_idx]
         avg_csv.append(avg_list)
 
     fused_csv = []
     for row_base, row_avg in zip(merged_csv, avg_csv):
         row_new =  []
-        for k in range(len(avg_idx) - 1, - 1, - 1):
+        for k in range(len(trimmed_avg_idx) - 1, - 1, - 1):
             if k == 0:
                 l = 0
             else:
-                l = avg_idx[k - 1][1]
+                l = trimmed_avg_idx[k - 1][1]
                 
-            if k == len(avg_idx) - 1:
+            if k == len(trimmed_avg_idx) - 1:
                 r = len(row_base)
             else:
-                r = avg_idx[k][1]
+                r = trimmed_avg_idx[k][1]
                                
             row_new =  row_base[l:r] + [str(row_avg.pop())] + row_new 
         fused_csv.append(row_new)
