@@ -214,10 +214,10 @@ if __name__ == '__main__':
         
         if benchmark_data[b]['is_not_planar']:
             bench_mode = 'fundamental_matrix'
-            to_retain = ['fundamental', 'essential']
+            to_retain = ['fundamental', 'essential', 'match_count']
         else:
             bench_mode = 'homography'
-            to_retain = ['homography']   
+            to_retain = ['homography', 'match_count']   
             
         for ip in range(len(pipe_heads)):
             pipe_head = pipe_heads[ip]
