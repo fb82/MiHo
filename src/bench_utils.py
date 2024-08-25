@@ -1008,7 +1008,7 @@ def  refine_mask(im1_mask, im2_mask, sz1, sz2, H):
     return mask1_reproj
 
 
-def csv_summary_non_planar(essential_th_list=[0.5, 1, 1.5], essential_load_from='res_essential.pbz2', fundamental_load_from='res_fundamental.pbz2', save_to='res_non_planar.csv', also_metric=False, to_remove_prefix=''):
+def csv_summary_non_planar(essential_th_list=[0.5, 1, 1.5], essential_load_from='res_essential.pbz2', fundamental_load_from='res_fundamental.pbz2', match_count_load_from=None, save_to='res_non_planar.csv', also_metric=False, to_remove_prefix=''):
     warnings.filterwarnings("ignore", category=UserWarning)
     lines = []
 
@@ -1019,11 +1019,24 @@ def csv_summary_non_planar(essential_th_list=[0.5, 1, 1.5], essential_load_from=
  
     e_eval_data = decompress_pickle(essential_load_from)
     f_eval_data = decompress_pickle(fundamental_load_from)
+
+    match_count_header = ''   
+    if not (match_count_load_from is None):
+        c_eval_data = decompress_pickle(match_count_load_from)
+        
+        tot_match = None
+        for pname in c_eval_data.keys():
+            if pname == pname[:pname.rfind(to_remove_prefix)] + to_remove_prefix:
+                tot_match = c_eval_data[pname]['matches_avg']
+                break
+                
+        if not (tot_match is None):
+            match_count_header = ';filtered_of_' + str(tot_match)
         
     l = 0
     for pname in f_eval_data.keys(): l = max(l, len(pname[pname.rfind(to_remove_prefix):].split(os.path.sep)))
 
-    header = ';'.join(['pipe_module_' + str(li) for li in range(l)]) + ';F_precision;F_recall'
+    header = ';'.join(['pipe_module_' + str(li) for li in range(l)]) + match_count_header + ';F_precision;F_recall'
     if len(angular_thresholds) > 0:
         header = header + ';' + ';'.join(['F_AUC@' + str(a) for a in angular_thresholds])
 
@@ -1048,7 +1061,11 @@ def csv_summary_non_planar(essential_th_list=[0.5, 1, 1.5], essential_load_from=
         lp = len(pname[pname.rfind(to_remove_prefix):].split(os.path.sep))
         row = pname[pname.rfind(to_remove_prefix):].replace(os.path.sep, ';') + (';' * (l - lp))
 
-        row = row + ';' + str(f_eval_data[pname]['epi_global_prec_f']) + ';' + str(f_eval_data[pname]['epi_global_recall_f']) 
+        match_count_row = ''   
+        if not (match_count_load_from is None):
+            match_count_row = ';' + str(c_eval_data[pname]['filtered_avg'])
+
+        row = row + match_count_row + ';' + str(f_eval_data[pname]['epi_global_prec_f']) + ';' + str(f_eval_data[pname]['epi_global_recall_f']) 
         if len(angular_thresholds) > 0:
             row = row + ';' + ';'.join([str(f_eval_data[pname]['pose_error_f_auc_' + str(a)][-1]) for a in angular_thresholds])        
 
@@ -1071,7 +1088,7 @@ def csv_summary_non_planar(essential_th_list=[0.5, 1, 1.5], essential_load_from=
             f.write(l)    
 
 
-def csv_summary_planar(load_from='res_homography.pbz2', save_to='res_planar.csv', to_remove_prefix=''):
+def csv_summary_planar(load_from='res_homography.pbz2', save_to='res_planar.csv', match_count_load_from=None, to_remove_prefix=''):
     warnings.filterwarnings("ignore", category=UserWarning)
     lines = []
 
@@ -1079,17 +1096,35 @@ def csv_summary_planar(load_from='res_homography.pbz2', save_to='res_planar.csv'
  
     eval_data = decompress_pickle(load_from)
         
+    match_count_header = ''   
+    if not (match_count_load_from is None):
+        c_eval_data = decompress_pickle(match_count_load_from)
+        
+        tot_match = None
+        for pname in c_eval_data.keys():
+            if pname == pname[:pname.rfind(to_remove_prefix)] + to_remove_prefix:
+                tot_match = c_eval_data[pname]['matches_avg']
+                break
+                
+        if not (tot_match is None):
+            match_count_header = ';filtered_of_' + str(tot_match)
+    
     l = 0
     for pname in eval_data.keys(): l = max(l, len(pname[pname.rfind(to_remove_prefix):].split(os.path.sep)))
         
-    header = ';'.join(['pipe_module_' + str(li) for li in range(l)]) + ';H_precision;H_recall'
+    header = ';'.join(['pipe_module_' + str(li) for li in range(l)]) + match_count_header + ';H_precision;H_recall'
     if len(angular_thresholds) > 0: header = header + ';' + ';'.join(['H_AUC@' + str(a) for a in angular_thresholds])
     lines.append(header + '\n')
         
     for pname in eval_data.keys():    
         lp = len(pname[pname.rfind(to_remove_prefix):].split(os.path.sep))
         row = pname[pname.rfind(to_remove_prefix):].replace(os.path.sep, ';') + (';' * (l - lp))
-        row = row + ';' + str(eval_data[pname]['reproj_global_prec_h']) + ';' + str(eval_data[pname]['reproj_global_recall_h']) 
+        
+        match_count_row = ''   
+        if not (match_count_load_from is None):
+            match_count_row = ';' + str(c_eval_data[pname]['filtered_avg'])
+        
+        row = row + match_count_row + ';' + str(eval_data[pname]['reproj_global_prec_h']) + ';' + str(eval_data[pname]['reproj_global_recall_h']) 
         
         if len(angular_thresholds) > 0: row = row + ';' + ';'.join([str(eval_data[pname]['pose_error_h_auc_' + str(a)][-1]) for a in angular_thresholds])    
         lines.append(row + '\n')
