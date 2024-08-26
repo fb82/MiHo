@@ -273,6 +273,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
                         v = "\hphantom{" + "0" * g + "}" + v[g:]
                 else:
                     v = '\\hspace{0.5em}n/a'
+                    np_data[i, j] = np.NaN
 
                 # highlight top pipelines for each column
                 c_rank = int(clean_csv_order[i][j])        
@@ -325,7 +326,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
             if np.isfinite(bar_val[i, j]):
                 row.append('\\Chart{' + clean_csv[i][j] + '}{' + str(bar_val[i, j]) + '}{' + bar_dict[header_bar[j]] + '}{' + bar_grad_in[bar_vag[i, j]] + '}{' + bar_grad_out + '}')
             elif (i > 0) and (j > 0):
-                row.append('\\Chart{' + clean_csv[i][j] + '}{' + str(v_min[j - 1]) + '}{' + bar_dict[header_bar[j]] + '}{' + bar_grad_in[0] + '}{' + bar_grad_out + '}')
+                row.append('\\Chart{' + clean_csv[i][j] + '}{0.0}{' + bar_dict[header_bar[j]] + '}{' + bar_grad_in[0] + '}{' + bar_grad_out + '}')
             else:
                 row.append(clean_csv[i][j])
         bar_csv.append(row)
