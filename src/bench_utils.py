@@ -1583,7 +1583,8 @@ def count_pipe_match(pipe, dataset_data,  dataset_name, bench_path='bench_data',
                     else:
                         filtered_normalizer = eval_data[pipe_name_root]['matches'][i]
                         
-                    filtered = (filtered_normalizer - nn) / filtered_normalizer
+                    if filtered_normalizer == 0: filtered = 0
+                    else: filtered = (filtered_normalizer - nn) / filtered_normalizer
                     if not np.isfinite(filtered): filtered = 0                   
                     eval_data_['filtered'].append(filtered)
                 else:
