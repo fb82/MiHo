@@ -130,7 +130,9 @@ def csv_merger(csv_list, include_match_count=False):
 def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=None, prev_latex_table=None, add_footer=True, caption_string=None, page_align='landscape', remove_nan_column=False, resize_mode='width'):
     header_type = 'nmmmmmmmmmmssssssssss'
     header_clr =  '-brtopvtopvbrtopvtopv'
-      
+         
+    pipe_count = csv_data[0][0]
+    
     if header_hold is None:
         header_hold = header_type
 
@@ -156,6 +158,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         'p': 'purple',
         'v': 'violet',
         'l': 'olive',
+        'g': 'gray',
         }
     bar_grad = np.asarray([ 0.5, 0.75, 0.875,   2  ])
     bar_grad_in =         ['70', '45', '35', '25']   
@@ -206,10 +209,21 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
     
     csv_data = csv_data[1:]
     
+    # adjusting ;;; in pipe column
     pipe_name = [row[0] for row in csv_data]
-    base_index = np.argwhere(np.asarray([';;;' in row for row in pipe_name])).squeeze()
-    renaming_list.append([';;;', ''])
-    renaming_list.append([';;', ''])
+    base_index = -1
+    base_count = -1
+    for i, row in enumerate(pipe_name):
+        bi = 0;
+        for j in range(len(row)-1, -1, -1):
+            if row[j] == ';': bi = bi + 1
+            else: break
+        if bi > base_count:
+            base_count = bi
+            base_index = i
+                
+    for i in range(base_count, 1, -1):    
+        renaming_list.append([';' * i, ''])
     renaming_list.append([';', '+'])
     
     pipe_renamed = []
@@ -390,6 +404,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
     
     header_spec = []               
     for v in csv_head:
+        if 'filtered' in v: v = 'Filtered'
         v = v.replace('pipeline', 'Pipeline')
         v = v.replace('F_precision', 'Precision')
         v = v.replace('F_recall', 'Recall')
