@@ -34,11 +34,11 @@ if __name__ == '__main__':
         pipe_base.poselib_module(px_th=1.00),
         pipe_base.poselib_module(px_th=0.75),
         pipe_base.poselib_module(px_th=0.50),
-        pipe_base.degensac_module(px_th=5.00),
-        pipe_base.degensac_module(px_th=3.00),
-        pipe_base.degensac_module(px_th=1.00),
-        pipe_base.degensac_module(px_th=0.75),
-        pipe_base.degensac_module(px_th=0.50),
+        pipe_base.pydegensac_module(px_th=5.00),
+        pipe_base.pydegensac_module(px_th=3.00),
+        pipe_base.pydegensac_module(px_th=1.00),
+        pipe_base.pydegensac_module(px_th=0.75),
+        pipe_base.pydegensac_module(px_th=0.50),
         ]
     
     for pipe_module in pipe_heads: pipe_module.placeholder = 'head'
