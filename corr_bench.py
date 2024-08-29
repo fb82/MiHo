@@ -248,7 +248,7 @@ if __name__ == '__main__':
         old_name = pipe[1].get_id().replace('_outdoor_true','').replace('_outdoor_false','').replace('_fundamental_matrix','').replace('_homography','')
         pipe_renamed.append([old_name, new_name])
 
-    bench_path = '../test_csv_merger'
+    bench_path = '../bench_data'
     save_to = 'res'
     
     benchmark_data = {
