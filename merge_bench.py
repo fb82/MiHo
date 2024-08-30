@@ -299,8 +299,11 @@ if __name__ == '__main__':
                     
                     for kk in working_dict[rr].keys():
                         old_eval = bench.decompress_pickle(kk)
-                        for vv in  working_dict[rr][kk]:
-                            eval_data[vv[:-1]] = old_eval[vv[:-1]]
+                        for vv in  working_dict[rr][kk]:                            
+                            base_name = vv[:-1]
+                            base_name = base_name[base_name.rfind(pipe_head.get_id()):]
+                            
+                            eval_data[base_name] = old_eval[vv[:-1]]
     
                     os.makedirs(os.path.split(save_to_)[0], exist_ok=True)
                     bench.compressed_pickle(save_to_, eval_data)    
@@ -308,6 +311,6 @@ if __name__ == '__main__':
                     print(f'skipping: {save_to_}')
 
             if benchmark_data[b]['is_not_planar']:
-                bench.csv_summary_non_planar(essential_th_list=[0.5], essential_load_from=to_save_file + 'essential' + to_save_file_suffix + '.pbz2', fundamental_load_from=to_save_file + 'fundamental' + to_save_file_suffix + '.pbz2', save_to=to_save_file + 'fundamental_and_essential' + to_save_file_suffix + '.csv', also_metric=benchmark_data[b]['also_metric'], to_remove_prefix=pipe_head.get_id())
+                bench.csv_summary_non_planar(essential_th_list=[0.5], essential_load_from=to_save_file + 'essential' + to_save_file_suffix + '.pbz2', fundamental_load_from=to_save_file + 'fundamental' + to_save_file_suffix + '.pbz2', save_to=to_save_file + 'fundamental_and_essential' + to_save_file_suffix + '.csv', match_count_load_from=to_save_file + 'match_count' + to_save_file_suffix + '.pbz2', also_metric=benchmark_data[b]['also_metric'], to_remove_prefix=pipe_head.get_id())
             else:
-                bench.csv_summary_planar(load_from=to_save_file + 'homography' + to_save_file_suffix + '.pbz2', save_to=to_save_file + 'homography' + to_save_file_suffix + '.csv', to_remove_prefix=pipe_head.get_id())
+                bench.csv_summary_planar(load_from=to_save_file + 'homography' + to_save_file_suffix + '.pbz2', save_to=to_save_file + 'homography' + to_save_file_suffix + '.csv', match_count_load_from=to_save_file + 'match_count' + to_save_file_suffix + '.pbz2', to_remove_prefix=pipe_head.get_id())
