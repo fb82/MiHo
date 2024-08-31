@@ -139,6 +139,72 @@ def csv_merger(csv_list, include_match_count=False):
     return fused_csv, fused_csv_order
 
 
+def to_latex_simple(csv_table, table_name=''):
+
+    l1 = 1
+    lo = 1
+    for row in csv_table:
+        l1 = max(l1, len(row[0]))
+        for i in row[1:]:
+            lo = max(lo, len(i))
+
+    header = [
+        '\\documentclass[a4paper,10pt]{article}\n',
+        '\\usepackage{graphicx}\n',
+        '\\usepackage{caption}\n',
+        '\\usepackage{color}\n',
+        '\\usepackage{booktabs}\n',
+        '\\usepackage{amssymb}\n',
+        '\\usepackage[table,usenames,dvipsnames]{xcolor}\n',
+        '\\usepackage{amsmath}\n',
+        '\\usepackage{ulem}\n',        
+        '\\usepackage{calc}\n',        
+        '\n',
+        '\\newcolumntype{L}[1]{>{\\raggedright\\let\\newline\\\\\\arraybackslash\\hspace{0pt}}m{#1}}\n',
+        '\\newcolumntype{C}[1]{>{\\centering\\let\\newline\\\\\\arraybackslash\\hspace{0pt}}m{#1}}\n',
+        '\\newcolumntype{R}[1]{>{\\raggedleft\\let\\newline\\\\\\arraybackslash\\hspace{0pt}}m{#1}}\n',
+        '\n',        
+        '\\newlength\\MAXA\\setlength\\MAXA{\\widthof{' + ('a' * l1) + 'A.}}\n',
+        '\\newlength\\MAXB\\setlength\\MAXB{\\widthof{' + ('a' * lo) + 'A.}}\n',
+        '\n',        
+        '\\begin{document}\n',        
+        '\t\\begin{table}[t!]\n',
+        '\t\\centering\n',
+#       '\t\t\t\\begin{tabular}{R{\\MAXA}' + ('R{\\MAXB}' * (len(csv_table[0]) - 1)) + '}\n',
+        '\t\t\t\\begin{tabular}{R{\\MAXA}' + ('r' * (len(csv_table[0]) - 1)) + '}\n',
+    ]
+           
+    header.append('\t\t\t\t' + ' & '.join(csv_table[0]) + ' \\\\\n')    
+    header.append('\t\t\t\t\\midrule\n')
+
+    val_table = [[int(v) for v in row[1:]] for row in csv_table[1:]]
+    mmax = np.argmax(np.asarray(val_table), axis=0)
+    
+    mtable = [csv_table[0]]
+    for i, row in enumerate(csv_table[1:]):
+        new_row = []
+        for j, v in enumerate(row):
+            if (j != 0) and (i == mmax[j-1]):
+                v = '\\textbf{' + v + '}'
+            new_row.append(v)
+        mtable.append(new_row)
+    
+    latex_table = []
+    for row in mtable[1:]:
+        latex_table.append('\t\t\t\t' + ' & '.join(row) + ' \\\\\n')
+           
+    footer = [
+        '\t\t\t\end{tabular}\n',
+        '\t\t\\caption{' + table_name + '}\\label{none}\n',        
+        '\t\\end{table}\n',
+        '\\end{document}\n',
+    ]
+
+    latex_table = header + latex_table + footer
+                    
+    return latex_table
+
+
 def to_latex_corr(table_name, ccol, corr_table):
 
     header = [
@@ -262,6 +328,7 @@ if __name__ == '__main__':
     
     csv_row_header = []
     csv_col_header = None
+    csv_count = [[''] + [benchmark_data[b]['Name'].replace('IMC PhotoTourism','IMC-PT') for b in benchmark_data.keys()]]
     all_csv = []
     mask_row = []
     for ip in range(len(pipe_heads)):
@@ -277,10 +344,17 @@ if __name__ == '__main__':
             else:
                 csv_list.append(to_save_file + 'homography' + to_save_file_suffix + '.csv')
                 
-        fused_csv, _ = csv_merger(csv_list)
+        fused_csv, _ = csv_merger(csv_list, include_match_count=True)
         if csv_col_header is None:
             csv_col_header = fused_csv[0]
-        
+                 
+        v = pipe_head.get_id()
+        for renamed in pipe_renamed:
+            v = v.replace(renamed[0], renamed[1])
+            v =v.replace('_outdoor_true','').replace('_outdoor_false','')
+            
+        csv_count.append([v] + [s[len('filtered_of_'):] for s in fused_csv[0] if ('filtered_of') in s])
+
         for i in range(1, len(fused_csv)):
             mask_row.append('sac' in fused_csv[i][0])
             all_csv.append(fused_csv[i][1:])
@@ -289,14 +363,22 @@ if __name__ == '__main__':
     num_table = np.asarray(all_csv)
     mask_row = np.asarray(mask_row)
     
-    table_todo = [
-        [    'MegaDepth',  [ 0,  1,  5,  9]],
-        [      'ScanNet',  [10, 11, 15, 19]],
-        [ 'PhotoTourism',  [26, 27, 31, 35, 39, 43]],        
-        [    'Planar',  [20, 21, 25]],
-        ['Non-planar',  [ 0,  1,  5,  9], [10, 11, 15, 19], [26, 27, 31, 39]],
-        ]
+    # # with no filtered
+    # table_todo = [
+    #     [    'MegaDepth',  [ 0,  1,  5,  9]],
+    #     [      'ScanNet',  [10, 11, 15, 19]],
+    #     [ 'PhotoTourism',  [26, 27, 31, 35, 39, 43]],        
+    #     [    'Planar',  [20, 21, 25]],
+    #     ['Non-planar',  [ 0,  1,  5,  9], [10, 11, 15, 19], [26, 27, 31, 39]],
+    #     ]
     
+    table_todo = [
+        [    'MegaDepth',  [ 0,  1,  2,  6, 10]],
+        [      'ScanNet',  [11, 12, 13, 17, 21]],
+        [ 'PhotoTourism',  [29, 30, 31, 35, 39, 43, 47]],        
+        [    'Planar',  [22, 23, 24, 28]],
+        ['Non-planar',  [ 0,  1,  2,  6, 10], [11, 12, 13, 17, 21], [29, 30, 31, 35, 43]],
+        ]
     
     for todo in table_todo:
         table_name = todo[0]
@@ -320,7 +402,7 @@ if __name__ == '__main__':
         corr_table = np.round(corr_table * 100) / 100
                 
         for i, v in enumerate(ccol):
-            if 'filtered' in v: v = 'Filtered'
+            if 'filtered' in v: v = 'Filt.'
             v = v.replace('pipeline', 'Pipeline')
             v = v.replace('F_precision', 'Prec.')
             v = v.replace('F_recall', 'Recall')
@@ -346,3 +428,10 @@ if __name__ == '__main__':
         latex_table = to_latex_corr(table_name, ccol, corr_table)
         csv_write(latex_table, latex_file)
         compile_latex(latex_file)
+
+
+    os.makedirs(os.path.join(bench_path, save_to, 'latex'), exist_ok=True)
+    latex_file = os.path.join(bench_path, save_to, 'latex', 'match_count.tex')
+    latex_table = to_latex_simple(csv_count, table_name='Average number of matches per image.')
+    csv_write(latex_table, latex_file)
+    compile_latex(latex_file)

@@ -128,8 +128,8 @@ def csv_merger(csv_list, include_match_count=False):
 
 
 def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=None, prev_latex_table=None, add_footer=True, caption_string=None, page_align='landscape', remove_nan_column=False, resize_mode='width'):
-    header_type = 'nmmmmmmmmmmsssssssssshhhhhhpppppppppppppppppp'
-    header_clr =  '-brtopvtopvbrtopvtopvbrtovpbrtopvtopvtopvtopv'
+    header_type = 'nmmmmmmmmmmmssssssssssshhhhhhhppppppppppppppppppp'
+    header_clr =  '-gbrtopvtopvgbrtopvtopvgbrtovpgbrtopvtopvtopvtopv'
          
     pipe_count = csv_data[0][0]
     
@@ -158,7 +158,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         'p': 'purple',
         'v': 'violet',
         'l': 'olive',
-        'g': 'gray',
+        'g': 'CadetBlue',
         }
     bar_grad = np.asarray([ 0.5, 0.75, 0.875,   2  ])
     bar_grad_in =         ['70', '45', '35', '25']   
@@ -533,8 +533,8 @@ if __name__ == '__main__':
     
 ###
 
-    header_hold = 'nmm---m---mss---s---shh---hpp---p---p---p---p'
-    header_bar =  '-brttttoooobrttttoooobrppppbrttttppppoooollll'
+    header_hold = 'nmmm---m---msss---s---shhh---hppp---p---p---p---p'
+    header_bar =  '-gbrttttoooogbrttttoooogbrppppgbrttttppppoooollll'
     full_el = 2
     
     latex_table_full = None
@@ -551,7 +551,7 @@ if __name__ == '__main__':
             else:
                 csv_list.append(to_save_file + 'homography' + to_save_file_suffix + '.csv')
                 
-        fused_csv, fused_csv_order = csv_merger(csv_list)
+        fused_csv, fused_csv_order = csv_merger(csv_list, include_match_count=True)
         csv_write([';'.join(csv_row) + '\n' for csv_row in fused_csv], to_save_file.replace('_outdoor_true','').replace('_outdoor_false','')[:-1] + '.csv')
 
         if (ip % full_el == 0) and (ip != 0):

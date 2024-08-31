@@ -174,17 +174,17 @@ if __name__ == '__main__':
     scale_fun = lambda vdata: np.max(vdata[:, -2:], axis=1)
     # scale_fun = lambda vdata: np.sqrt(vdata[:, -2] * vdata[:, -1])
 
-    vdata = [data_megadepth, data_scannet, data_imc]
+    vdata = [data_megadepth, data_imc, data_scannet]
     for i in range(len(vdata)):
         scale_to = scale_fun(vdata[i])
         vdata[i] = vdata[i][:, 0] / scale_to
     
-    vdata_a = [data_megadepth_a, data_scannet_a, data_imc_a]
+    vdata_a = [data_megadepth_a, data_imc_a, data_scannet_a]
     for i in range(len(vdata_a)):
         scale_to = scale_fun(vdata_a[i])
         vdata_a[i] = vdata_a[i][:, 0] / scale_to
 
-    vdata_b = [data_megadepth_b, data_scannet_b, data_imc_b]
+    vdata_b = [data_megadepth_b, data_imc_b, data_scannet_b]
     for i in range(len(vdata_b)):
         scale_to = scale_fun(vdata_b[i])
         vdata_b[i] = vdata_b[i][:, 0] / scale_to
@@ -198,7 +198,7 @@ if __name__ == '__main__':
     ppath = os.path.join(bench_path, 'res', 'latex')
     os.makedirs(ppath, exist_ok=True)
     
-    labels = ['megadepth', 'scannet', 'phototourism']
+    labels = ['megadepth', 'phototourism', 'scannet']
     
     for i in range(3):
         fig = plt.figure(i)
@@ -207,12 +207,29 @@ if __name__ == '__main__':
             "font.family": "serif",
             "font.sans-serif": "Times",
             })
-        plt.imshow(np.rot90((1- h[i][0] / np.max(h[i][0]))**2), cmap='gray', extent=[v_min, v_max, v_min, v_max])
+        imm = np.rot90((1 - h[i][0] / np.max(h[i][0]))**2)
+        plt.imshow(imm, cmap='gray', extent=[v_min, v_max, v_min, v_max])
         plt.xlabel("focal / max (width, height)")
         plt.ylabel("focal / max (width, height)")
         fig_name = os.path.join(ppath, '2d_distribution_' + labels[i] + '.pdf')
         plt.savefig(fig_name, dpi = fig_dpi, bbox_inches='tight')
         plt.close(fig)
+        
+    imm = [np.rot90((1 - h[i][0] / np.max(h[i][0]))**2) for i in [0, 1, 2]]
+    imm = np.stack(imm, axis=-1)
+    fig = plt.figure()
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "serif",
+        "font.sans-serif": "Times",
+        })
+    plt.imshow(imm, cmap='gray', extent=[v_min, v_max, v_min, v_max])
+    plt.xlabel("focal / max (width, height)")
+    plt.ylabel("focal / max (width, height)")
+    fig_name = os.path.join(ppath, '2d_distribution_as_rgb.pdf')
+    plt.savefig(fig_name, dpi = fig_dpi, bbox_inches='tight')
+    plt.close(fig)
+    
     
     fig, ax = plt.subplots()
     plt.rcParams.update({
@@ -224,7 +241,7 @@ if __name__ == '__main__':
     h = [np.histogram(vdata[i], bins=nnbins, range=[v_min, v_max]) for i in range(len(vdata))]
     for i in range(len(vdata)):    
         ax.stairs(h[i][0] / np.sum(h[i][0]), h[i][1])
-    ax.legend(['MegaDepth', 'ScanNet', 'PhotoTourism'])
+    ax.legend(['MegaDepth', 'PhotoTourism', 'ScanNet'])
     ax.set_yscale('log')    
     plt.xlabel("focal / max (width, height)")
     plt.ylabel("probability density")
@@ -240,7 +257,7 @@ if __name__ == '__main__':
         })    
     nnbins = 150
     h = [np.histogram(vdata[i], bins=nnbins, range=[v_min, v_max]) for i in range(len(vdata))]
-    for i in [0, 2]:    
+    for i in range(2):    
         ax.stairs(h[i][0] / np.sum(h[i][0]), h[i][1])
     ax.legend(['MegaDepth', 'PhotoTourism']) 
     plt.xlabel("focal / max (width, height)")
