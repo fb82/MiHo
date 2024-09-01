@@ -325,6 +325,10 @@ if __name__ == '__main__':
         }
     
 ###
+
+    # # not needed if launched run_bench.py before     
+    # for b in benchmark_data.keys():
+    #     b_data, _ = benchmark_data[b]['setup'](bench_path=bench_path, upright=True)
     
     csv_row_header = []
     csv_col_header = None

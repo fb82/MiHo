@@ -34,10 +34,13 @@ if __name__ == '__main__':
     # [focal_length, cx, cy, width, heigth]
     # cx ~=  width / 2
     # cy ~= height / 2
+
+    # # not needed if launched run_bench.py before     
+    # for b in benchmark_data.keys():
+    #     b_data, _ = benchmark_data[b]['setup'](bench_path=bench_path, upright=True)
     
     if os.path.isfile(os.path.join(bench_path, 'intrinsics_stats.pbz2')) and not force:
         data_megadepth, data_scannet, data_imc, data_megadepth_a, data_scannet_a, data_imc_a, data_megadepth_b, data_scannet_b, data_imc_b = decompress_pickle(os.path.join(bench_path,'intrinsics_stats.pbz2'))
-
     else:    
         # megadepth
         ppath= os.path.join(bench_path, 'gt_data', 'megadepth')
@@ -49,7 +52,7 @@ if __name__ == '__main__':
         for name in npz_list:
             scene_info = np.load(os.path.join(ppath, name), allow_pickle=True)
         
-            # Collect pairs
+            # collect pairs
             for pair_info in scene_info['pair_infos']:
                 (id1, id2), overlap, _ = pair_info
     
@@ -270,5 +273,5 @@ if __name__ == '__main__':
     r = np.max(vdata[1])
     # MegaDepth vdata in the range of ScanNet vdata: 0.0%
     n1 = np.sum((vdata[0]>= l) & (vdata[0] <= r))/vdata[0].shape[0]
-    # PhotoTourism vdata in the range of ScanNet vdata: 0.002% (only 10) 
+    # PhotoTourism vdata in the range of ScanNet vdata: 0.002% (only 10 images) 
     n2 = np.sum((vdata[2]>= l) & (vdata[2] <= r))/vdata[2].shape[0]
