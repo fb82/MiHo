@@ -163,13 +163,12 @@ if __name__ == '__main__':
 
 ###
 
-    split_path = 'split'
-    bench_path = 'merged'   
+    split_path = 'split'  # contain as subfolders the bench_data/<bench_res> to be merger
+    bench_path = 'merged' # the bench_data/<bench_res> folder of the merged data
     bench_res = 'res'
-    save_to = 'res'
-    show_matches = False
-    force_list = False
-    force_merge = False
+    save_to = bench_res
+    force_list = False    # force list recomputation for data already processed
+    force_merge = False   # force generation for data already processed
     
     essential_th = [0.5]
     split = os.listdir(split_path)    

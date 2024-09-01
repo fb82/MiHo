@@ -33,11 +33,12 @@ class keynetaffnethardnet_kornia_matcher_module:
         self.config.extractor['upright'] = self.upright
         self.config.matcher['match_mode'] = 'smnn'
         self.config.matcher['th'] = 0.99
-        print('extractor', self.config.extractor)
-        print('matcher', self.config.matcher)
+        # print('extractor', self.config.extractor)
+        # print('matcher', self.config.matcher)
 
         self.extractor =  dim.extractors.keynetaffnethardnet.KeyNet(self.config)
         self.matcher = dim.matchers.KorniaMatcher(self.config)
+
 
     def get_id(self):
         return ('keynetaffnethardnet_kornia_matcher_upright_' + str(self.upright) + '_th_' + str(self.th) + '_nfeat_' + str(self.nmax_keypoints)).lower()
@@ -54,7 +55,6 @@ class keynetaffnethardnet_kornia_matcher_module:
              
         kps1 = torch.tensor(feats1['keypoints'][matches[:,0],:]).to(device)
         kps2 = torch.tensor(feats2['keypoints'][matches[:,1],:]).to(device)
-        # pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)
         pt1, pt2, Hs_laf = refinement_laf(None, None, pt1=kps1, pt2=kps2, img_patches=False) # No refinement LAF!!!
     
         return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_laf}

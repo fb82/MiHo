@@ -33,8 +33,8 @@ class superpoint_lightglue_module:
         self.config.matcher['depth_confidence'] = 0.95
         self.config.matcher['width_confidence'] = 0.99
         self.config.matcher['filter_threshold'] = 0.1
-        print('extractor', self.config.extractor)
-        print('matcher', self.config.matcher)
+        # print('extractor', self.config.extractor)
+        # print('matcher', self.config.matcher)
 
         self.extractor =  dim.extractors.SuperPointExtractor(self.config)
         self.matcher = dim.matchers.LightGlueMatcher(self.config)

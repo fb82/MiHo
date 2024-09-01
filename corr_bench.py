@@ -295,10 +295,10 @@ if __name__ == '__main__':
           [            'DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
           [                     'LoFTR', pipe_base.loftr_module(num_features=8000, upright=True)],        
           [                   'DeDoDe2', dedode2.dedode2_module(num_features=8000, upright=True)],                
-      # # ['SuperPoint+LightGlue (DIM)', superpoint_lightglue_module(nmax_keypoints=8000)],
-      # # [    'ALIKED+LightGlue (DIM)', aliked_lightglue_module(nmax_keypoints=8000)],
-      # # [      'DISK+LightGlue (DIM)', disk_lightglue_module(nmax_keypoints=8000)],
-      # # [               'LoFTR (DIM)', loftr_module(nmax_keypoints=8000)],  
+        # ['SuperPoint+LightGlue (DIM)', superpoint_lightglue_module(nmax_keypoints=8000)],
+        # [    'ALIKED+LightGlue (DIM)', aliked_lightglue_module(nmax_keypoints=8000)],
+        # [      'DISK+LightGlue (DIM)', disk_lightglue_module(nmax_keypoints=8000)],
+        # [               'LoFTR (DIM)', loftr_module(nmax_keypoints=8000)],  
         ]
     
 ###
@@ -363,7 +363,7 @@ if __name__ == '__main__':
     num_table = np.asarray(all_csv)
     mask_row = np.asarray(mask_row)
     
-    # # with no filtered
+    # # with no filtered field
     # table_todo = [
     #     [    'MegaDepth',  [ 0,  1,  5,  9]],
     #     [      'ScanNet',  [10, 11, 15, 19]],

@@ -32,11 +32,12 @@ class superpoint_kornia_matcher_module:
         self.config.extractor['max_keypoints'] = self.nmax_keypoints
         self.config.matcher['match_mode'] = 'smnn'
         self.config.matcher['th'] = self.th
-        print('extractor', self.config.extractor)
-        print('matcher', self.config.matcher)
+        # print('extractor', self.config.extractor)
+        # print('matcher', self.config.matcher)
 
         self.extractor =  dim.extractors.SuperPointExtractor(self.config)
         self.matcher = dim.matchers.KorniaMatcher(self.config)
+
 
     def get_id(self):
         return ('superpoint_kornia_matcher_th_' + str(self.th) + '_nfeat_' + str(self.nmax_keypoints)).lower()

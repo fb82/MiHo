@@ -14,7 +14,7 @@ if __name__ == '__main__':
     load_matches = False # used pre-computed matches without LAF
     ncc_check = False    # img2 patches are img1 patches randomly traslated, only for testing NCC / NCC+
     no_miho = False      # compute NCC / NCC+ on LAF without MiHo
-    miho_duplex = True   # duplex / unduplex MiHo   
+    miho_duplex = True   # duplex / unduplex MiHo - corresponding to MOP+MiHO / MOP in the paper
 
     if miho_duplex:    
         from src import miho as miho
@@ -61,14 +61,14 @@ if __name__ == '__main__':
     params['get_avg_hom']['rot_check'] = 4
     mihoo = miho.miho(params)
 
-    # miho paramas examples:
+    # # miho paramas examples:
     #
     # params = miho.all_params()
     # params['go_assign']['method'] = cluster_assign_base
     # params['go_assign']['method_args']['err_th'] = 16
     # mihoo = miho(params)
     #
-    # but also:
+    # # but also:
     #
     # params = mihoo.get_current()
     # params['get_avg_hom']['min_plane_pts'] = 16

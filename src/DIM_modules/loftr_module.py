@@ -102,7 +102,6 @@ class loftr_module:
         kps1 = correspondences["keypoints0"].squeeze().detach().to(device)
         kps2 = correspondences["keypoints1"].squeeze().detach().to(device)
 
-        pt1, pt2, Hs_laf = refinement_laf(None, None, pt1=kps1, pt2=kps2, img_patches=False)
-        # pt1, pt2, Hs_laf = refinement_laf(None, None, pt1=kps1, pt2=kps2, img_patches=False) # No refinement LAF!!!
+        pt1, pt2, Hs_laf = refinement_laf(None, None, pt1=kps1, pt2=kps2, img_patches=False) # No refinement LAF!!!
 
         return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_laf}
