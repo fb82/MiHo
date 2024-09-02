@@ -233,16 +233,16 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         if pipe[-1] == '+':
             pipe = pipe[:-1]
         pipe_renamed.append(pipe)
-                
-        
+                        
     sort_idx = [i for (v, i) in sorted((v, i) for (i, v) in enumerate(pipe_renamed))]
 
     clean_pipe_renamed = []
     for i, pipe in enumerate(pipe_renamed):
         if i == base_index:
-            clean_pipe_renamed.append(pipe)
+            clean_pipe_renamed.append(pipe[2:] + ' & \\phantom{--}--')
         else:
-            clean_pipe_renamed.append(pipe.replace(pipe_renamed[base_index], ''))
+            v = pipe.replace(pipe_renamed[base_index], '')[3:]
+            clean_pipe_renamed.append('+' + v[:-7] + '& ' + v[-7:-3])
             
     clean_csv = [csv_head] + [[clean_pipe_renamed[i]] + csv_data[i][1:] for i in sort_idx]
     clean_csv_order = [csv_order[0]] + [csv_order[i + 1] for i in sort_idx]
@@ -359,6 +359,8 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         '\n',
         '\\newlength\\MAX\\setlength\\MAX{\\widthof{9999999999}}\n',
         '\\newcommand*\\Chart[5]{\\rlap{\\textcolor{#3!#5}{\\rule[-0.5ex]{\\MAX}{3ex}}}\\rlap{\\textcolor{#3!#4}{\\rule[-0.5ex]{#2\\MAX}{3ex}}}#1}\n',
+        '\\newlength\\da\\setlength\\da{\widthof{Dege}}\n',
+        '\\newlength\\db\\setlength\\db{\widthof{SAC}}\n',
         '\n',
         '\\newcolumntype{L}[1]{>{\\raggedright\\let\\newline\\\\\\arraybackslash\\hspace{0pt}}m{#1}}\n',
         '\\newcolumntype{C}[1]{>{\\centering\\let\\newline\\\\\\arraybackslash\\hspace{0pt}}m{#1}}\n',
@@ -384,7 +386,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         '\t\\setlength{\\tabcolsep}{0pt}\n',
         '\t\\centering\n',
         resize_what,
-        '\t\t\t\\begin{tabular}{L{\\widthof{+MOP+MiHo+NCC+MAGSAC++++}}' + ('L{\\MAX}' * (len(header_type)-1)) + '}\n',
+        '\t\t\t\\begin{tabular}{L{\\widthof{Key.Net+AffNet+HardNet++}}C{\widthof{.RANSAC.}}' + ('L{\\MAX}' * (len(header_type)-1)) + '}\n',
     ]
     
     # header formatting
@@ -395,8 +397,11 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
     header_type_ = header_type + '$'
     for i in range(1,len(header_type_)):
         if header_type_[i] != header_current:
-            header_multi.append('\\multicolumn{' + str(i-l)  + '}{c}{' + header_dict[header_current] + '}')
-            if l + 1 != i: header_rule.append('\\cmidrule(lr){' +  str(l + 1)  + '-' + str(i) + '}')
+            if l == 0:
+                header_multi.append('\\multicolumn{1}{l}{\\multirow{2}{*}{Pipeline}} & \\multicolumn{1}{c}{\\multirow{2}{*}{\\shortstack{RANSAC\\\\ th. (px)}}} ')
+            else:
+                header_multi.append('\\multicolumn{' + str(i-l)  + '}{c}{' + header_dict[header_current] + '}')
+            if (l != -1) and (l + 1 != i): header_rule.append('\\cmidrule(lr){' +  str(l + 2)  + '-' + str(i+1) + '}')
             l = i
             header_current = header_type_[i]
         
@@ -406,7 +411,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
     header_spec = []               
     for v in csv_head:
         if 'filtered' in v: v = 'Filtered'
-        v = v.replace('pipeline', 'Pipeline')
+        v = v.replace('pipeline', ' & ')
         v = v.replace('F_precision', 'Precision')
         v = v.replace('F_recall', 'Recall')
         v = v.replace('H_precision', 'Precision')
@@ -434,7 +439,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
     header.append('\t\t\t\t\\midrule\n')
     
     if caption_string is None:
-        caption_string =  bar_csv[1][0][4:]
+        caption_string =  bar_csv[1][0][4: -len(' & \\phantom{--}--')]
         
     footer = [
         '\t\t\t\end{tabular}\n',
@@ -471,34 +476,31 @@ def compile_latex(latex_file):
 if __name__ == '__main__':    
 
     pipes = [
-        [     'MAGSAC^', pipe_base.magsac_module(px_th=1.00)],
-        [     'MAGSACv', pipe_base.magsac_module(px_th=0.75)],
-        [         'NCC', ncc.ncc_module(also_prev=True)],
-        [    'MOP+MiHo', miho_duplex.miho_module()],
-        [         'MOP', miho_unduplex.miho_module()],
-        [         'GMS', gms.gms_module()],
-        [       'OANet', oanet.oanet_module()],
-        [      'AdaLAM', adalam.adalam_module()],
-        [        'ACNe', acne.acne_module()],
-        [          'CC', consensusclustering.consensusclustering_module()],
-        [     'DeMatch', dematch.dematch_module()],
-        [   'ConvMatch', convmatch.convmatch_module()],
-        [       'CLNet', clnet.clnet_module()],
-        [      'NCMNet', ncmnet.ncmnet_module()],
-        [      'FC-GNN', fcgnn.fcgnn_module()],
-        ['MS$^2$DG-Net', ms2dgnet.ms2dgnet_module()],
-
-
+        [     '07MAGSAC\\hphantom{.} 0.50 px', pipe_base.magsac_module(px_th=0.50)],
+        [     '08\\hspace{\\da}$' + "'" + "'" + '$\\hspace{\\db} 0.75 px', pipe_base.magsac_module(px_th=0.75)],
+        [     '09\\hspace{\\da}$' + "'" + "'" + '$\\hspace{\\db} 1.00 px', pipe_base.magsac_module(px_th=1.00)],
+        [     '10\\hspace{\\da}$' + "'" + "'" + '$\\hspace{\\db} 3.00 px', pipe_base.magsac_module(px_th=3.00)],
+        [     '11\\hspace{\\da}$' + "'" + "'" + '$\\hspace{\\db} 5.00 px', pipe_base.magsac_module(px_th=5.00)],
+        [     '02DegenSAC 0.50 px', pipe_base.pydegensac_module(px_th=0.50)],
+        [     '03\\hspace{\\da}$' + "'" + "'" + '$\\hspace{\\db} 0.75 px', pipe_base.pydegensac_module(px_th=0.75)],
+        [     '04\\hspace{\\da}$' + "'" + "'" + '$\\hspace{\\db} 1.00 px', pipe_base.pydegensac_module(px_th=1.00)],
+        [     '05\\hspace{\\da}$' + "'" + "'" + '$\\hspace{\\db} 3.00 px', pipe_base.pydegensac_module(px_th=3.00)],
+        [     '06\\hspace{\\da}$' + "'" + "'" + '$\\hspace{\\db} 5.00 px', pipe_base.pydegensac_module(px_th=5.00)],        
+        [     '12PoseLib\\hphantom{Aa} 0.50 px', pipe_base.poselib_module(px_th=0.50)],
+        [     '13\\hspace{\\da}$' + "'" + "'" + '$\\hspace{\\db} 0.75 px', pipe_base.poselib_module(px_th=0.75)],
+        [     '14\\hspace{\\da}$' + "'" + "'" + '$\\hspace{\\db} 1.00 px', pipe_base.poselib_module(px_th=1.00)],
+        [     '15\\hspace{\\da}$' + "'" + "'" + '$\\hspace{\\db} 3.00 px', pipe_base.poselib_module(px_th=3.00)],
+        [     '16\\hspace{\\da}$' + "'" + "'" + '$\\hspace{\\db} 5.00 px', pipe_base.poselib_module(px_th=5.00)],
     ]
 
     pipe_heads = [
-          [    'Key.Net+AffNet+HardNet', pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99)],
-          [                      'SIFT', pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True)],     
-          [      'SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
-          [          'ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
-          [            'DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
-          [                     'LoFTR', pipe_base.loftr_module(num_features=8000, upright=True)],        
-          [                   'DeDoDe2', dedode2.dedode2_module(num_features=8000, upright=True)],                
+          [ '01Key.Net+AffNet+HardNet', pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99)],
+        # [                   '01SIFT', pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True)],     
+          [   '01SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
+        # [       '01ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
+        # [         '01DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
+        # [                  '01LoFTR', pipe_base.loftr_module(num_features=8000, upright=True)],        
+        # [                '01DeDoDe2', dedode2.dedode2_module(num_features=8000, upright=True)],                
         ]
     
 ###
