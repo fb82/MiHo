@@ -227,8 +227,8 @@ if __name__ == '__main__':
         "font.sans-serif": "Times",
         })
     plt.imshow(imm, cmap='gray', extent=[v_min, v_max, v_min, v_max])
-    plt.xlabel("$f$ \ $\max(w, h)$")
-    plt.ylabel("$f$ \ $\max(w, h)$")
+    plt.xlabel("$f$ / $\max(w, h)$")
+    plt.ylabel("$f$ / $\max(w, h)$")
     fig_name = os.path.join(ppath, '2d_distribution_as_rgb.pdf')
     plt.savefig(fig_name, dpi = fig_dpi, bbox_inches='tight')
     plt.close(fig)
