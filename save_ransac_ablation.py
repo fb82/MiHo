@@ -495,10 +495,10 @@ if __name__ == '__main__':
 
     pipe_heads = [
           [ '01Key.Net+AffNet+HardNet', pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99)],
-        # [                   '01SIFT', pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True)],     
+          [                   '01SIFT', pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True)],     
           [   '01SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
-        # [       '01ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
-        # [         '01DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
+          [       '01ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
+          [         '01DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
         # [                  '01LoFTR', pipe_base.loftr_module(num_features=8000, upright=True)],        
         # [                '01DeDoDe2', dedode2.dedode2_module(num_features=8000, upright=True)],                
         ]
