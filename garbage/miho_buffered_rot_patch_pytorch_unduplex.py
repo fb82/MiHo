@@ -4,30 +4,13 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import time
+import scipy.io as sio
 import torch
 import torchvision.transforms as transforms
 import kornia as K
 import pydegensac
 import math
-import gdown
-import shutil
-import tarfile
-import zipfile
-# import scipy.io as sio
 
-import src.OANet.learnedmatcher_mod as OANet_matcher
-
-# from pprint import pprint
-# import deep_image_matching as dim
-# import yaml
-
-# from src.pipelines.keynetaffnethardnet_module_fabio import keynetaffnethardnet_module_fabio
-# from src.pipelines.keynetaffnethardnet_kornia_matcher_module import keynetaffnethardnet_kornia_matcher_module
-# from src.pipelines.superpoint_lightglue_module import superpoint_lightglue_module
-# from src.pipelines.superpoint_kornia_matcher_module import superpoint_kornia_matcher_module
-# from src.pipelines.disk_lightglue_module import disk_lightglue_module
-# from src.pipelines.aliked_lightglue_module import aliked_lightglue_module
-# from src.pipelines.loftr_module import loftr_module
 
 cv2.ocl.setUseOpenCL(False)
 matplotlib.use('tkagg')
@@ -2098,15 +2081,8 @@ def scannet_1500_list(ppath='bench_data/gt_data/scannet'):
 
 
 def bench_init(bench_file='megadepth_scannet', bench_path='bench_data', bench_gt='gt_data'):
-    download_megadepth_scannet_data(bench_path)
-    
-    out_dir = os.path.join(bench_path, 'gt_data')
-    if not os.path.isdir(out_dir):    
-        with zipfile.ZipFile('data/megadepth_scannet_gt_data.zip',"r") as zip_ref:
-            zip_ref.extractall(bench_path)    
-    
     data_file = os.path.join(bench_path, 'megadepth_scannet' + '.pbz2')
-    if not os.path.isfile(data_file):      
+    if not os.path.isfile(data_file + '.pbz2'):      
         megadepth_data = megadepth_1500_list(os.path.join(bench_path, bench_gt, 'megadepth'))
         scannet_data = scannet_1500_list(os.path.join(bench_path, bench_gt, 'scannet'))
         compressed_pickle(data_file, (megadepth_data, scannet_data))
@@ -2884,23 +2860,11 @@ class gms_module:
         return pt1, pt2, Hs, mask
 
 
+import OANet.learnedmatcher_mod as OANet_matcher
+
 class oanet_module:
-    def __init__(self, **args):  
-        oanet_dir = 'src/OANet'
-        model_file = os.path.join(oanet_dir, 'model_best.pth')
-        file_to_download = os.path.join(oanet_dir, 'sift-gl3d.tar.gz')    
-        if not os.path.isfile(model_file):    
-            url = "https://drive.google.com/file/d/1JxXYuuSa_sS-IXbL-VzJs4OVrC9O0bXc/view?usp=drive_link"
-            gdown.download(url, file_to_download, fuzzy=True)
-    
-            with tarfile.open(file_to_download,"r") as tar_ref:
-                tar_ref.extract('gl3d/sift-4000/model_best.pth', path=oanet_dir)
-            
-            shutil.copy(os.path.join(oanet_dir, 'gl3d/sift-4000/model_best.pth'), model_file)
-            shutil.rmtree(os.path.join(oanet_dir, 'gl3d'))
-            os.remove(file_to_download)
-                
-        self.lm = OANet_matcher.LearnedMatcher(model_file, inlier_threshold=1, use_ratio=0, use_mutual=0, corr_file=-1)        
+    def __init__(self, **args):              
+        self.lm = OANet_matcher.LearnedMatcher('OANet/model_best.pth', inlier_threshold=1, use_ratio=0, use_mutual=0, corr_file=-1)        
         
         for k, v in args.items():
            setattr(self, k, v)
@@ -2939,121 +2903,83 @@ class oanet_module:
         return pt1, pt2, Hs, mask
 
 
-def download_megadepth_scannet_data(bench_path ='bench_data'):   
-    os.makedirs(os.path.join(bench_path, 'downloads'), exist_ok=True)   
-
-    file_to_download = os.path.join(bench_path, 'downloads', 'megadepth_test_1500.tar.gz')    
-    if not os.path.isfile(file_to_download):    
-        url = "https://drive.google.com/file/d/12yKniNWebDHRTCwhBNJmxYMPgqYX3Nhv/view?usp=drive_link"
-        gdown.download(url, file_to_download, fuzzy=True)
-    
-    out_dir = os.path.join(bench_path, 'megadepth_test_1500')
-    if not os.path.isdir(out_dir):    
-        with tarfile.open(file_to_download,"r") as tar_ref:
-            tar_ref.extractall(bench_path)
-    
-    file_to_download = os.path.join(bench_path, 'downloads', 'scannet_test_1500.tar.gz')    
-    if not os.path.isfile(file_to_download):    
-        url = "https://drive.google.com/file/d/1wtl-mNicxGlXZ-UQJxFnKuWPvvssQBwd/view?usp=drive_link"
-        gdown.download(url, file_to_download, fuzzy=True)
-
-    out_dir = os.path.join(bench_path, 'scannet_test_1500')
-    if not os.path.isdir(out_dir):    
-        with tarfile.open(file_to_download,"r") as tar_ref:
-            tar_ref.extractall(bench_path)
-    
-    return
-
-
 if __name__ == '__main__':
     # megadepth & scannet
-    bench_path = '../miho_megadepth_scannet_bench_data'   
-    bench_gt = 'gt_data'
-    bench_im = 'imgs'
-    bench_file = 'megadepth_scannet'
-    bench_res = 'res'
-    save_to = os.path.join(bench_path, bench_res, 'res_')
+    # bench_path = './miho_megadepth_scannet_bench_data'   
+    # bench_gt = 'gt_data'
+    # bench_im = 'imgs'
+    # bench_file = 'megadepth_scannet'
+    # bench_res = 'res'
+    # save_to = os.path.join(bench_path, bench_res, 'res_')
 
-    pipes = [
-        #[
-        #    superpoint_lightglue_module(nmax_keypoints=4000),
-        #    #superpoint_kornia_matcher_module(nmax_keypoints=4000, th=0.97),
-        #    #keynetaffnethardnet_kornia_matcher_module(nmax_keypoints=4000, upright=False, th=0.99),
-        #    #disk_lightglue_module(nmax_keypoints=4000),
-        #    #aliked_lightglue_module(nmax_keypoints=4000),
-        #    #loftr_module(pretrained='outdoor'),
-        #    #keynetaffnethardnet_module(upright=False, th=0.99),
-        #    miho_module(),
-        #    pydegensac_module(px_th=3)
-        #],
+    # pipes = [
+    #     [
+    #         keynetaffnethardnet_module(upright=False, th=0.99),
+    #         miho_module(),
+    #         pydegensac_module(px_th=3)
+    #     ],
 
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            miho_module(),
-            pydegensac_module(px_th=3)
-        ],
+    #     [
+    #         keynetaffnethardnet_module(upright=False, th=0.99),
+    #         pydegensac_module(px_th=3)
+    #     ],
 
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            pydegensac_module(px_th=3)
-        ],
+    #     [
+    #         keynetaffnethardnet_module(upright=False, th=0.99),
+    #         ncc_module(),
+    #         pydegensac_module(px_th=3)
+    #     ],
 
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            ncc_module(),
-            pydegensac_module(px_th=3)
-        ],
-
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            miho_module(),
-            ncc_module(),
-            pydegensac_module(px_th=3)
-        ],
-
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            gms_module(),
-            pydegensac_module(px_th=3)
-        ],
-
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            gms_module(),
-            ncc_module(),
-            pydegensac_module(px_th=3)
-        ],
-
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            oanet_module(),
-            pydegensac_module(px_th=3)
-        ],
-
-        [
-            keynetaffnethardnet_module(upright=False, th=0.99),
-            oanet_module(),
-            ncc_module(),
-            pydegensac_module(px_th=3)
-        ]        
-    ]
+    #     [
+    #         keynetaffnethardnet_module(upright=False, th=0.99),
+    #         miho_module(),
+    #         ncc_module(),
+    #         pydegensac_module(px_th=3)
+    #     ],
+        
+    #     [
+    #         keynetaffnethardnet_module(upright=False, th=0.99),
+    #         gms_module(),
+    #         pydegensac_module(px_th=3)
+    #     ],
+        
+    #     [
+    #         keynetaffnethardnet_module(upright=False, th=0.99),
+    #         gms_module(),
+    #         ncc_module(),
+    #         pydegensac_module(px_th=3)
+    #     ],
+        
+    #     [
+    #         keynetaffnethardnet_module(upright=False, th=0.99),
+    #         oanet_module(),
+    #         pydegensac_module(px_th=3)
+    #     ],
+        
+    #     [
+    #         keynetaffnethardnet_module(upright=False, th=0.99),
+    #         oanet_module(),
+    #         ncc_module(),
+    #         pydegensac_module(px_th=3)
+    #     ]        
+    # ]
                
-    megadepth_data, scannet_data, data_file = bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
-    megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
+    # megadepth_data, scannet_data, data_file = bench_init(bench_file=bench_file, bench_path=bench_path, bench_gt=bench_gt)
+    # megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_im)
 
-    for i, pipe in enumerate(pipes):
-        print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")
-        run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
-        run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
+    # for i, pipe in enumerate(pipes):
+    #     print(f"--== Running pipeline {i+1}/{len(pipes)} ==--")
+    #     run_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
+    #     run_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path , bench_im=bench_im, bench_res=bench_res)
 
-        eval_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2', use_scale=True)
-        eval_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2', use_scale=False)
+    #     eval_pipe(pipe, megadepth_data, 'megadepth', 'MegaDepth', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'megadepth.pbz2', use_scale=True)
+    #     eval_pipe(pipe, scannet_data, 'scannet', 'ScanNet', bench_path=bench_path, bench_res='res', essential_th_list=[0.5, 1, 1.5], save_to=save_to + 'scannet.pbz2', use_scale=False)
 
     # demo code
     
     img1 = 'data/im1.png'
     img2 = 'data/im2_rot.png'
-    # match_file = 'data/matches_rot.mat'
+    match_file = 'data/matches_rot.mat'
 
     # img1 = 'data/dc0.png'
     # img2 = 'data/dc2.png'
@@ -3073,22 +2999,22 @@ if __name__ == '__main__':
     im2 = Image.open(img2)
 
     # generate matches with kornia, LAF included, check upright!
-    upright=False
-    with torch.inference_mode():
-        detector = K.feature.KeyNetAffNetHardNet(upright=upright, device=device)
-        kps1, _ , descs1 = detector(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
-        kps2, _ , descs2 = detector(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
-        dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.99)        
-    kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
-    kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
+    # upright=False
+    # with torch.inference_mode():
+    #     detector = K.feature.KeyNetAffNetHardNet(upright=upright, device=device)
+    #     kps1, _ , descs1 = detector(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+    #     kps2, _ , descs2 = detector(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
+    #     dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.99)        
+    # kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
+    # kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
 
     # import from a match file with only kpts
     #
-    # m12 = sio.loadmat(match_file, squeeze_me=True)
-    # m12 = m12['matches'][m12['midx'] > 0, :]
+    m12 = sio.loadmat(match_file, squeeze_me=True)
+    m12 = m12['matches'][m12['midx'] > 0, :]
     # # m12 = m12['matches']
-    # pt1 = torch.tensor(m12[:, :2], dtype=torch.float32, device=device)
-    # pt2 = torch.tensor(m12[:, 2:], dtype=torch.float32, device=device)
+    pt1 = torch.tensor(m12[:, :2], dtype=torch.float32, device=device)
+    pt2 = torch.tensor(m12[:, 2:], dtype=torch.float32, device=device)
 
     params = miho.all_params()
     params['get_avg_hom']['rot_check'] = True
@@ -3121,13 +3047,13 @@ if __name__ == '__main__':
     # pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, w_big=w_big, ref_image=['both'], subpix=True, img_patches=True)   
 
     # data formatting 
-    pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=True)    
+    # pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=True)    
     # pt1, pt2, Hs_laf = refinement_laf(mihoo.im1, mihoo.im2, pt1=pt1, pt2=pt2, w=w, img_patches=True)    
 
     ###
     start = time.time()
     
-    mihoo.planar_clustering_duplex(pt1, pt2)
+    mihoo.planar_clustering_unduplex(pt1, pt2)
 
     end = time.time()
     print("Elapsed = %s (MiHo clustering)" % (end - start))
@@ -3155,9 +3081,9 @@ if __name__ == '__main__':
     # pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
     
     # LAF -> MiHo -> NCC | NCC+   
-    pt1_, pt2_, Hs_miho, inliers = refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, img_patches=True)        
-    pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True)   
-    pt1__p, pt2_p_, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
+    # pt1_, pt2_, Hs_miho, inliers = refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, img_patches=True)        
+    # pt1__, pt2__, Hs_ncc, val, T = refinement_norm_corr(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True)   
+    # pt1__p, pt2_p_, Hs_ncc_p, val_p, T_p = refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True)   
     
     end = time.time()
     print("Elapsed = %s (NCC refinement)" % (end - start))
