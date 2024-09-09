@@ -145,7 +145,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         'm': 'MegaDepth',
         's': 'ScanNet',
         'h': 'Planar',
-        'p': 'PhotoTourism'
+        'p': 'IMC PhotoTourism'
         }
     
     bar_off = 0.05
@@ -344,6 +344,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         '\\usepackage{fullpage}\n',        
         '\\usepackage{graphicx}\n',
         '\\usepackage{caption}\n',
+        '\\captionsetup{labelformat=empty}\n',
         '\\usepackage{color}\n',
         '\\usepackage{adjustbox}\n',
         '\\usepackage{multirow}\n',
@@ -376,7 +377,8 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         '\\definecolor{C8}{HTML}{BCBD22}\n',
         '\\definecolor{C9}{HTML}{17BECF}\n',
         '\n',        
-        '\\begin{document}\n',        
+        '\\begin{document}\n',
+        '\\pagestyle{empty}\n',
         '\t\\contourlength{0.1pt}\n',
         '\t\\contournumber{10}\n',
         '\t\\begin{table}[t!]\n',
@@ -439,7 +441,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
     footer = [
         '\t\t\t\end{tabular}\n',
         '\t\t}\n',
-        '\t\t\\caption{' + caption_string + ' (best viewed in color and zoomed in).}\\label{none}\n',
+        '\t\t%\\caption{' + caption_string + '}\\label{none}\n',
         '\t\\end{table}\n',
         '\\end{document}\n',
     ]
@@ -464,7 +466,8 @@ def compile_latex(latex_file):
     os.system('cd tmp; pdflatex aux.tex')
     os.system('cd tmp; pdflatex aux.tex')
     os.system('export LD_LIBRARY_PATH= && gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/printer -dNOPAUSE -dQUIET -dBATCH -dCompressFonts=true -dSubsetFonts=true -dColorConversionStrategy=/LeaveColorUnchanged -dPrinted=false -sOutputFile=tmp/aux_.pdf tmp/aux.pdf');
-    shutil.copy('tmp/aux_.pdf', latex_file[:-4] + '.pdf');
+    os.system('pdfcrop tmp/aux_.pdf tmp/aux__.pdf')
+    shutil.copy('tmp/aux__.pdf', latex_file[:-4] + '.pdf');
     os.system('rm -R tmp');
 
 
