@@ -363,7 +363,7 @@ if __name__ == '__main__':
     # plot_focal_length_vs_parameter(bench_path, phototourism_data, "PhotoTourism")
 
     datasets = [phototourism_data, megadepth_data, scannet_data]
-    dataset_names = ["PhotoTourism", "MegaDepth", "ScanNet"]
+    dataset_names = ["IMC PhotoTourism", "MegaDepth", "ScanNet"]
 
     # plot_focal_length_vs_parameter_combine(datasets, dataset_names)
     plot_focal_length_vs_parameter_separate(datasets, dataset_names)

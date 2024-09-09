@@ -244,7 +244,7 @@ if __name__ == '__main__':
     h = [np.histogram(vdata[i], bins=nnbins, range=[v_min, v_max]) for i in range(len(vdata))]
     for i in range(len(vdata)):    
         ax.stairs(h[i][0] / np.sum(h[i][0]), h[i][1])
-    ax.legend(['MegaDepth', 'PhotoTourism', 'ScanNet'])
+    ax.legend(['MegaDepth', 'IMC PhotoTourism', 'ScanNet'])
     ax.set_yscale('log')    
     plt.xlabel("$f$ / $\max(w, h)$")
     plt.ylabel("prob. density")
@@ -262,7 +262,7 @@ if __name__ == '__main__':
     h = [np.histogram(vdata[i], bins=nnbins, range=[v_min, v_max]) for i in range(len(vdata))]
     for i in range(2):    
         ax.stairs(h[i][0] / np.sum(h[i][0]), h[i][1])
-    ax.legend(['MegaDepth', 'PhotoTourism']) 
+    ax.legend(['MegaDepth', 'IMC PhotoTourism']) 
     plt.xlabel('$f$ / $\max(w, h)$')
     plt.ylabel("prob. density")
     fig_name = os.path.join(ppath, 'intrinsics_distribution_outdoor.pdf')

@@ -41,7 +41,8 @@ def compile_latex(latex_file):
     os.system('cd tmp; pdflatex aux.tex')
     os.system('cd tmp; pdflatex aux.tex')
     os.system('export LD_LIBRARY_PATH= && gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/printer -dNOPAUSE -dQUIET -dBATCH -dCompressFonts=true -dSubsetFonts=true -dColorConversionStrategy=/LeaveColorUnchanged -dPrinted=false -sOutputFile=tmp/aux_.pdf tmp/aux.pdf');
-    shutil.copy('tmp/aux_.pdf', latex_file[:-4] + '.pdf');
+    os.system('pdfcrop tmp/aux_.pdf tmp/aux__.pdf')
+    shutil.copy('tmp/aux__.pdf', latex_file[:-4] + '.pdf');
     os.system('rm -R tmp');
 
 
@@ -152,6 +153,7 @@ def to_latex_simple(csv_table, table_name=''):
         '\\documentclass[a4paper,10pt]{article}\n',
         '\\usepackage{graphicx}\n',
         '\\usepackage{caption}\n',
+        '\\captionsetup{labelformat=empty}\n',
         '\\usepackage{color}\n',
         '\\usepackage{booktabs}\n',
         '\\usepackage{amssymb}\n',
@@ -167,7 +169,8 @@ def to_latex_simple(csv_table, table_name=''):
         '\\newlength\\MAXA\\setlength\\MAXA{\\widthof{' + ('a' * l1) + 'A.}}\n',
         '\\newlength\\MAXB\\setlength\\MAXB{\\widthof{' + ('a' * lo) + 'A.}}\n',
         '\n',        
-        '\\begin{document}\n',        
+        '\\begin{document}\n', 
+        '\\pagestyle{empty}\n',
         '\t\\begin{table}[t!]\n',
         '\t\\centering\n',
 #       '\t\t\t\\begin{tabular}{R{\\MAXA}' + ('R{\\MAXB}' * (len(csv_table[0]) - 1)) + '}\n',
@@ -211,6 +214,7 @@ def to_latex_corr(table_name, ccol, corr_table):
         '\\documentclass[a4paper,10pt]{article}\n',
         '\\usepackage{graphicx}\n',
         '\\usepackage{caption}\n',
+        '\\captionsetup{labelformat=empty}\n',
         '\\usepackage{color}\n',
         '\\usepackage{booktabs}\n',
         '\\usepackage{amssymb}\n',
@@ -226,6 +230,7 @@ def to_latex_corr(table_name, ccol, corr_table):
         '\\newlength\\MAX\\setlength\\MAX{\\widthof{Recall.}}\n',
         '\n',        
         '\\begin{document}\n',        
+        '\\pagestyle{empty}\n',
         '\t\\begin{table}[t!]\n',
         '\t\\centering\n',
         '\t\t\t\\begin{tabular}{' + ('R{\\MAX}' * (len(ccol)+1)) + '}\n',
@@ -254,7 +259,7 @@ def to_latex_corr(table_name, ccol, corr_table):
            
     footer = [
         '\t\t\t\end{tabular}\n',
-        '\t\t\\caption{Error correlation matrix for the ' + table_name  + ' dataset, with and without MAGSAC in blue and red, respecitvely (best viewed in color).}\\label{none}\n',
+        '\t\t\\caption{Error correlation for the ' + table_name  + ' dataset \\textcolor{blue}{with} and \\textcolor{red}{without} MAGSAC}\\label{none}\n',
         '\t\\end{table}\n',
         '\\end{document}\n',
     ]
@@ -436,6 +441,6 @@ if __name__ == '__main__':
 
     os.makedirs(os.path.join(bench_path, save_to, 'latex'), exist_ok=True)
     latex_file = os.path.join(bench_path, save_to, 'latex', 'match_count.tex')
-    latex_table = to_latex_simple(csv_count, table_name='Average number of matches per image.')
+    latex_table = to_latex_simple(csv_count, table_name='Average number of matches per image')
     csv_write(latex_table, latex_file)
     compile_latex(latex_file)
