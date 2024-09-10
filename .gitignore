@@ -1,4 +1,3 @@
-*.pdf
 *.pyc
 *.pth
 run_bench
