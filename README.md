@@ -10,6 +10,12 @@
   <a href="https://3dom.fbk.eu/people/profile/remondino">Fabio Remondino</a>
 </p>
 
+<p align="center">
+    <img src="https://github.com/fb82/MiHo/blob/main/data/other/lions.png" alt="example" width=80%>
+    <br>
+    <em>Planar clusters assigned by MOP+MiHo, outlier matches are marked with balcki diamonds.</em>
+</p>
+
 ## What is it?
 MOP+MiHo+NCC is a sequence of non-deep modules to filter and refine image matches:
 1. Multiple Overlapping Planes (MOP) removes outlier matches while jointly clusters inlier matches into planes by an iterative RANSAC-based strategy;
