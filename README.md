@@ -11,9 +11,9 @@
 </p>
 
 <p align="center">
-    <img src="https://github.com/fb82/MiHo/blob/main/data/other/lions.png" alt="example" width=80%>
+    <img src="https://github.com/fb82/MiHo/blob/dev/data/other/lions.png" alt="example" width=80%>
     <br>
-    <em>Planar clusters assigned by MOP+MiHo, outlier matches are marked with balcki diamonds.</em>
+    <em>Planar clusters assigned by MOP+MiHo, outlier matches are marked with black diamonds.</em>
 </p>
 
 ## What is it?
