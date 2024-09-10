@@ -21,9 +21,12 @@ if __name__ == '__main__':
     else:
         from src import miho_other as miho
         
-    img1 = 'data/im1.png'
-    img2 = 'data/im2_rot.png'
-    if load_matches: match_file = 'data/matches_rot.mat'
+    img1 = 'data/demo/im1.png'
+    img2 = 'data/demo/im2_rot.png'
+    if load_matches: match_file = 'data/demo/matches_rot.mat'
+    # or
+    # img2 = 'data/demo/im2.png'
+    # if load_matches: match_file = 'data/demo/matches.mat'    
 
     # *** NCC / NCC+ ***
     # window radius
@@ -71,7 +74,7 @@ if __name__ == '__main__':
     # # but also:
     #
     # params = mihoo.get_current()
-    # params['get_avg_hom']['min_plane_pts'] = 16
+    # params['get_avg_hom']['max_iter'] = 500
     # mihoo.update_params(params)
 
     mihoo.attach_images(im1, im2)
