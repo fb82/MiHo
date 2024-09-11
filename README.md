@@ -17,7 +17,7 @@
 </p>
 
 ## What is it?
-MOP+MiHo+NCC is a sequence of non-deep modules to filter and refine image matches:
+MOP+MiHo+NCC is a modular non-deep method to filter and refine image matches:
 1. Multiple Overlapping Planes (MOP) removes outlier matches while jointly clusters inlier matches into planes by an iterative RANSAC-based strategy;
 2. Middle Homography (MiHo) improves MOP planar homography by minimizing the relative patch distortion in the plane reprojection;
 3. Normalized Cross Correlation (NCC) refines keypoint position on the patches after the planar transformation.
