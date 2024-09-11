@@ -13,7 +13,7 @@
 <p align="center">
     <img src="https://github.com/fb82/MiHo/blob/main/data/other/lions.png" alt="example" width=80%>
     <br>
-    <em><sup>Planar clusters assigned by MOP+MiHo, outlier matches are marked with black diamonds, NCC keypoint shifts are not shown</sup></em>
+    <em>Planar clusters assigned by MOP+MiHo, outlier matches are marked <br> with black diamonds, NCC keypoint shifts are not shown.</em>
 </p>
 
 ## What is it?
