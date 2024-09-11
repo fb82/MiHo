@@ -38,4 +38,4 @@ Full benchmark can be run with `run_bench.py` and tables built with `save_bench.
 
 ## Where can I find more details?
 The early idea of the approach can be found in the paper [Progressive keypoint localization and
-refinement in image matching (FAPER 2023)](https://drive.google.com/file/d/1sxQOpbBTvvqnpfR98HGHQafquww6JuaK/edit), *further details will be available in an upcoming paper*.
+refinement in image matching](https://drive.google.com/file/d/1sxQOpbBTvvqnpfR98HGHQafquww6JuaK/edit) presented at FAPER2023, *more details will be available in an upcoming paper*.
