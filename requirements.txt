@@ -23,9 +23,9 @@ torch==2.2.2
 torchvision==0.17.2
 poselib==2.0.1
 PyQt5==5.15.10
-tqdm==4.66.2
+tqdm>=4.66.3
 tzdata==2024.1
-zipp==3.18.1
+zipp>=3.19.1
 lightglue @ git+https://github.com/cvg/LightGlue
 pymulticonsensus @ git+https://github.com/danini/clustering-in-consensus-space
 # to activate DIM modules
