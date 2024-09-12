@@ -1,4 +1,4 @@
-# pip install -r packages.txt
+# pip install -r requirements.txt
 numpy==1.26.4
 kornia==0.7.2
 kornia_rs==0.1.3
