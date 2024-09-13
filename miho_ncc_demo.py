@@ -60,11 +60,9 @@ if __name__ == '__main__':
         pt1 = torch.tensor(m12[:, :2], dtype=torch.float32, device=device)
         pt2 = torch.tensor(m12[:, 2:], dtype=torch.float32, device=device)
 
-    params = miho.miho.all_params()
-    params['get_avg_hom']['rot_check'] = 4
-    mihoo = miho.miho(params)
+    mihoo = miho.miho()
 
-    # # miho paramas examples:
+    # # miho params examples:
     #
     # params = miho.all_params()
     # params['go_assign']['method'] = cluster_assign_base

@@ -1079,11 +1079,19 @@ class miho_module:
         
         for k, v in args.items():
            setattr(self, k, v)
+
+        if hasattr(self, 'max_iter'):
+            params = self.miho.get_current()
+            params['get_avg_hom']['max_iter'] = self.max_iter
+            self.miho.update_params(params)        
         
         
     def get_id(self):
-        return ('miho_default_duplex').lower()
-
+        if not hasattr(self, 'max_iter'):
+            return ('miho_default_duplex').lower()
+        else:
+            return ('miho_duplex_max_iter_' + str(self.max_iter)).lower()
+            
 
     def run(self, **args):
         self.miho.planar_clustering(args['pt1'], args['pt2'])
