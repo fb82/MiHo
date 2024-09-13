@@ -1,32 +1,37 @@
 # pip install -r requirements.txt
+#
+# to run MOP+MiHo+NCC demo script, aka miho_ncc_demo.py
 numpy==1.26.4
+scipy==1.13.0
 kornia==0.7.2
 kornia_rs==0.1.3
-scipy==1.13.0
-tensorflow-cpu==2.16.1
-pydegensac==0.1.2
-gdown==5.1.0
-pillow==10.3.0
-rich==13.7.1
-sympy==1.12
-matplotlib==3.8.4
-munkres==1.1.4
+torch==2.2.2
+torchvision==0.17.2
 opencv-python==4.9.0.80
 opencv-contrib-python==4.9.0.80
 opencv-python-headless==4.9.0.80
+pillow==10.3.0
+matplotlib==3.8.4
+PyQt5==5.15.10
+#
+# to run the benchmark script too
+tensorflow-cpu==2.16.1
+pydegensac==0.1.2
+gdown==5.1.0
+rich==13.7.1
+sympy==1.12
+munkres==1.1.4
 einops==0.7.0
 e2cnn==0.2.3
 parse==1.20.1
 pycolmap==0.6.1
 xformers==0.0.25.post1
-torch==2.2.2
-torchvision==0.17.2
 poselib==2.0.1
-PyQt5==5.15.10
 tqdm>=4.66.3
 tzdata==2024.1
 zipp>=3.19.1
 lightglue @ git+https://github.com/cvg/LightGlue
 pymulticonsensus @ git+https://github.com/danini/clustering-in-consensus-space
+#
 # to activate DIM modules
 deep-image-matching @ git+https://github.com/3DOM-FBK/deep-image-matching
