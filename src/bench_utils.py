@@ -12,6 +12,7 @@ import bz2
 import shutil
 import src.ncc as ncc
 import csv
+import time
 
 from matplotlib import colormaps
 import matplotlib.pyplot as plt
@@ -326,7 +327,7 @@ def error_auc(errors, thr):
     return np.trapz(y, x) / thr    
 
 
-def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', force=False, ext='.png'):
+def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', force=False, ext='.png', running_time=False):
 
     n = len(dataset_data['im1'])
     im_path = os.path.join(bench_im, dataset_name)        
@@ -343,8 +344,18 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
             
                 if os.path.isfile(pipe_f) and not force:
                     out_data = decompress_pickle(pipe_f)
-                else:                      
+                else:                    
+                    if running_time: start_time = time.time()
+
                     out_data = pipe_module.run(**pipe_data)
+
+                    if running_time:
+                        stop_time = time.time()
+                        if not ('running_time' in out_data.keys()):
+                            out_data['running_time'] = [stop_time - start_time]
+                        else:
+                            out_data['running_time'].append(stop_time - start_time)
+
                     os.makedirs(os.path.dirname(pipe_f), exist_ok=True)                 
                     compressed_pickle(pipe_f, out_data)
                     
