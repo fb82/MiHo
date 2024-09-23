@@ -611,7 +611,7 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                         l2_ = F_gt.T @ pt2_
                         d2 = pt1_.permute(1,0).unsqueeze(-2).bmm(l2_.permute(1,0).unsqueeze(-1)).squeeze().abs() / (l2_[:2]**2).sum(0).sqrt()
                         
-                        epi_max_err = torch.maximum(d1, d2);                                
+                        epi_max_err = torch.maximum(d1, d2)                                
                         inl_sum = (epi_max_err.unsqueeze(-1) < torch.tensor(err_th_list, device=device).unsqueeze(0)).sum(dim=0).type(torch.int)
                         avg_prec = inl_sum.type(torch.double).mean()/nn
                                                 
@@ -1252,7 +1252,7 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                         if dataset_data['im2_use_mask'][i]:
                             valid_matches = valid_matches & ~invalid_matches(dataset_data['im2_mask'][i], dataset_data['im1_full_mask'][i], pts2, pts1, rad)
                                                 
-                        reproj_max_err_ = torch.maximum(d1, d2);                                
+                        reproj_max_err_ = torch.maximum(d1, d2)                                
                         reproj_max_err = reproj_max_err_[valid_matches]
                         inl_sum = (reproj_max_err.unsqueeze(-1) < torch.tensor(err_th_list, device=device).unsqueeze(0)).sum(dim=0).type(torch.int)
                         avg_prec = inl_sum.type(torch.double).mean()/nn
