@@ -1082,7 +1082,7 @@ class miho_module:
 
         if hasattr(self, 'max_iter'):
             params = self.miho.get_current()
-            params['get_avg_hom']['max_iter'] = self.max_iter
+            params['get_avg_hom']['ransac_middle_args']['max_iter'] = self.max_iter
             self.miho.update_params(params)        
         
         

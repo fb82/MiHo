@@ -345,6 +345,18 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
                 if os.path.isfile(pipe_f) and not force:
                     out_data = decompress_pickle(pipe_f)
                 else:                    
+                    # # start CC crash skip
+                    # out_data_cc = out_data
+                    # out_data_cc['mask'] = []
+                    # if running_time:
+                    #    if not ('running_time' in out_data_cc.keys()):
+                    #        out_data_cc['running_time'] = [np.NaN]
+                    #    else:
+                    #        out_data_cc['running_time'].append(np.NaN)
+                    # os.makedirs(os.path.dirname(pipe_f), exist_ok=True)                 
+                    # compressed_pickle(pipe_f, out_data)
+                    # # end CC crash skip
+
                     if running_time: start_time = time.time()
 
                     out_data = pipe_module.run(**pipe_data)
@@ -611,7 +623,7 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                         l2_ = F_gt.T @ pt2_
                         d2 = pt1_.permute(1,0).unsqueeze(-2).bmm(l2_.permute(1,0).unsqueeze(-1)).squeeze().abs() / (l2_[:2]**2).sum(0).sqrt()
                         
-                        epi_max_err = torch.maximum(d1, d2)                                
+                        epi_max_err = torch.maximum(d1, d2)                               
                         inl_sum = (epi_max_err.unsqueeze(-1) < torch.tensor(err_th_list, device=device).unsqueeze(0)).sum(dim=0).type(torch.int)
                         avg_prec = inl_sum.type(torch.double).mean()/nn
                                                 

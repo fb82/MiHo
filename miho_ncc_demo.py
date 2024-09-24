@@ -72,7 +72,7 @@ if __name__ == '__main__':
     # # but also:
     #
     # params = mihoo.get_current()
-    # params['get_avg_hom']['max_iter'] = 500
+    # params['get_avg_hom']['ransac_middle_args']['max_iter'] = 500
     # mihoo.update_params(params)
 
     mihoo.attach_images(im1, im2)
