@@ -349,10 +349,7 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
                     # out_data_cc = out_data
                     # out_data_cc['mask'] = []
                     # if running_time:
-                    #    if not ('running_time' in out_data_cc.keys()):
-                    #        out_data_cc['running_time'] = [np.NaN]
-                    #    else:
-                    #        out_data_cc['running_time'].append(np.NaN)
+                    #    out_data_cc['running_time'] = [np.NaN]
                     # os.makedirs(os.path.dirname(pipe_f), exist_ok=True)                 
                     # compressed_pickle(pipe_f, out_data)
                     # # end CC crash skip
@@ -363,10 +360,7 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
 
                     if running_time:
                         stop_time = time.time()
-                        if not ('running_time' in out_data.keys()):
-                            out_data['running_time'] = [stop_time - start_time]
-                        else:
-                            out_data['running_time'].append(stop_time - start_time)
+                        out_data['running_time'] = [stop_time - start_time]
 
                     os.makedirs(os.path.dirname(pipe_f), exist_ok=True)                 
                     compressed_pickle(pipe_f, out_data)
