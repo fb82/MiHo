@@ -169,9 +169,8 @@ if __name__ == '__main__':
 
 ###
 
-    # bench_path = '../bench_data_time'   
-    bench_path = '/media/bellavista/Dati1/miho_bench_run'
-
+    bench_path = '../bench_data_time'   
+    
     save_to = 'res'
     show_matches = False
     
