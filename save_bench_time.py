@@ -36,26 +36,26 @@ def csv_write(lines, save_to='nameless.csv'):
 def csv_merger(csv_list, include_match_count=False):
 
     if not include_match_count:
-        avg_idx = [[ 3,  6, 'F_AUC@avg_a'], # MegaDepth
-                   [ 6,  9, 'E_AUC@avg_a'],
-                   [11, 14, 'F_AUC@avg_a'], # ScanNet
-                   [14, 17, 'E_AUC@avg_a'],
-                   [19, 22, 'H_AUC@avg_m'], # Planar
-                   [24, 27, 'F_AUC@avg_a'], # PhotoTourism
-                   [27, 30, 'F_AUC@avg_m'],
-                   [30, 33, 'E_AUC@avg_a'],
-                   [33, 36, 'E_AUC@avg_m'],
+        avg_idx = [[ 3,  6, 'F_AUC@avg_a',  0], # MegaDepth
+                   [ 6,  9, 'E_AUC@avg_a',  6],
+                   [11, 14, 'F_AUC@avg_a',  9], # ScanNet
+                   [14, 17, 'E_AUC@avg_a', 14],
+                   [19, 22, 'H_AUC@avg_m', 19], # Planar
+                   [24, 27, 'F_AUC@avg_a', 22], # PhotoTourism
+                   [30, 33, 'E_AUC@avg_a', 30],
+                   [27, 30, 'F_AUC@avg_m', 27],
+                   [33, 36, 'E_AUC@avg_m', 33],
                    ]
     else:           
-        avg_idx = [[ 4,  7, 'F_AUC@avg_a'], # MegaDepth
-                   [ 7, 10, 'E_AUC@avg_a'], 
-                   [13, 16, 'F_AUC@avg_a'], # ScanNet
-                   [16, 19, 'E_AUC@avg_a'],
-                   [21, 25, 'H_AUC@avg_m'], # Planar
-                   [28, 31, 'F_AUC@avg_a'], # PhotoTourism
-                   [31, 34, 'F_AUC@avg_m'],
-                   [34, 37, 'E_AUC@avg_a'],
-                   [37, 40, 'E_AUC@avg_m'],
+        avg_idx = [[ 4,  7, 'F_AUC@avg_a',  0], # MegaDepth
+                   [ 7, 10, 'E_AUC@avg_a',  7], 
+                   [13, 16, 'F_AUC@avg_a', 10], # ScanNet
+                   [16, 19, 'E_AUC@avg_a', 16],
+                   [21, 25, 'H_AUC@avg_m', 19], # Planar
+                   [28, 31, 'F_AUC@avg_a', 25], # PhotoTourism
+                   [34, 37, 'E_AUC@avg_a', 34],
+                   [31, 34, 'F_AUC@avg_m', 31],
+                   [37, 40, 'E_AUC@avg_m', 37],
                    ]               
         
     csv_data = []
@@ -104,10 +104,7 @@ def csv_merger(csv_list, include_match_count=False):
     for row_base, row_avg in zip(merged_csv, avg_csv):
         row_new =  []
         for k in range(len(trimmed_avg_idx) - 1, - 1, - 1):
-            if k == 0:
-                l = 0
-            else:
-                l = trimmed_avg_idx[k - 1][1]
+            l = trimmed_avg_idx[k][3]
                 
             if k == len(trimmed_avg_idx) - 1:
                 r = len(row_base)
@@ -296,20 +293,8 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
             v = v.replace('miho_duplex_max_iter_2000','\\textbf{MOP$_{2.0K}$+MiHo}')                  
             v = v.replace('miho_unduplex_max_iter_2000','\\textbf{MOP$_{2.0K}$}')                  
             v = v.replace('NCC','\\textbf{NCC}')                  
-            v = v.replace('MAGSAC^','MAGSAC$_\\uparrow$')                  
-            v = v.replace('MAGSACv','MAGSAC$_\\downarrow$') 
-
-            if (i > 1) and (j == 0):
-                v = '\\hspace{0.33em}' + v                 
-
-            # row alternate gray color    
-            if (i != 0) and (j == 0) and (i % 2 == 0):
-                v = '\\rowcolor{gray!15} ' + v
-
-            # add tabs
-            if (j == 0):
-                v = '\t' * 4 + v
-            
+            v = v.replace('0MAGSAC^','MAGSAC$_\\uparrow$')                  
+            v = v.replace('0MAGSACv','MAGSAC$_\\downarrow$')             
             clean_csv[i][j] = v
 
     # bar data
@@ -342,12 +327,40 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         bar_csv.append(row)
     
     # add the & separator and the \\ at the end of the row
-    latex_table = [' & '.join(row) + " \\\\\n" for i, row in enumerate(bar_csv) if i > 0]
+    latex_table = []
+    for i, row in enumerate(bar_csv):
+        if (i>=1) and ((i-1)%3!=2):
+            midrule = ''
+        else:
+            midrule = '\t\t\t\t\\midrule\n'
 
+
+        if (i==1): row[0] = '\\hspace{0.33em}' + row[0]                 
+        if (i==2): row[0] = '\\hspace{0.66em}' + '+MAGSAC$_\\uparrow$'                 
+        if (i==3): row[0] = '\\hspace{0.66em}' + '+MAGSAC$_\\downarrow$'             
+
+        if (i > 3) and ((i-1)%3==0): row[0] = '\\hspace{0.66em}' + row[0]                 
+        if (i > 3) and ((i-1)%3==1): row[0] = '\\hspace{1.3em}' + '+MAGSAC$_\\uparrow$'                 
+        if (i > 3) and ((i-1)%3==2): row[0] = '\\hspace{1.3em}' + '+MAGSAC$_\\downarrow$'                 
+
+        if (i>0) and (((i-1)//3)%2!=0): row[0] = '\\rowcolor{gray!15} ' + row[0]
+
+        row[0] = '\t' * 4 + row[0]
+        if i > 0: latex_table.append(' & '.join(row) + " \\\\\n" + midrule)
+            
     if resize_mode == 'width':
         resize_what = '\t\t\\resizebox{\\textwidth}{!}{\n'
     else:
         resize_what = '\t\t\\resizebox*{!}{\\textheight}{\n'
+
+    l = 0
+    L = ''
+    header_type_ = header_type + ' '
+    for i in range(len(header_type_)):
+        if i==0: continue
+        if header_type_[i]!=header_type_[i-1]:
+            if i!=1: L = L + ('L{\\MAX}' * (i-l-1)) + 'L{\\MAXX}'
+            l = i
 
     header = [
         '\\documentclass[a4paper,' + page_align + ',10pt]{article}\n',
@@ -369,6 +382,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         '\\usepackage[outline]{contour}\n',
         '\n',
         '\\newlength\\MAX\\setlength\\MAX{\\widthof{9999999999}}\n',
+        '\\newlength\\MAXX\\setlength\\MAXX{\\widthof{99999999999}}\n',                
         '\\newcommand*\\Chart[5]{\\rlap{\\textcolor{#3!#5}{\\rule[-0.5ex]{\\MAX}{3ex}}}\\rlap{\\textcolor{#3!#4}{\\rule[-0.5ex]{#2\\MAX}{3ex}}}#1}\n',
         '\n',
         '\\newcolumntype{L}[1]{>{\\raggedright\\let\\newline\\\\\\arraybackslash\\hspace{0pt}}m{#1}}\n',
@@ -396,7 +410,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         '\t\\setlength{\\tabcolsep}{0pt}\n',
         '\t\\centering\n',
         resize_what,
-        '\t\t\t\\begin{tabular}{L{\\widthof{+MOP12000+MiHo+NCC+MAGSAC++++}}' + ('L{\\MAX}' * (len(header_type)-1)) + '}\n',
+        '\t\t\t\\begin{tabular}{L{\\widthof{+Key.Net+AffNet+HardNet+NNR++}}' + L + '}\n',
     ]
     
     # header formatting
@@ -484,8 +498,8 @@ def compile_latex(latex_file):
 if __name__ == '__main__':    
 
     pipes = [
-        [     'MAGSAC^', pipe_base.magsac_module(px_th=1.00)],
-        [     'MAGSACv', pipe_base.magsac_module(px_th=0.75)],
+        [    '0MAGSAC^', pipe_base.magsac_module(px_th=1.00)],
+        [    '0MAGSACv', pipe_base.magsac_module(px_th=0.75)],
         [         'NCC', ncc.ncc_module(also_prev=True)],
         [    'MOP+MiHo', miho_duplex.miho_module()],
         [         'MOP', miho_unduplex.miho_module()],
@@ -505,17 +519,17 @@ if __name__ == '__main__':
     ]
 
     pipe_heads = [
-          [    'Key.Net+AffNet+HardNet', pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99)],
-          [                      'SIFT', pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True)],     
-          [      'SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
-          [          'ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
-          [            'DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
-          [                     'LoFTR', pipe_base.loftr_module(num_features=8000, upright=True)],        
-          [                   'DeDoDe2', dedode2.dedode2_module(num_features=8000, upright=True)],                
-      # # ['SuperPoint+LightGlue (DIM)', superpoint_lightglue_module(nmax_keypoints=8000)],
-      # # [    'ALIKED+LightGlue (DIM)', aliked_lightglue_module(nmax_keypoints=8000)],
-      # # [      'DISK+LightGlue (DIM)', disk_lightglue_module(nmax_keypoints=8000)],
-      # # [               'LoFTR (DIM)', loftr_module(nmax_keypoints=8000)],  
+          [ 'Key.Net+AffNet+HardNet+NNR', pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99)],
+          [                   'SIFT+NNR', pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True)],     
+          [       'SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
+          [           'ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
+          [             'DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
+          [                      'LoFTR', pipe_base.loftr_module(num_features=8000, upright=True)],        
+          [                    'DeDoDe2', dedode2.dedode2_module(num_features=8000, upright=True)],                
+      # # [ 'SuperPoint+LightGlue (DIM)', superpoint_lightglue_module(nmax_keypoints=8000)],
+      # # [     'ALIKED+LightGlue (DIM)', aliked_lightglue_module(nmax_keypoints=8000)],
+      # # [       'DISK+LightGlue (DIM)', disk_lightglue_module(nmax_keypoints=8000)],
+      # # [                'LoFTR (DIM)', loftr_module(nmax_keypoints=8000)],  
         ]
     
 ###
