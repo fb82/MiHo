@@ -294,7 +294,9 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
             v = v.replace('miho_unduplex_max_iter_2000','\\textbf{MOP$_{2.0K}$}')                  
             v = v.replace('NCC','\\textbf{NCC}')                  
             v = v.replace('0MAGSAC^','MAGSAC$_\\uparrow$')                  
-            v = v.replace('0MAGSACv','MAGSAC$_\\downarrow$')             
+            v = v.replace('0MAGSACv','MAGSAC$_\\downarrow$') 
+            v = v.replace('AffNet+HardNet','$\\scriptsize\\substack{\\text{AffNet}\\\\\\text{HardNet}}$') 
+                        
             clean_csv[i][j] = v
 
     # bar data
@@ -410,7 +412,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         '\t\\setlength{\\tabcolsep}{0pt}\n',
         '\t\\centering\n',
         resize_what,
-        '\t\t\t\\begin{tabular}{L{\\widthof{+Key.Net+AffNet+HardNet+NNR++}}' + L + '}\n',
+        '\t\t\t\\begin{tabular}{L{\\widthof{+MOP+MiHo+NCC++++++}}' + L + '}\n',
     ]
     
     # header formatting
@@ -525,7 +527,7 @@ if __name__ == '__main__':
           [           'ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
           [             'DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
           [                      'LoFTR', pipe_base.loftr_module(num_features=8000, upright=True)],        
-          [                    'DeDoDe2', dedode2.dedode2_module(num_features=8000, upright=True)],                
+          [                  'DeDoDe v2', dedode2.dedode2_module(num_features=8000, upright=True)],                
       # # [ 'SuperPoint+LightGlue (DIM)', superpoint_lightglue_module(nmax_keypoints=8000)],
       # # [     'ALIKED+LightGlue (DIM)', aliked_lightglue_module(nmax_keypoints=8000)],
       # # [       'DISK+LightGlue (DIM)', disk_lightglue_module(nmax_keypoints=8000)],
