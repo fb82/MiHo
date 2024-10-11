@@ -285,7 +285,8 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
             v = v.replace('MiHo','\\textbf{MiHo}')                  
             v = v.replace('MAGSAC^','MAGSAC$_\\uparrow$')                  
             v = v.replace('MAGSACv','MAGSAC$_\\downarrow$') 
-
+            v = v.replace('AffNet+HardNet','$\\scriptsize\\substack{\\text{AffNet}\\\\\\text{HardNet}}$') 
+            
             if (i > 1) and (j == 0):
                 v = '\\hspace{0.33em}' + v                 
 
@@ -401,7 +402,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
         '\t\\setlength{\\tabcolsep}{0pt}\n',
         '\t\\centering\n',
         resize_what,
-        '\t\t\t\\begin{tabular}{L{\\widthof{+Key.Net+AffNet+HardNet+NNR+}}C{\widthof{.RANSAC.}}' + L + '}\n',
+        '\t\t\t\\begin{tabular}{L{\\widthof{SuperPoint+LightGlue+}}C{\widthof{.RANSAC.}}' + L + '}\n',
     ]
     
     # header formatting
@@ -852,7 +853,7 @@ if __name__ == '__main__':
           [           '01ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
           [             '01DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
           [                      '01LoFTR', pipe_base.loftr_module(num_features=8000, upright=True)],        
-          [                    '01DeDoDe2', dedode2.dedode2_module(num_features=8000, upright=True)],                
+          [                  '01DeDoDe v2', dedode2.dedode2_module(num_features=8000, upright=True)],                
         ]
     
 ###
