@@ -166,7 +166,8 @@ def to_latex_simple(csv_table, table_name=''):
         '\\newcolumntype{C}[1]{>{\\centering\\let\\newline\\\\\\arraybackslash\\hspace{0pt}}m{#1}}\n',
         '\\newcolumntype{R}[1]{>{\\raggedleft\\let\\newline\\\\\\arraybackslash\\hspace{0pt}}m{#1}}\n',
         '\n',        
-        '\\newlength\\MAXA\\setlength\\MAXA{\\widthof{' + ('a' * l1) + 'A.}}\n',
+#       '\\newlength\\MAXA\\setlength\\MAXA{\\widthof{' + ('a' * l1) + 'A.}}\n',
+        '\\newlength\\MAXA\\setlength\\MAXA{\\widthof{.SuperPoint+LightGlue.}}\n',
         '\\newlength\\MAXB\\setlength\\MAXB{\\widthof{' + ('a' * lo) + 'A.}}\n',
         '\n',        
         '\\begin{document}\n', 
@@ -293,17 +294,17 @@ if __name__ == '__main__':
     ]
 
     pipe_heads = [
-          [    'Key.Net+AffNet+HardNet', pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99)],
-          [                      'SIFT', pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True)],     
-          [      'SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
-          [          'ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
-          [            'DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
-          [                     'LoFTR', pipe_base.loftr_module(num_features=8000, upright=True)],        
-          [                   'DeDoDe2', dedode2.dedode2_module(num_features=8000, upright=True)],                
-        # ['SuperPoint+LightGlue (DIM)', superpoint_lightglue_module(nmax_keypoints=8000)],
-        # [    'ALIKED+LightGlue (DIM)', aliked_lightglue_module(nmax_keypoints=8000)],
-        # [      'DISK+LightGlue (DIM)', disk_lightglue_module(nmax_keypoints=8000)],
-        # [               'LoFTR (DIM)', loftr_module(nmax_keypoints=8000)],  
+          [                                                                   'SIFT+NNR', pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True)],     
+          [    'Key.Net+$\\scriptsize\\substack{\\text{AffNet}\\\\\\text{HardNet}}$+NNR', pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99)],
+          [                                                       'SuperPoint+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint')],
+          [                                                           'ALIKED+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked')],
+          [                                                             'DISK+LightGlue', pipe_base.lightglue_module(num_features=8000, upright=True, what='disk')],  
+          [                                                                      'LoFTR', pipe_base.loftr_module(num_features=8000, upright=True)],        
+          [                                                                  'DeDoDe v2', dedode2.dedode2_module(num_features=8000, upright=True)],                
+        # [                                                 'SuperPoint+LightGlue (DIM)', superpoint_lightglue_module(nmax_keypoints=8000)],
+        # [                                                     'ALIKED+LightGlue (DIM)', aliked_lightglue_module(nmax_keypoints=8000)],
+        # [                                                       'DISK+LightGlue (DIM)', disk_lightglue_module(nmax_keypoints=8000)],
+        # [                                                                'LoFTR (DIM)', loftr_module(nmax_keypoints=8000)],  
         ]
     
 ###
