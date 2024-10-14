@@ -2,10 +2,12 @@ import os
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import _pickle as cPickle
 import bz2
 import csv
 import scipy.stats as ss
+import src.bench_utils as bench
 
 # Pickle a file and then compress it into a file with extension 
 def compressed_pickle(title, data, add_ext=False):
@@ -35,7 +37,14 @@ if __name__ == '__main__':
     # cx ~=  width / 2
     # cy ~= height / 2
 
-    # # not needed if launched run_bench.py before     
+    # not needed if launched run_bench.py before     
+    # benchmark_data = {
+    #         'megadepth': {'name': 'megadepth', 'Name': 'MegaDepth', 'setup': bench.megadepth_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.png', 'use_scale': True, 'also_metric': False},
+    #         'scannet': {'name': 'scannet', 'Name': 'ScanNet', 'setup': bench.scannet_bench_setup, 'is_outdoor': False, 'is_not_planar': True, 'ext': '.png', 'use_scale': False, 'also_metric': False},
+    #         'planar': {'name': 'planar', 'Name': 'Planar', 'setup': bench.planar_bench_setup, 'is_outdoor': True, 'is_not_planar': False, 'ext': '.png', 'use_scale': False, 'also_metric': False},
+    #         'imc_phototourism': {'name': 'imc_phototourism', 'Name': 'IMC PhotoTourism', 'setup': bench.imc_phototourism_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.jpg', 'use_scale': False, 'also_metric': True},
+    #     }
+
     # for b in benchmark_data.keys():
     #     b_data, _ = benchmark_data[b]['setup'](bench_path=bench_path, upright=True)
     
@@ -217,18 +226,28 @@ if __name__ == '__main__':
         fig_name = os.path.join(ppath, '2d_distribution_' + labels[i] + '.pdf')
         plt.savefig(fig_name, dpi = fig_dpi, bbox_inches='tight')
         plt.close(fig)
-        
-    imm = [np.rot90((1 - h[i][0] / np.max(h[i][0]))**2) for i in [0, 1, 2]]
+    
+    cf = [0.3, 0.3, 3]        
+    imm = [np.rot90(((h[i][0] / np.max(h[i][0])))**cf[i]) for i in [0, 1, 2]]
+
     imm = np.stack(imm, axis=-1)
+    # force single point blue for ScanNet in order to improve visualization
+    imm[100-7,6,:] = [0, 0, 1]
+
     fig = plt.figure()
+    ax = plt.gca()
     plt.rcParams.update({
         "text.usetex": True,
         "font.family": "serif",
         "font.sans-serif": "Times",
         })
     plt.imshow(imm, cmap='gray', extent=[v_min, v_max, v_min, v_max])
-    plt.xlabel("$f$ / $\max(w, h)$ for the $1^{st}$ image")
-    plt.ylabel("$f$ / $\max(w, h)$ for the $2^{nd}$ image")
+    plt.xlabel("$f$ / $\max(w, h)$ in the $1^{st}$ image")
+    plt.ylabel("$f$ / $\max(w, h)$ in the $2^{nd}$ image")
+    r_patch = mpatches.Patch(color='red', label='MegaDepth')
+    g_patch = mpatches.Patch(color='green', label='IMC PhotoTourism')
+    b_patch = mpatches.Patch(color='blue', label='ScanNet')
+    ax.legend(handles=[r_patch, g_patch, b_patch])
     fig_name = os.path.join(ppath, '2d_distribution_as_rgb.pdf')
     plt.savefig(fig_name, dpi = fig_dpi, bbox_inches='tight')
     plt.close(fig)
@@ -247,7 +266,7 @@ if __name__ == '__main__':
     ax.legend(['MegaDepth', 'IMC PhotoTourism', 'ScanNet'])
     ax.set_yscale('log')    
     plt.xlabel("$f$ / $\max(w, h)$")
-    plt.ylabel("prob. density")
+    plt.ylabel("probability density")
     fig_name = os.path.join(ppath, 'intrinsics_distribution.pdf')
     plt.savefig(fig_name, dpi = fig_dpi, bbox_inches='tight')
     plt.close(fig)
@@ -264,7 +283,7 @@ if __name__ == '__main__':
         ax.stairs(h[i][0] / np.sum(h[i][0]), h[i][1])
     ax.legend(['MegaDepth', 'IMC PhotoTourism']) 
     plt.xlabel('$f$ / $\max(w, h)$')
-    plt.ylabel("prob. density")
+    plt.ylabel("probability density")
     fig_name = os.path.join(ppath, 'intrinsics_distribution_outdoor.pdf')
     plt.savefig(fig_name, dpi = fig_dpi, bbox_inches='tight')
     plt.close(fig)    
