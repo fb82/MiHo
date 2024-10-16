@@ -552,8 +552,8 @@ def cluster_assign_other(Hdata, pt1, pt2, err_th_only=15, **dummy_args):
 
 
 def show_fig(im1, im2, pt1, pt2, Hidx, tosave='miho_buffered_rot_pytorch_gpu.pdf', fig_dpi=300,
-             colors = ['#FF1F5B', '#00CD6C', '#009ADE', '#AF58BA', '#FFC61E', '#F28522'],
-             markers = ['o','x','8','p','h'], bad_marker = 'd', bad_color = '#000000',
+             colors = ['#FF1F5B', '#00CD6C', '#009ADE', '#FFC61E', '#F28522', '#AF58BA'],
+             markers = ['o','^','s','p','h'], bad_marker = 'd', bad_color = '#000000',
              plot_opt = {'markersize': 2, 'markeredgewidth': 0.5,
                          'markerfacecolor': "None", 'alpha': 0.5}):
 
@@ -575,9 +575,11 @@ def show_fig(im1, im2, pt1, pt2, Hidx, tosave='miho_buffered_rot_pytorch_gpu.pdf
         if (idx == -1):
             color = bad_color
             marker = bad_marker
+            plot_opt['markerfacecolor'] = color
         else:
             color = colors[((i-1)%(cn*mn))%cn]
             marker = markers[((i-1)%(cn*mn))//cn]
+            plot_opt['markerfacecolor'] = color
         plt.plot(x, y, linestyle='', color=color, marker=marker, **plot_opt)
 
     plt.savefig(tosave, dpi = fig_dpi, bbox_inches='tight')
@@ -694,8 +696,8 @@ class miho:
                             'method_args': method_args_params}
 
         show_clustering_params = {'tosave': 'miho_buffered_rot_pytorch_gpu.pdf', 'fig_dpi': 300,
-             'colors': ['#FF1F5B', '#00CD6C', '#009ADE', '#AF58BA', '#FFC61E', '#F28522'],
-             'markers': ['o','x','8','p','h'], 'bad_marker': 'd', 'bad_color': '#000000',
+             'colors': ['#FF1F5B', '#00CD6C', '#009ADE', '#FFC61E', '#F28522', '#AF58BA'],
+             'markers': ['o','^','s','p','h'], 'bad_marker': 'd', 'bad_color': '#000000',
              'plot_opt': {'markersize': 2, 'markeredgewidth': 0.5,
                           'markerfacecolor': "None", 'alpha': 0.5}}
 
