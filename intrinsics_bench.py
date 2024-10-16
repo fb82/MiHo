@@ -37,7 +37,7 @@ if __name__ == '__main__':
     # cx ~=  width / 2
     # cy ~= height / 2
 
-    # not needed if launched run_bench.py before     
+    # # not needed if launched run_bench.py before     
     # benchmark_data = {
     #         'megadepth': {'name': 'megadepth', 'Name': 'MegaDepth', 'setup': bench.megadepth_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.png', 'use_scale': True, 'also_metric': False},
     #         'scannet': {'name': 'scannet', 'Name': 'ScanNet', 'setup': bench.scannet_bench_setup, 'is_outdoor': False, 'is_not_planar': True, 'ext': '.png', 'use_scale': False, 'also_metric': False},
@@ -45,8 +45,8 @@ if __name__ == '__main__':
     #         'imc_phototourism': {'name': 'imc_phototourism', 'Name': 'IMC PhotoTourism', 'setup': bench.imc_phototourism_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.jpg', 'use_scale': False, 'also_metric': True},
     #     }
 
-    # for b in benchmark_data.keys():
-    #     b_data, _ = benchmark_data[b]['setup'](bench_path=bench_path, upright=True)
+    for b in benchmark_data.keys():
+        b_data, _ = benchmark_data[b]['setup'](bench_path=bench_path, upright=True)
     
     if os.path.isfile(os.path.join(bench_path, 'intrinsics_stats.pbz2')) and not force:
         data_megadepth, data_scannet, data_imc, data_megadepth_a, data_scannet_a, data_imc_a, data_megadepth_b, data_scannet_b, data_imc_b = decompress_pickle(os.path.join(bench_path,'intrinsics_stats.pbz2'))
@@ -223,6 +223,8 @@ if __name__ == '__main__':
         plt.imshow(imm, cmap='gray', extent=[v_min, v_max, v_min, v_max])
         plt.xlabel("$f$ / $\max(w, h)$ for the $1^{st}$ image")
         plt.ylabel("$f$ / $\max(w, h)$ for the $2^{nd}$ image")
+        plt.xticks(range(9))
+        plt.yticks(range(9))
         fig_name = os.path.join(ppath, '2d_distribution_' + labels[i] + '.pdf')
         plt.savefig(fig_name, dpi = fig_dpi, bbox_inches='tight')
         plt.close(fig)
@@ -248,6 +250,8 @@ if __name__ == '__main__':
     g_patch = mpatches.Patch(color='green', label='IMC PhotoTourism')
     b_patch = mpatches.Patch(color='blue', label='ScanNet')
     ax.legend(handles=[r_patch, g_patch, b_patch])
+    plt.xticks(range(9))
+    plt.yticks(range(9))
     fig_name = os.path.join(ppath, '2d_distribution_as_rgb.pdf')
     plt.savefig(fig_name, dpi = fig_dpi, bbox_inches='tight')
     plt.close(fig)

@@ -280,9 +280,9 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
                     v = '\\textcolor{' + color_rank + '}{\\contour{' + color_rank + '}{' + v + '}}'
 
             # text data in latex
-            v = v.replace('ZMOP','\\textbf{MOP}')                  
-            v = v.replace('ZNCC','\\textbf{NCC}')                  
-            v = v.replace('MiHo','\\textbf{MiHo}')                  
+            v = v.replace('XMOP','\\textbf{MOP}')                  
+            v = v.replace('ZMiHo','\\textbf{MiHo}')                  
+            v = v.replace('YNCC','\\textbf{NCC}')                  
             v = v.replace('0MAGSAC^','MAGSAC$_\\uparrow$')                  
             v = v.replace('0MAGSACv','MAGSAC$_\\downarrow$') 
             v = v.replace('AffNet+HardNet','$\\scriptsize\\substack{\\text{AffNet}\\\\\\text{HardNet}}$') 
@@ -630,9 +630,9 @@ def to_latex_prev(csv_data, csv_order, renaming_list, header_hold=None, header_b
                     v = '\\textcolor{' + color_rank + '}{\\contour{' + color_rank + '}{' + v + '}}'
 
             # text data in latex
-            v = v.replace('ZMOP','\\textbf{MOP}')                  
-            v = v.replace('ZNCC','\\textbf{NCC}')                  
-            v = v.replace('MiHo','\\textbf{MiHo}')                  
+            v = v.replace('XMOP','\\textbf{MOP}')                  
+            v = v.replace('ZMiHo','\\textbf{MiHo}')                  
+            v = v.replace('YNCC','\\textbf{NCC}')                  
             v = v.replace('0MAGSAC^','MAGSAC$_\\uparrow$')                  
             v = v.replace('0MAGSACv','MAGSAC$_\\downarrow$') 
 
@@ -824,9 +824,9 @@ if __name__ == '__main__':
     pipes = [
         [     '0MAGSAC^', pipe_base.magsac_module(px_th=1.00)],
         [     '0MAGSACv', pipe_base.magsac_module(px_th=0.75)],
-        [        'ZNCC', ncc.ncc_module(also_prev=True)],
-        [   'ZMOP+MiHo', miho_duplex.miho_module()],
-        [        'ZMOP', miho_unduplex.miho_module()],
+        [        'YNCC', ncc.ncc_module(also_prev=True)],
+        [  'XMOP+ZMiHo', miho_duplex.miho_module()],
+        [        'XMOP', miho_unduplex.miho_module()],
         [         'GMS', gms.gms_module()],
         [       'OANet', oanet.oanet_module()],
         [      'AdaLAM', adalam.adalam_module()],
