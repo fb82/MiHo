@@ -20,7 +20,7 @@ def laf2homo(kps):
     return c, H, s
 
 
-def refinement_laf(im1, im2, pt1=None, pt2=None, data1=None, data2=None, w=15, img_patches=True):
+def refinement_laf(im1, im2, pt1=None, pt2=None, data1=None, data2=None, w=15, img_patches=True, im1_disp=None, im2_disp=None):
     if data1 is None:
         l = pt1.shape[0]
         Hs = torch.eye(3, device=device).repeat(l*2, 1).reshape(l, 2, 3, 3)
@@ -36,7 +36,9 @@ def refinement_laf(im1, im2, pt1=None, pt2=None, data1=None, data2=None, w=15, i
         Hs = torch.cat((H1.unsqueeze(1), H2.unsqueeze(1)), 1)        
     
     if img_patches:
-        go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='laf_patch_')    
+        if im1_disp is None: im1_disp=im1
+        if im2_disp is None: im2_disp=im2
+        go_save_patches(im1_disp, im2_disp, pt1, pt2, Hs, w, save_prefix='laf_patch_')    
   
     return pt1, pt2, Hs
 
@@ -60,7 +62,7 @@ def get_inverse(pt1, pt2, Hs):
     return pt1_, pt2_, Hi, Hi1, Hi2
 
 
-def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right'], subpix=True, img_patches=False, save_prefix='ncc_patch_'):    
+def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right'], subpix=True, img_patches=False, save_prefix='ncc_patch_', im1_disp=None, im2_disp=None):    
     l = Hs.size()[0] 
     
     if l==0:
@@ -110,12 +112,14 @@ def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right
     T = T.reshape(l*2, 3, 3)
     
     if img_patches:
-        go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix=save_prefix)
+        if im1_disp is None: im1_disp=im1
+        if im2_disp is None: im2_disp=im2
+        go_save_patches(im1_disp, im2_disp, pt1, pt2, Hs, w, save_prefix=save_prefix)
         
     return pt1, pt2, Hs, val, T
 
 
-def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=['left', 'right'], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_'):    
+def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=['left', 'right'], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_', im1_disp=None, im2_disp=None):    
     l = Hs.size()[0] 
     
     if l==0:
@@ -210,7 +214,9 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
     T = T.reshape(l*2, 3, 3)
     
     if img_patches:
-        go_save_patches(im1, im2, pt1, pt2, Hsu, w, save_prefix=save_prefix)
+        if im1_disp is None: im1_disp=im1
+        if im2_disp is None: im2_disp=im2
+        go_save_patches(im1_disp, im2_disp, pt1, pt2, Hsu, w, save_prefix=save_prefix)
         
     return pt1, pt2, Hsu, val, T
 
@@ -246,7 +252,7 @@ def go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_'):
     save_patch(patch2, save_prefix=save_prefix, save_suffix='_b.png')
 
 
-def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, img_patches=False, also_laf=False):
+def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, img_patches=False, also_laf=False, im1_disp=None, im2_disp=None):
     l = pt1.shape[0]
     idx = torch.ones(l, dtype=torch.bool, device=device)
 
@@ -287,7 +293,9 @@ def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True
             Hs_laf = Hs_laf[mask]
         
     if img_patches:
-        go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='miho_patch_')
+        if im1_disp is None: im1_disp=im1
+        if im2_disp is None: im2_disp=im2
+        go_save_patches(im1_disp, im2_disp, pt1, pt2, Hs, w, save_prefix='miho_patch_')
     
     if not also_laf:
         return pt1, pt2, Hs, idx
@@ -295,7 +303,7 @@ def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True
         return pt1, pt2, Hs, idx, Hs_laf
 
 
-def refinement_miho_other(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, patch_ref='left', img_patches=False, also_laf=False):
+def refinement_miho_other(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, patch_ref='left', img_patches=False, also_laf=False, im1_disp=None, im2_disp=None):
     l = pt1.shape[0]
     idx = torch.ones(l, dtype=torch.bool, device=device)
 
@@ -340,7 +348,9 @@ def refinement_miho_other(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_ba
             Hs_laf = Hs_laf[mask]
         
     if img_patches:
-        go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='miho_patch_')
+        if im1_disp is None: im1_disp=im1
+        if im2_disp is None: im2_disp=im2
+        go_save_patches(im1_disp, im2_disp, pt1, pt2, Hs, w, save_prefix='miho_patch_')
 
     if not also_laf:
         return pt1, pt2, Hs, idx
@@ -491,7 +501,7 @@ def patchify(img, pts, H, r):
     for ci in range(cc):
         # for mask
         img_ = img[ci].flatten()
-        aux = img_[0]
+        aux = img_[0].clone()
         img_[0] = float('nan')
     
         a = xx_-xf    
@@ -578,7 +588,7 @@ def patchify(img, pts, H, r):
 #
 #     # for mask
 #     img_ = img.flatten()
-#     aux = img_[0]
+#     aux = img_[0].clone()
 #     img_[0] = float('nan')
 #
 #     a = xx_-xf    
