@@ -39,6 +39,7 @@ def refinement_laf(im1, im2, pt1=None, pt2=None, data1=None, data2=None, w=15, i
         if im1_disp is None: im1_disp=im1
         if im2_disp is None: im2_disp=im2
         go_save_patches(im1_disp, im2_disp, pt1, pt2, Hs, w, save_prefix='laf_patch_')    
+        go_save_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='laf_patch_')    
   
     return pt1, pt2, Hs
 
@@ -115,6 +116,7 @@ def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right
         if im1_disp is None: im1_disp=im1
         if im2_disp is None: im2_disp=im2
         go_save_patches(im1_disp, im2_disp, pt1, pt2, Hs, w, save_prefix=save_prefix)
+        go_save_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix=save_prefix)
         
     return pt1, pt2, Hs, val, T
 
@@ -217,6 +219,7 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
         if im1_disp is None: im1_disp=im1
         if im2_disp is None: im2_disp=im2
         go_save_patches(im1_disp, im2_disp, pt1, pt2, Hsu, w, save_prefix=save_prefix)
+        go_save_diff_patches(im1, im2, pt1, pt2, Hsu, w, save_prefix=save_prefix)
         
     return pt1, pt2, Hsu, val, T
 
@@ -296,6 +299,7 @@ def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True
         if im1_disp is None: im1_disp=im1
         if im2_disp is None: im2_disp=im2
         go_save_patches(im1_disp, im2_disp, pt1, pt2, Hs, w, save_prefix='miho_patch_')
+        go_save_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='miho_patch_')
     
     if not also_laf:
         return pt1, pt2, Hs, idx
@@ -351,6 +355,7 @@ def refinement_miho_other(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_ba
         if im1_disp is None: im1_disp=im1
         if im2_disp is None: im2_disp=im2
         go_save_patches(im1_disp, im2_disp, pt1, pt2, Hs, w, save_prefix='miho_patch_')
+        go_save_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='miho_patch_')
 
     if not also_laf:
         return pt1, pt2, Hs, idx
