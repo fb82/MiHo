@@ -886,6 +886,10 @@ def show_fig(im1, im2, pt1, pt2, Hidx, tosave='miho_buffered_rot_pytorch_gpu.pdf
              plot_opt = {'markersize': 2, 'markeredgewidth': 0.5,
                          'markerfacecolor': "None", 'alpha': 0.5}):
 
+    transform = transforms.ToPILImage()
+    im1 = transform(im1.type(torch.uint8))
+    im2 = transform(im2.type(torch.uint8))
+
     im12 = Image.new('RGB', (im1.width + im2.width, max(im1.height, im2.height)))
     im12.paste(im1, (0, 0))
     im12.paste(im2, (im1.width, 0))
@@ -1052,17 +1056,22 @@ class miho:
 
     def attach_images(self, im1, im2):
         """" add image pair to MiHo and tensorify it"""
-        
-        transform = transforms.Compose([
+
+        transform_gray = transforms.Compose([
             transforms.Grayscale(),
             transforms.PILToTensor() 
             ]) 
 
-        self.img1 = im1.copy()
-        self.img2 = im2.copy()
-        
-        self.im1 = transform(im1).type(torch.float16).to(device)
-        self.im2 = transform(im2).type(torch.float16).to(device)
+        transform = transforms.PILToTensor() 
+
+#       self.img1 = im1.copy()
+#       self.img2 = im2.copy()
+ 
+        self.img1 = transform(im1).type(torch.float16).to(device)
+        self.img2 = transform(im2).type(torch.float16).to(device)
+
+        self.im1 = transform_gray(im1).type(torch.float16).to(device)
+        self.im2 = transform_gray(im2).type(torch.float16).to(device)
         
         return True
 

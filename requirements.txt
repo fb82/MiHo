@@ -13,7 +13,7 @@ opencv-python-headless==4.9.0.80
 pillow==10.3.0
 matplotlib==3.8.4
 PyQt5==5.15.10
-#
+# 
 # to run the benchmark script too
 tensorflow-cpu==2.16.1
 pydegensac==0.1.2

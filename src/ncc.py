@@ -20,7 +20,7 @@ def laf2homo(kps):
     return c, H, s
 
 
-def refinement_laf(im1, im2, pt1=None, pt2=None, data1=None, data2=None, w=15, img_patches=True):
+def refinement_laf(im1, im2, pt1=None, pt2=None, data1=None, data2=None, w=15, img_patches=True, im1_disp=None, im2_disp=None):
     if data1 is None:
         l = pt1.shape[0]
         Hs = torch.eye(3, device=device).repeat(l*2, 1).reshape(l, 2, 3, 3)
@@ -36,7 +36,10 @@ def refinement_laf(im1, im2, pt1=None, pt2=None, data1=None, data2=None, w=15, i
         Hs = torch.cat((H1.unsqueeze(1), H2.unsqueeze(1)), 1)        
     
     if img_patches:
-        go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='laf_patch_')    
+        if im1_disp is None: im1_disp=im1
+        if im2_disp is None: im2_disp=im2
+        go_save_patches(im1_disp, im2_disp, pt1, pt2, Hs, w, save_prefix='laf_patch_')    
+        go_save_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='laf_patch_')    
   
     return pt1, pt2, Hs
 
@@ -60,7 +63,7 @@ def get_inverse(pt1, pt2, Hs):
     return pt1_, pt2_, Hi, Hi1, Hi2
 
 
-def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right'], subpix=True, img_patches=False, save_prefix='ncc_patch_'):    
+def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right'], subpix=True, img_patches=False, save_prefix='ncc_patch_', im1_disp=None, im2_disp=None):    
     l = Hs.size()[0] 
     
     if l==0:
@@ -110,12 +113,15 @@ def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right
     T = T.reshape(l*2, 3, 3)
     
     if img_patches:
-        go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix=save_prefix)
+        if im1_disp is None: im1_disp=im1
+        if im2_disp is None: im2_disp=im2
+        go_save_patches(im1_disp, im2_disp, pt1, pt2, Hs, w, save_prefix=save_prefix)
+        go_save_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix=save_prefix)
         
     return pt1, pt2, Hs, val, T
 
 
-def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=['left', 'right'], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_'):    
+def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=['left', 'right'], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_', im1_disp=None, im2_disp=None):    
     l = Hs.size()[0] 
     
     if l==0:
@@ -210,9 +216,104 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
     T = T.reshape(l*2, 3, 3)
     
     if img_patches:
-        go_save_patches(im1, im2, pt1, pt2, Hsu, w, save_prefix=save_prefix)
+        if im1_disp is None: im1_disp=im1
+        if im2_disp is None: im2_disp=im2
+        go_save_patches(im1_disp, im2_disp, pt1, pt2, Hsu, w, save_prefix=save_prefix)
+        go_save_diff_patches(im1, im2, pt1, pt2, Hsu, w, save_prefix=save_prefix)
         
     return pt1, pt2, Hsu, val, T
+
+
+def go_save_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_diff_'):        
+    # warning image must be grayscale and not rgb!
+
+    pt1_, pt2_, _, Hi1, Hi2 = get_inverse(pt1, pt2, Hs) 
+            
+    patch1 = patchify(im1, pt1_, Hi1, w)
+    patch2 = patchify(im2, pt2_, Hi2, w)
+    
+    for k in range(pt1.shape[0]):
+        pp = patch1[k]
+        pm = torch.isfinite(pp)
+        m_ = pp[pm].min()
+        M_ = pp[pm].max()
+        pp[pm] = (pp[pm] - m_) / (M_ - m_)            
+        patch1[k] = pp * 255        
+    
+        pp = patch2[k]
+        pm = torch.isfinite(pp)
+        m_ = pp[pm].min()
+        M_ = pp[pm].max()
+        pp[pm] = (pp[pm] - m_) / (M_ - m_)            
+        patch2[k] = pp * 255       
+    
+    mask1 = torch.isfinite(patch1) & (~torch.isfinite(patch2))
+    patch2[mask1] = 0
+
+    mask2 = torch.isfinite(patch2) & (~torch.isfinite(patch1))
+    patch1[mask2] = 0
+
+    both_patches = torch.zeros((3, patch1.shape[0], patch1.shape[1], patch1.shape[2]), dtype=torch.float32, device=device)
+    both_patches[0] = patch1
+    both_patches[1] = patch2
+
+    save_patch(both_patches, save_prefix=save_prefix, save_suffix='.png')
+
+
+def go_save_list_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_list_diff_', remove_same=True):        
+    # warning image must be grayscale and not rgb!
+
+    ww = w * 2 + 1
+    l = len(pt1)
+    n = pt1[0].shape[0]
+    patch_list = torch.zeros((n, l, ww, ww, 3), dtype=torch.float32, device=device)
+    for i in range(l):
+        pt1_, pt2_, _, Hi1, Hi2 = get_inverse(pt1[i], pt2[i], Hs[i]) 
+            
+        patch1 = patchify(im1, pt1_, Hi1, w)
+        patch2 = patchify(im2, pt2_, Hi2, w)
+        
+        for k in range(n):
+            pp = patch1[k]
+            pm = torch.isfinite(pp)
+            m_ = pp[pm].min()
+            M_ = pp[pm].max()
+            pp[pm] = (pp[pm] - m_) / (M_ - m_)            
+            patch1[k] = pp * 255        
+        
+            pp = patch2[k]
+            pm = torch.isfinite(pp)
+            m_ = pp[pm].min()
+            M_ = pp[pm].max()
+            pp[pm] = (pp[pm] - m_) / (M_ - m_)            
+            patch2[k] = pp * 255        
+    
+        mask1 = torch.isfinite(patch1) & (~torch.isfinite(patch2))
+        patch2[mask1] = 0
+
+        mask2 = torch.isfinite(patch2) & (~torch.isfinite(patch1))
+        patch1[mask2] = 0
+
+        both_patches = torch.zeros((patch1.shape[0], patch1.shape[1], patch1.shape[2], 3), dtype=torch.float32, device=device)
+        both_patches[:, :, :, 0] = patch1
+        both_patches[:, :, :, 1] = patch2        
+        
+        patch_list[:, i, :, :, :] = both_patches
+
+    if remove_same:
+        mask = torch.zeros(n, dtype=torch.bool, device=device)
+        for k in range(n):
+            mask[k] = True
+            for i in range(l-1):
+                if not torch.all(patch_list[k, i, :, :, :].type(torch.uint8) == patch_list[k, i+1, :, :, :].type(torch.uint8)):
+                    mask[k] == False
+                    break
+
+        patch_list = patch_list[mask]
+
+    patch_list = patch_list.reshape((n, l*ww, ww, 3)).permute((-1, 0, 1, 2))
+
+    save_patch(patch_list, grid=[50//l, 50], save_prefix=save_prefix, save_suffix='.png')
 
 
 def go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_'):        
@@ -225,7 +326,7 @@ def go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_'):
     save_patch(patch2, save_prefix=save_prefix, save_suffix='_b.png')
 
 
-def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, img_patches=False, also_laf=False):
+def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, img_patches=False, also_laf=False, im1_disp=None, im2_disp=None):
     l = pt1.shape[0]
     idx = torch.ones(l, dtype=torch.bool, device=device)
 
@@ -266,7 +367,10 @@ def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True
             Hs_laf = Hs_laf[mask]
         
     if img_patches:
-        go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='miho_patch_')
+        if im1_disp is None: im1_disp=im1
+        if im2_disp is None: im2_disp=im2
+        go_save_patches(im1_disp, im2_disp, pt1, pt2, Hs, w, save_prefix='miho_patch_')
+        go_save_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='miho_patch_')
     
     if not also_laf:
         return pt1, pt2, Hs, idx
@@ -274,7 +378,7 @@ def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True
         return pt1, pt2, Hs, idx, Hs_laf
 
 
-def refinement_miho_other(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, patch_ref='left', img_patches=False, also_laf=False):
+def refinement_miho_other(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, patch_ref='left', img_patches=False, also_laf=False, im1_disp=None, im2_disp=None):
     l = pt1.shape[0]
     idx = torch.ones(l, dtype=torch.bool, device=device)
 
@@ -319,7 +423,10 @@ def refinement_miho_other(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_ba
             Hs_laf = Hs_laf[mask]
         
     if img_patches:
-        go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='miho_patch_')
+        if im1_disp is None: im1_disp=im1
+        if im2_disp is None: im2_disp=im2
+        go_save_patches(im1_disp, im2_disp, pt1, pt2, Hs, w, save_prefix='miho_patch_')
+        go_save_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='miho_patch_')
 
     if not also_laf:
         return pt1, pt2, Hs, idx
@@ -382,40 +489,54 @@ def norm_corr(patch1, patch2, subpix=True):
 
 
 def save_patch(patch, grid=[40, 50], save_prefix='patch_', save_suffix='.png', normalize=False):
+    if patch.ndim==3:
+        patch = patch.unsqueeze(0)
+    cc = patch.shape[0]    
 
     grid_el = grid[0] * grid[1]
-    l = patch.size()[0]
-    n = patch.size()[1]
-    m = patch.size()[2]
+    l = patch.shape[1]
+    n = patch.shape[2]
+    m = patch.shape[3]
     transform = transforms.ToPILImage()
     for i in range(0, l, grid_el):
         j = min(i+ grid_el, l)
         filename = f'{save_prefix}{i}_{j}{save_suffix}' 
         
-        patch_ = patch[i:j]
-        aux = torch.zeros((grid_el, n, m), dtype=torch.float32, device=device)
-        aux[:j-i] = patch_
+        patch_ = patch[:, i:j]
+        aux = torch.zeros((cc, grid_el, n, m), dtype=torch.float32, device=device)
+        aux[:, :j-i] = patch_
         
-        mask = aux.isfinite()
-        aux[~mask] = 0
+        mask = aux[0].isfinite()
+        aux[:, ~mask] = 0
         
         if not normalize:
             aux = aux.type(torch.uint8)
         else:
-            aux[~mask] = -1        
-            avg = ((mask * aux).sum(dim=(1,2)) / mask.sum(dim=(1,2))).reshape(-1, 1, 1).repeat(1, n, m)
-            avg[mask] = aux[mask]
-            m_ = avg.reshape(grid_el, -1).min(dim=1)[0]
-            M_ = avg.reshape(grid_el, -1).max(dim=1)[0]
-            aux = (((aux - m_.reshape(-1, 1, 1)) / (M_ - m_).reshape(-1, 1, 1)) * 255).type(torch.uint8)
+            for ci in range(cc):
+                aux[ci, ~mask] = -1        
+                avg = ((mask * aux[ci]).sum(dim=(1,2)) / mask.sum(dim=(1,2))).reshape(-1, 1, 1).repeat(1, n, m)
+                avg[mask] = aux[ci, mask]
+                m_ = avg.reshape(grid_el, -1).min(dim=1)[0]
+                M_ = avg.reshape(grid_el, -1).max(dim=1)[0]
+                aux[ci] = (((aux[ci] - m_.reshape(-1, 1, 1)) / (M_ - m_).reshape(-1, 1, 1)) * 255).type(torch.uint8)
            
         # if not needed do not add alpha channel
         all_mask = mask.all()
-        c = 1 + (3 * ~all_mask)
-        aux = aux.reshape(grid[0], grid[1], n, m).permute(0, 2, 1, 3).reshape(grid[0] * n, grid[1] * m).contiguous().unsqueeze(0).repeat(c, 1, 1)
+        
+        c_final = cc
+        if (~all_mask) and (cc==3): c_final = 4
+        if (~all_mask) and (cc==1): c_final = 4
+
+        im = torch.zeros((c_final, grid[0] * n, grid[1] * m), dtype=torch.uint8, device=device)
+        
+        aux = aux.reshape(cc, grid[0], grid[1], n, m).permute(0, 1, 3, 2, 4).reshape(cc, grid[0] * n, grid[1] * m).contiguous()
+        if (~all_mask) and (cc==1): aux = aux.repeat(c_final, 1, 1)
+        im[:aux.shape[0]] = aux
+
         if not all_mask:        
-            aux[3, :, :] = (mask *255).type(torch.uint8).reshape(grid[0], grid[1], n, m).permute(0, 2, 1, 3).reshape(grid[0] * n, grid[1] * m).contiguous()
-        transform(aux).save(filename)
+            im[3, :, :] = (mask *255).type(torch.uint8).reshape(grid[0], grid[1], n, m).permute(0, 2, 1, 3).reshape(grid[0] * n, grid[1] * m).contiguous()
+
+        transform(im).save(filename)
         
 
 def patchify(img, pts, H, r):
@@ -423,7 +544,7 @@ def patchify(img, pts, H, r):
     wi = torch.arange(-r,r+1, device=device)
     ws = r * 2 + 1
     n = pts.size()[0]
-    _, y_sz, x_sz = img.size()
+    cc, y_sz, x_sz = img.size()
     
     x, y = pts.split(1, dim=1)
     
@@ -451,20 +572,110 @@ def patchify(img, pts, H, r):
     xc[nidx_mask] = 0
     yc[nidx_mask] = 0
 
-    # for mask
-    img_ = img.flatten()
-    aux = img_[0]
-    img_[0] = float('nan')
+    patch = torch.zeros((cc, xx.shape[0],ws,ws), device=device, dtype=torch.float32)    
 
-    a = xx_-xf    
-    b = yy_-yf
-    c = xc-xx_    
-    d = yc-yy_
+    for ci in range(cc):
+        # for mask
+        img_ = img[ci].flatten()
+        aux = img_[0].clone()
+        img_[0] = float('nan')
+    
+        a = xx_-xf    
+        b = yy_-yf
+        c = xc-xx_    
+        d = yc-yy_
+    
+        patch[ci] = (a * (b * img_[yc * x_sz + xc] + d * img_[yf * x_sz + xc]) + c * (b * img_[yc * x_sz + xf] + d * img_[yf * x_sz + xf])).reshape((-1, ws, ws))
+        img_[0] = aux
 
-    patch = (a * (b * img_[yc * x_sz + xc] + d * img_[yf * x_sz + xc]) + c * (b * img_[yc * x_sz + xf] + d * img_[yf * x_sz + xf])).reshape((-1, ws, ws))
-    img_[0] = aux
+    return patch.squeeze(0)
 
-    return patch
+
+# previous version without rgb handling
+# def save_patch(patch, grid=[40, 50], save_prefix='patch_', save_suffix='.png', normalize=False):
+#
+#     grid_el = grid[0] * grid[1]
+#     l = patch.size()[0]
+#     n = patch.size()[1]
+#     m = patch.size()[2]
+#     transform = transforms.ToPILImage()
+#     for i in range(0, l, grid_el):
+#         j = min(i+ grid_el, l)
+#         filename = f'{save_prefix}{i}_{j}{save_suffix}' 
+#       
+#         patch_ = patch[i:j]
+#         aux = torch.zeros((grid_el, n, m), dtype=torch.float32, device=device)
+#         aux[:j-i] = patch_
+#       
+#         mask = aux.isfinite()
+#         aux[~mask] = 0
+#       
+#         if not normalize:
+#             aux = aux.type(torch.uint8)
+#         else:
+#             aux[~mask] = -1        
+#             avg = ((mask * aux).sum(dim=(1,2)) / mask.sum(dim=(1,2))).reshape(-1, 1, 1).repeat(1, n, m)
+#             avg[mask] = aux[mask]
+#             m_ = avg.reshape(grid_el, -1).min(dim=1)[0]
+#             M_ = avg.reshape(grid_el, -1).max(dim=1)[0]
+#             aux = (((aux - m_.reshape(-1, 1, 1)) / (M_ - m_).reshape(-1, 1, 1)) * 255).type(torch.uint8)
+#          
+#         # if not needed do not add alpha channel
+#         all_mask = mask.all()
+#         c = 1 + (3 * ~all_mask)
+#         aux = aux.reshape(grid[0], grid[1], n, m).permute(0, 2, 1, 3).reshape(grid[0] * n, grid[1] * m).contiguous().unsqueeze(0).repeat(c, 1, 1)
+#         if not all_mask:        
+#             aux[3, :, :] = (mask *255).type(torch.uint8).reshape(grid[0], grid[1], n, m).permute(0, 2, 1, 3).reshape(grid[0] * n, grid[1] * m).contiguous()
+#         transform(aux).save(filename)
+        
+
+# def patchify(img, pts, H, r):
+#
+#     wi = torch.arange(-r,r+1, device=device)
+#     ws = r * 2 + 1
+#     n = pts.size()[0]
+#     _, y_sz, x_sz = img.size()
+#    
+#     x, y = pts.split(1, dim=1)
+#    
+#     widx = torch.zeros((n, 3, ws**2), dtype=torch.float, device=device)
+#    
+#     widx[:, 0] = (wi + x).repeat(1,ws)
+#     widx[:, 1] = (wi + y).repeat_interleave(ws, dim=1)
+#     widx[:, 2] = 1
+#
+#     nidx = torch.matmul(H, widx)
+#     xx, yy, zz = nidx.split(1, dim=1)
+#     zz_ = zz.squeeze()
+#     xx_ = xx.squeeze() / zz_
+#     yy_ = yy.squeeze() / zz_
+#    
+#     xf = xx_.floor().type(torch.long)
+#     yf = yy_.floor().type(torch.long)
+#     xc = xf + 1
+#     yc = yf + 1
+#
+#     nidx_mask = ~torch.isfinite(xx_) | ~torch.isfinite(yy_) | (xf < 0) | (yf < 0) | (xc >= x_sz) | (yc >= y_sz)
+#
+#     xf[nidx_mask] = 0
+#     yf[nidx_mask] = 0
+#     xc[nidx_mask] = 0
+#     yc[nidx_mask] = 0
+#
+#     # for mask
+#     img_ = img.flatten()
+#     aux = img_[0].clone()
+#     img_[0] = float('nan')
+#
+#     a = xx_-xf    
+#     b = yy_-yf
+#     c = xc-xx_    
+#     d = yc-yy_
+#
+#     patch = (a * (b * img_[yc * x_sz + xc] + d * img_[yf * x_sz + xc]) + c * (b * img_[yc * x_sz + xf] + d * img_[yf * x_sz + xf])).reshape((-1, ws, ws))
+#     img_[0] = aux
+#
+#     return patch
 
 
 class ncc_module:
