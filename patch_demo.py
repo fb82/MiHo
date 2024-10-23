@@ -29,7 +29,7 @@ if __name__ == '__main__':
 
     w = 10 # patch size or display
 
-    bench_path = '/media/bellavista/Dati1/patch_test' # '../bench_data'   
+    bench_path = '../bench_data'   
     bench_im='imgs'  
     save_to = 'res'    
 
