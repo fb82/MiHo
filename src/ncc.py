@@ -260,13 +260,14 @@ def go_save_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_diff_'):
     save_patch(both_patches, save_prefix=save_prefix, save_suffix='.png')
 
 
-def go_save_list_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_list_diff_', remove_same=True):        
+def go_save_list_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_list_diff_', remove_same=True, bar_idx=None, bar_width=2):        
     # warning image must be grayscale and not rgb!
 
     ww = w * 2 + 1
     l = len(pt1)
     n = pt1[0].shape[0]
-    patch_list = torch.zeros((n, l, ww, ww, 3), dtype=torch.float32, device=device)
+    if bar_idx is None: bar_width = 0    
+    patch_list = torch.zeros((n, l, ww, bar_width + ww, 3), dtype=torch.float32, device=device)                
     for i in range(l):
         pt1_, pt2_, _, Hi1, Hi2 = get_inverse(pt1[i], pt2[i], Hs[i]) 
             
@@ -294,12 +295,21 @@ def go_save_list_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_list
         mask2 = torch.isfinite(patch2) & (~torch.isfinite(patch1))
         patch1[mask2] = 0
 
-        both_patches = torch.zeros((patch1.shape[0], patch1.shape[1], patch1.shape[2], 3), dtype=torch.float32, device=device)
-        both_patches[:, :, :, 0] = patch1
-        both_patches[:, :, :, 1] = patch2        
+        both_patches = torch.zeros((patch1.shape[0], patch1.shape[1], patch1.shape[2] + bar_width, 3), dtype=torch.float32, device=device)
+        both_patches[:, :, bar_width:, 0] = patch1
+        both_patches[:, :, bar_width:, 1] = patch2        
         
-        patch_list[:, i, :, :, :] = both_patches
+        if not (bar_idx is None):
+            patch_idx = torch.zeros((patch1.shape[0], patch1.shape[1], bar_width, 3), dtype=torch.float32, device=device)
+            patch_idx[:, :, :, 2] = 128
+            for k in range(n):
+                ll = torch.clamp(ww - bar_idx[i, k], 0, ww).type(torch.int16)
+                # ll = torch.clamp((1 - bar_idx[i, k]) * ww, 0, ww).type(torch.int16)
+                patch_idx[k, ll:ww, :, 2] = 255
+        both_patches[:, :, :bar_width, :] = patch_idx
 
+        patch_list[:, i, :, :, :] = both_patches                
+            
     if remove_same:
         mask = torch.zeros(n, dtype=torch.bool, device=device)
         for k in range(n):
@@ -311,7 +321,7 @@ def go_save_list_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_list
 
         patch_list = patch_list[mask]
 
-    patch_list = patch_list.reshape((n, l*ww, ww, 3)).permute((-1, 0, 1, 2))
+    patch_list = patch_list.reshape((n, l*ww, ww + bar_width, 3)).permute((-1, 0, 1, 2))
 
     save_patch(patch_list, grid=[50//l, 50], save_prefix=save_prefix, save_suffix='.png')
 
@@ -499,7 +509,7 @@ def save_patch(patch, grid=[40, 50], save_prefix='patch_', save_suffix='.png', n
     m = patch.shape[3]
     transform = transforms.ToPILImage()
     for i in range(0, l, grid_el):
-        j = min(i+ grid_el, l)
+        j = min(i + grid_el, l)
         filename = f'{save_prefix}{i}_{j}{save_suffix}' 
         
         patch_ = patch[:, i:j]
