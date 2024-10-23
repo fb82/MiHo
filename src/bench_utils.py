@@ -128,28 +128,28 @@ def scannet_1500_list(ppath='bench_data/gt_data/scannet'):
     return data
 
 
-def megadepth_scannet_bench_setup(bench_path='bench_data', bench_imgs='imgs', bench_gt='gt_data', save_to='megadepth_scannet.pbz2', **dummy_args):
-    megadepth_data, scannet_data, data_file = bench_init(bench_path=bench_path, bench_gt=bench_gt, save_to=save_to)
+def megadepth_scannet_bench_setup(bench_path='bench_data', bench_imgs='imgs', bench_gt='gt_data', save_to='megadepth_scannet.pbz2', debug=False, **dummy_args):
+    megadepth_data, scannet_data, data_file = bench_init(bench_path=bench_path, bench_gt=bench_gt, save_to=save_to, debug=debug)
     megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_imgs)
     
     return megadepth_data, scannet_data, data_file
 
 
-def megadepth_bench_setup(bench_path='bench_data', bench_imgs='imgs', bench_gt='gt_data', save_to='megadepth_scannet.pbz2', **dummy_args):
-    megadepth_data, scannet_data, data_file = bench_init(bench_path=bench_path, bench_gt=bench_gt, save_to=save_to)
+def megadepth_bench_setup(bench_path='bench_data', bench_imgs='imgs', bench_gt='gt_data', save_to='megadepth_scannet.pbz2', debug=False, **dummy_args):
+    megadepth_data, scannet_data, data_file = bench_init(bench_path=bench_path, bench_gt=bench_gt, save_to=save_to, debug=debug)
     megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_imgs)
     
     return megadepth_data, data_file
 
 
-def scannet_bench_setup(bench_path='bench_data', bench_imgs='imgs', bench_gt='gt_data', save_to='megadepth_scannet.pbz2', **dummy_args):
-    megadepth_data, scannet_data, data_file = bench_init(bench_path=bench_path, bench_gt=bench_gt, save_to=save_to)
+def scannet_bench_setup(bench_path='bench_data', bench_imgs='imgs', bench_gt='gt_data', save_to='megadepth_scannet.pbz2', debug=False, **dummy_args):
+    megadepth_data, scannet_data, data_file = bench_init(bench_path=bench_path, bench_gt=bench_gt, save_to=save_to, debug=debug)
     megadepth_data, scannet_data = setup_images(megadepth_data, scannet_data, data_file=data_file, bench_path=bench_path, bench_imgs=bench_imgs)
     
     return scannet_data, data_file
 
 
-def bench_init(bench_path='bench_data', bench_gt='gt_data', save_to='megadepth_scannet.pbz2'):
+def bench_init(bench_path='bench_data', bench_gt='gt_data', save_to='megadepth_scannet.pbz2', debug=False, debug_pairs=5):
     download_megadepth_scannet_data(bench_path)
         
     data_file = os.path.join(bench_path, save_to)
@@ -157,11 +157,12 @@ def bench_init(bench_path='bench_data', bench_gt='gt_data', save_to='megadepth_s
         megadepth_data = megadepth_1500_list(os.path.join(bench_path, bench_gt, 'megadepth'))
         scannet_data = scannet_1500_list(os.path.join(bench_path, bench_gt, 'scannet'))
 
-        # # for debugging, use only first 30 image pairs
-        # for what in megadepth_data.keys():
-        #     megadepth_data[what] = [megadepth_data[what][i] for i in range(30)]
-        # for what in scannet_data.keys():
-        #     scannet_data[what] = [scannet_data[what][i] for i in range(30)]
+        # for debugging, use only first debug_pairs image pairs
+        if debug:
+            for what in megadepth_data.keys():
+                megadepth_data[what] = [megadepth_data[what][i] for i in range(debug_pairs)]
+            for what in scannet_data.keys():
+                scannet_data[what] = [scannet_data[what][i] for i in range(debug_pairs)]
 
         compressed_pickle(data_file, (megadepth_data, scannet_data))
     else:
