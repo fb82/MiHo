@@ -190,6 +190,6 @@ if __name__ == '__main__':
                         pt2_list = [pt2_list[pi][pidx] for pi in range(len(pp_list))]
                         Hs_list = [Hs_list[pi][pidx] for pi in range(len(pp_list))]
                                             
-                    ncc.go_save_list_diff_patches(im1g, im2g, pt1_list, pt2_list, Hs_list, w, save_prefix=os.path.join(base_prefix, name_prefix + mk + '_patch_list_'), bar_idx=err_idx, stretch=False)
+                    ncc.go_save_list_diff_patches(im1g, im2g, pt1_list, pt2_list, Hs_list, w, save_prefix=os.path.join(base_prefix, name_prefix + mk + '_patch_list_'), bar_idx=err_idx, stretch=stretch)
 
                 

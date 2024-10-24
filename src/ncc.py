@@ -301,11 +301,13 @@ def go_save_list_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_list
         
         if not (bar_idx is None):
             patch_idx = torch.zeros((patch1.shape[0], patch1.shape[1], bar_width, 3), dtype=torch.float32, device=device)
-            patch_idx[:, :, :, 2] = 128
+            patch_idx[:, :, :, 2] = 128 # more stylish but less visible
+            patch_idx[:, :, :] = 255
             for k in range(n):
                 ll = torch.clamp(ww - bar_idx[i, k], 0, ww).type(torch.int16)
                 # ll = torch.clamp((1 - bar_idx[i, k]) * ww, 0, ww).type(torch.int16)
-                patch_idx[k, ll:ww, :, 2] = 255
+                patch_idx[k, ll:ww, :, 2] = 255 # more stylish but less visible
+                patch_idx[k, ll:ww, :, :2] = 0
         both_patches[:, :, :bar_width, :] = patch_idx
 
         patch_list[:, i, :, :, :] = both_patches                
