@@ -30,9 +30,9 @@ if __name__ == '__main__':
     bench_path = '../bench_data' # results will be in the subfolder "patches" 
     bench_im='imgs'  
     save_to = 'res'
-    how_many = -1 # number of (random chosen) patches to show, set to -1 to all patches
-    w = 10 # patch size or display
-    stretch = False # remove black unneeded background in patch images if True
+    how_many = -1 # number of (random chosen) patches to show, set to -1 to all patches, 15 for the paper table
+    w = 10 # patch radius to display
+    stretch = False # remove black unneeded background in patch images if True, True for the paper table
 
     tg = transforms.Compose([
             transforms.Grayscale(),
@@ -61,9 +61,10 @@ if __name__ == '__main__':
 
             # # first 10 image pairs in each benchmark
             for i in  range(n):             
-            # # paper image pairs with debug=False some lines above
-            # for i in  [0, 2, 301, 315]:            
+            # # paper image pairs of megadepth data with debug=False some lines above
+            # for i in  [69, 301]:            
                 base_prefix = os.path.join(bench_path, 'patches', benchmark_data[b]['name'], pipe_name, str(i))
+                # base_prefix = os.path.join(bench_path, 'patches')                
                 name_prefix = ''
                 # name_prefix = benchmark_data[b]['name'] + '_' + str(i) + '_' + pipe_name + '_'                
                 os.makedirs(base_prefix, exist_ok=True)
@@ -71,8 +72,8 @@ if __name__ == '__main__':
                 im1 = os.path.join(bench_path, im_path, os.path.splitext(b_data['im1'][i])[0]) + ext
                 im2 = os.path.join(bench_path, im_path, os.path.splitext(b_data['im2'][i])[0]) + ext
                 
-                shutil.copyfile(im1, os.path.join(base_prefix, 'im1' + ext))
-                shutil.copyfile(im2, os.path.join(base_prefix, 'im2' + ext))
+                shutil.copyfile(im1, os.path.join(base_prefix, name_prefix + 'im1' + ext))
+                shutil.copyfile(im2, os.path.join(base_prefix, name_prefix + 'im2' + ext))
                   
                 K1 = b_data['K1']
                 K2 = b_data['K2']
