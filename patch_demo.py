@@ -3,7 +3,7 @@ import torch
 import kornia as K
 import src.ncc as ncc
 import src.base_modules as base_pipe
-import src.miho as miho_duplex
+import src.miho as miho_duplex 
 import src.bench_utils as bench
 import numpy as np
 import os
@@ -27,11 +27,12 @@ if __name__ == '__main__':
     pipe_miho =  miho_duplex.miho_module()
     pipe_ncc = ncc.ncc_module(also_prev=True)
 
-    w = 10 # patch size or display
-
-    bench_path = '../bench_data'   
+    bench_path = '../bench_data' # results will be in the subfolder "patches" 
     bench_im='imgs'  
-    save_to = 'res'    
+    save_to = 'res'
+    how_many = -1 # number of (random chosen) patches to show, set to -1 to all patches
+    w = 10 # patch size or display
+    stretch = False # remove black unneeded background in patch images if True
 
     tg = transforms.Compose([
             transforms.Grayscale(),
@@ -51,15 +52,21 @@ if __name__ == '__main__':
         pipe_name = pipe_base.get_id()
         
         for b in benchmark_data:    
+            # set debug=False for all image pairs
             b_data, _ = benchmark_data[b]['setup'](bench_path=bench_path, upright=True, debug=True)
         
             n = len(b_data['im1'])
             ext = benchmark_data[b]['ext']
             im_path = os.path.join(bench_im, benchmark_data[b]['name'])        
-     
-            for i in range(n):             
+
+            # # first 10 image pairs in each benchmark
+            for i in  range(n):             
+            # # paper image pairs with debug=False some lines above
+            # for i in  [0, 2, 301, 315]:            
                 base_prefix = os.path.join(bench_path, 'patches', benchmark_data[b]['name'], pipe_name, str(i))
-                os.makedirs(base_prefix, exist_ok=True)  
+                name_prefix = ''
+                # name_prefix = benchmark_data[b]['name'] + '_' + str(i) + '_' + pipe_name + '_'                
+                os.makedirs(base_prefix, exist_ok=True)
 
                 im1 = os.path.join(bench_path, im_path, os.path.splitext(b_data['im1'][i])[0]) + ext
                 im2 = os.path.join(bench_path, im_path, os.path.splitext(b_data['im2'][i])[0]) + ext
@@ -108,15 +115,16 @@ if __name__ == '__main__':
                 im1g = tg(im1).type(torch.float16).to(device)
                 im2g = tg(im2).type(torch.float16).to(device)
     
-                mask1 = {
+                # split patches according to
+                mask = {
                     # 'all': torch.full((pipe_data_base['pt1'].shape[0], ), 1 , device=device, dtype=torch.bool),
                     'best_miho': pipe_data_base_miho_ncc['val'] > pipe_data_base_ncc['val'],
                     'best_base': pipe_data_base_ncc['val'] > pipe_data_base_miho_ncc['val'],
                     'equal': pipe_data_base_ncc['val'] == pipe_data_base_miho_ncc['val'],
                     }
     
-                for mk in mask1.keys():
-                    mm = mask1[mk]
+                for mk in mask.keys():
+                    mm = mask[mk]
                                                     
                     pp_list = {'base': pipe_data_base, 'base_ncc': pipe_data_base_ncc, 'base_miho': pipe_data_base_miho, 'base_miho_ncc': pipe_data_base_miho_ncc}
                     err_list = []
@@ -154,6 +162,7 @@ if __name__ == '__main__':
                         Hs_list.append(Hs)
                         err_list.append(torch.maximum(d1, d2)) 
     
+                    # remove outliers according to the GT
                     inl_mask = torch.min(torch.cat([err_list[pi].unsqueeze(0) for pi in range(len(pp_list))]), dim=0)[0] < 10
     
                     for pi in range(len(pp_list.keys())):
@@ -161,7 +170,8 @@ if __name__ == '__main__':
                         pt2 = pt2_list[pi][inl_mask]
                         Hs = Hs_list[pi][inl_mask]
                         
-                        # ncc.go_save_diff_patches(im1g, im2g, pt1, pt2, Hs, w, save_prefix=os.path.join(base_prefix, mk + '_patch_' + pk + '_'))
+                        # # uncomment to save patch pair differences
+                        # ncc.go_save_diff_patches(im1g, im2g, pt1, pt2, Hs, w, save_prefix=os.path.join(base_prefix, name_prefix + mk + '_patch_' + pk + '_'))
     
                         pt1_list[pi] = pt1 
                         pt2_list[pi] = pt2                           
@@ -170,5 +180,15 @@ if __name__ == '__main__':
                         
                     # 1 px epi error will count 2 px in the blue bar
                     err_idx = torch.cat([err_list[pi].unsqueeze(0) for pi in range(len(pp_list))]) * 2
-                    ncc.go_save_list_diff_patches(im1g, im2g, pt1_list, pt2_list, Hs_list, w, save_prefix=os.path.join(base_prefix, mk + '_patch_list_'), bar_idx=err_idx)
+                    
+                    if how_many != -1:
+                        pidx = torch.randperm(pt1_list[0].shape[0])[:how_many]
+                        
+                        err_idx = err_idx[:, pidx]
+                        pt1_list = [pt1_list[pi][pidx] for pi in range(len(pp_list))]
+                        pt2_list = [pt2_list[pi][pidx] for pi in range(len(pp_list))]
+                        Hs_list = [Hs_list[pi][pidx] for pi in range(len(pp_list))]
+                                            
+                    ncc.go_save_list_diff_patches(im1g, im2g, pt1_list, pt2_list, Hs_list, w, save_prefix=os.path.join(base_prefix, name_prefix + mk + '_patch_list_'), bar_idx=err_idx, stretch=False)
+
                 

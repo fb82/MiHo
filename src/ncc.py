@@ -224,7 +224,7 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
     return pt1, pt2, Hsu, val, T
 
 
-def go_save_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_diff_'):        
+def go_save_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_diff_', stretch=False):        
     # warning image must be grayscale and not rgb!
 
     pt1_, pt2_, _, Hi1, Hi2 = get_inverse(pt1, pt2, Hs) 
@@ -257,10 +257,10 @@ def go_save_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_diff_'):
     both_patches[0] = patch1
     both_patches[1] = patch2
 
-    save_patch(both_patches, save_prefix=save_prefix, save_suffix='.png')
+    save_patch(both_patches, save_prefix=save_prefix, save_suffix='.png', stretch=stretch)
 
 
-def go_save_list_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_list_diff_', remove_same=True, bar_idx=None, bar_width=2):        
+def go_save_list_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_list_diff_', remove_same=False, bar_idx=None, bar_width=2, stretch=False):        
     # warning image must be grayscale and not rgb!
 
     ww = w * 2 + 1
@@ -323,17 +323,17 @@ def go_save_list_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_list
 
     patch_list = patch_list.reshape((n, l*ww, ww + bar_width, 3)).permute((-1, 0, 1, 2))
 
-    save_patch(patch_list, grid=[50//l, 50], save_prefix=save_prefix, save_suffix='.png')
+    save_patch(patch_list, grid=[50//l, 50], save_prefix=save_prefix, save_suffix='.png', stretch=stretch)
 
 
-def go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_'):        
+def go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_', stretch=False):        
     pt1_, pt2_, _, Hi1, Hi2 = get_inverse(pt1, pt2, Hs) 
             
     patch1 = patchify(im1, pt1_, Hi1, w)
     patch2 = patchify(im2, pt2_, Hi2, w)
 
-    save_patch(patch1, save_prefix=save_prefix, save_suffix='_a.png')
-    save_patch(patch2, save_prefix=save_prefix, save_suffix='_b.png')
+    save_patch(patch1, save_prefix=save_prefix, save_suffix='_a.png', stretch=stretch)
+    save_patch(patch2, save_prefix=save_prefix, save_suffix='_b.png', stretch=stretch)
 
 
 def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, img_patches=False, also_laf=False, im1_disp=None, im2_disp=None):
@@ -498,7 +498,7 @@ def norm_corr(patch1, patch2, subpix=True):
     return offset, idx[0]
 
 
-def save_patch(patch, grid=[40, 50], save_prefix='patch_', save_suffix='.png', normalize=False):
+def save_patch(patch, grid=[40, 50], save_prefix='patch_', save_suffix='.png', normalize=False, stretch=True):
     if patch.ndim==3:
         patch = patch.unsqueeze(0)
     cc = patch.shape[0]    
@@ -511,9 +511,22 @@ def save_patch(patch, grid=[40, 50], save_prefix='patch_', save_suffix='.png', n
     for i in range(0, l, grid_el):
         j = min(i + grid_el, l)
         filename = f'{save_prefix}{i}_{j}{save_suffix}' 
+
+        if not stretch:
+            grid0 = grid[0]
+            grid1 = grid[1]
+        else:
+            grid0 = (j - i) / grid[1]
+            if grid0 >= 1:
+                grid1 = grid[1]
+            else:
+                grid1 = (j - i) % grid[1]
+            grid0 = int(np.ceil(grid0))
+            
+        grid_el_ = grid0 * grid1
         
         patch_ = patch[:, i:j]
-        aux = torch.zeros((cc, grid_el, n, m), dtype=torch.float32, device=device)
+        aux = torch.zeros((cc, grid_el_, n, m), dtype=torch.float32, device=device)
         aux[:, :j-i] = patch_
         
         mask = aux[0].isfinite()
@@ -526,8 +539,8 @@ def save_patch(patch, grid=[40, 50], save_prefix='patch_', save_suffix='.png', n
                 aux[ci, ~mask] = -1        
                 avg = ((mask * aux[ci]).sum(dim=(1,2)) / mask.sum(dim=(1,2))).reshape(-1, 1, 1).repeat(1, n, m)
                 avg[mask] = aux[ci, mask]
-                m_ = avg.reshape(grid_el, -1).min(dim=1)[0]
-                M_ = avg.reshape(grid_el, -1).max(dim=1)[0]
+                m_ = avg.reshape(grid_el_, -1).min(dim=1)[0]
+                M_ = avg.reshape(grid_el_, -1).max(dim=1)[0]
                 aux[ci] = (((aux[ci] - m_.reshape(-1, 1, 1)) / (M_ - m_).reshape(-1, 1, 1)) * 255).type(torch.uint8)
            
         # if not needed do not add alpha channel
@@ -537,14 +550,14 @@ def save_patch(patch, grid=[40, 50], save_prefix='patch_', save_suffix='.png', n
         if (~all_mask) and (cc==3): c_final = 4
         if (~all_mask) and (cc==1): c_final = 4
 
-        im = torch.zeros((c_final, grid[0] * n, grid[1] * m), dtype=torch.uint8, device=device)
+        im = torch.zeros((c_final, grid0 * n, grid1 * m), dtype=torch.uint8, device=device)
         
-        aux = aux.reshape(cc, grid[0], grid[1], n, m).permute(0, 1, 3, 2, 4).reshape(cc, grid[0] * n, grid[1] * m).contiguous()
+        aux = aux.reshape(cc, grid0, grid1, n, m).permute(0, 1, 3, 2, 4).reshape(cc, grid0 * n, grid1 * m).contiguous()
         if (~all_mask) and (cc==1): aux = aux.repeat(c_final, 1, 1)
         im[:aux.shape[0]] = aux
 
         if not all_mask:        
-            im[3, :, :] = (mask *255).type(torch.uint8).reshape(grid[0], grid[1], n, m).permute(0, 2, 1, 3).reshape(grid[0] * n, grid[1] * m).contiguous()
+            im[3, :, :] = (mask *255).type(torch.uint8).reshape(grid0, grid1, n, m).permute(0, 2, 1, 3).reshape(grid0 * n, grid1 * m).contiguous()
 
         transform(im).save(filename)
         
