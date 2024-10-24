@@ -149,7 +149,7 @@ def scannet_bench_setup(bench_path='bench_data', bench_imgs='imgs', bench_gt='gt
     return scannet_data, data_file
 
 
-def bench_init(bench_path='bench_data', bench_gt='gt_data', save_to='megadepth_scannet.pbz2', debug=False, debug_pairs=5):
+def bench_init(bench_path='bench_data', bench_gt='gt_data', save_to='megadepth_scannet.pbz2', debug=False, debug_pairs=10):
     download_megadepth_scannet_data(bench_path)
         
     data_file = os.path.join(bench_path, save_to)
