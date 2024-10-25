@@ -1621,3 +1621,77 @@ def count_pipe_match(pipe, dataset_data,  dataset_name, bench_path='bench_data',
 
             eval_data[pipe_name_base] = eval_data_
             compressed_pickle(save_to, eval_data)
+
+
+def show_pipe_other(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='showcase', force=False, ext='.png', save_ext='.jpg', fig_min_size=960, fig_max_size=1280, pipe_select=[-2, -1], save_mode='as_bench', b_index=None):
+
+    n = len(dataset_data['im1'])
+    im_path = os.path.join(bench_im, dataset_name)    
+    fig = plt.figure()    
+        
+    with progress_bar(bar_name + ' - pipeline completion') as p:
+        for i in p.track(range(n)):
+            im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + ext
+            im2 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im2'][i])[0]) + ext
+                        
+            pair_data = []            
+            pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
+            pipe_img_save_list = []
+            for pipe_module in pipe:
+                pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
+                pipe_img_save_list.append(pipe_module.get_id())
+
+                pipe_f = os.path.join(pipe_name_base, 'base', str(i) + '.pbz2')            
+                pair_data.append(decompress_pickle(pipe_f))
+            
+            if pipe_select is None: pipe_select = np.arange(len(pair_data))
+
+            for pp in pipe_select:
+                ppn = pp
+                if ppn < 0:
+                    ppn = len(pipe_img_save_list) + 1 + ppn
+                img_folder = [bench_path, bench_plot]
+                if save_mode == 'as_bench':
+                    img_folder = img_folder + [dataset_name] + [pipe_img_save_list[ii] for ii in np.arange(ppn)] + ['base']
+                
+                pipe_img_save = os.path.join(*img_folder)                                
+                os.makedirs(pipe_img_save, exist_ok=True)
+                
+                ni = i
+                if not (b_index is None): ni = b_index[i]
+                
+                if save_mode == 'as_bench':               
+                    pipe_img_save = os.path.join(pipe_img_save, str(ni) + save_ext)
+                else:
+                    pipe_img_save = os.path.join(*img_folder, dataset_name + '_' + str(ni) + '_' +  '_'.join([pipe_img_save_list[ii] for ii in np.arange(ppn)]) + save_ext)
+                    
+                if os.path.isfile(pipe_img_save) and not force:
+                    continue
+                
+                img1 = viz_utils.load_image(im1)
+                img2 = viz_utils.load_image(im2)
+                fig, axes = viz.plot_images([img1, img2], fig_num=fig.number)              
+                
+                mpt1 = pair_data[pp]['pt1']
+                mpt2 = pair_data[pp]['pt2']
+                clr = pipe_color[2]
+                viz.plot_matches(mpt1, mpt2, color=clr, lw=0.2, ps=6, a=0.3, axes=axes, fig_num=fig.number)
+    
+                fig_dpi = fig.get_dpi()
+                fig_sz = [fig.get_figwidth() * fig_dpi, fig.get_figheight() * fig_dpi]
+    
+                fig_cz = min(fig_sz)
+                if fig_cz < fig_min_size:
+                    fig_sz[0] = fig_sz[0] / fig_cz * fig_min_size
+                    fig_sz[1] = fig_sz[1] / fig_cz * fig_min_size
+    
+                fig_cz = max(fig_sz)
+                if fig_cz > fig_min_size:
+                    fig_sz[0] = fig_sz[0] / fig_cz * fig_max_size
+                    fig_sz[1] = fig_sz[1] / fig_cz * fig_max_size
+                    
+                fig.set_size_inches(fig_sz[0] / fig_dpi, fig_sz[1]  / fig_dpi)
+    
+                viz.save_plot(pipe_img_save, fig)
+                viz.clear_plot(fig)
+    plt.close(fig)
