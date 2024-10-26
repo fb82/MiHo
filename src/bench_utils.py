@@ -71,9 +71,19 @@ def megadepth_1500_list(ppath='bench_data/gt_data/megadepth'):
     for name in npz_list:
         scene_info = np.load(os.path.join(ppath, name), allow_pickle=True)
     
+        # Sort to avoid pickle issues 
+        pidx = sorted([[pair_info[0][0], pair_info[0][1]] for pair_info in scene_info['pair_infos']])
+    
         # Collect pairs
-        for pair_info in scene_info['pair_infos']:
-            (id1, id2), overlap, _ = pair_info
+        #
+        # ***this is the old code - pickle dict handling can scramble ordering !!! ***
+        # *** restore for retrocompatibility with previously computed data         ***
+        # for pair_info in scene_info['pair_infos']:
+        #    (id1, id2), overlap, _ = pair_info
+        #
+        # *** fixed code ***
+        for idx in pidx:
+            id1, id2 = idx
             im1 = scene_info['image_paths'][id1].replace('Undistorted_SfM/', '')
             im2 = scene_info['image_paths'][id2].replace('Undistorted_SfM/', '')                        
             K1 = scene_info['intrinsics'][id1].astype(np.float32)
@@ -1621,3 +1631,158 @@ def count_pipe_match(pipe, dataset_data,  dataset_name, bench_path='bench_data',
 
             eval_data[pipe_name_base] = eval_data_
             compressed_pickle(save_to, eval_data)
+
+
+def show_pipe_other(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='showcase', force=False, ext='.png', save_ext='.jpg', fig_min_size=960, fig_max_size=1280, pipe_select=[-2, -1], save_mode='as_bench', b_index=None, bench_mode='fundamental_matrix', use_scale=False):
+
+    err_bound = [[0, 1], [1, 3], [3, 7], [7, 15], [15, np.Inf]]
+    
+    clr = np.asarray([
+        [0  , 255,   0],
+        [255, 128,   0],
+        [255,   0,   0],
+        [255,   0, 255],
+        [  0,   0, 255],
+        [ 96,  96,  96], # outside planes
+        ]) / 255.0
+
+    n = len(dataset_data['im1'])
+    im_path = os.path.join(bench_im, dataset_name)    
+    fig = plt.figure()    
+        
+    with progress_bar(bar_name + ' - pipeline completion') as p:
+        for i in p.track(range(n)):
+            im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + ext
+            im2 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im2'][i])[0]) + ext
+
+            pair_data = []            
+            pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
+            pipe_img_save_list = []
+            for pipe_module in pipe:
+                pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
+                pipe_img_save_list.append(pipe_module.get_id())
+
+                pipe_f = os.path.join(pipe_name_base, 'base', str(i) + '.pbz2')            
+                pair_data.append(decompress_pickle(pipe_f))
+            
+            if pipe_select is None: pipe_select = np.arange(len(pair_data))
+
+            for pp in pipe_select:
+                ppn = pp
+                if ppn < 0:
+                    ppn = len(pipe_img_save_list) + 1 + ppn
+                img_folder = [bench_path, bench_plot]
+                if save_mode == 'as_bench':
+                    img_folder = img_folder + [dataset_name] + [pipe_img_save_list[ii] for ii in np.arange(ppn)] + ['base']
+                
+                pipe_img_save = os.path.join(*img_folder)                                
+                os.makedirs(pipe_img_save, exist_ok=True)
+                
+                ni = i
+                if not (b_index is None): ni = b_index[i]
+                
+                if save_mode == 'as_bench':               
+                    pipe_img_save = os.path.join(pipe_img_save, str(ni) + save_ext)
+                else:
+                    pipe_img_save = os.path.join(*img_folder, dataset_name + '_' + str(ni) + '_' +  '_'.join([pipe_img_save_list[ii] for ii in np.arange(ppn)]) + save_ext)
+                    
+                if os.path.isfile(pipe_img_save) and not force:
+                    continue
+                
+                img1 = viz_utils.load_image(im1)
+                img2 = viz_utils.load_image(im2)
+                fig, axes = viz.plot_images([img1, img2], fig_num=fig.number)              
+                   
+                pt1 = pair_data[pp]['pt1']
+                pt2 = pair_data[pp]['pt2']
+                
+                nn = pt1.shape[0]
+                
+                if use_scale == True:
+                    scales = dataset_data['im_pair_scale'][i]
+                else:
+                    scales = np.asarray([[1.0, 1.0], [1.0, 1.0]])                        
+                                
+                spt1 = pt1 * torch.tensor(scales[0], device=device)
+                spt2 = pt2 * torch.tensor(scales[1], device=device)
+
+                pt1_ = torch.vstack((torch.clone(spt1.T), torch.ones((1, nn), device=device))).type(torch.float64)
+                pt2_ = torch.vstack((torch.clone(spt2.T), torch.ones((1, nn), device=device))).type(torch.float64)
+                                                
+                if bench_mode == 'fundamental_matrix':
+                
+                    K1 = dataset_data['K1'][i]
+                    K2 = dataset_data['K2'][i]
+                    R_gt = dataset_data['R'][i]
+                    t_gt = dataset_data['T'][i]            
+        
+                    F_gt = torch.tensor(K2.T, device=device, dtype=torch.float64).inverse() @ \
+                           torch.tensor([[0, -t_gt[2], t_gt[1]],
+                                        [t_gt[2], 0, -t_gt[0]],
+                                        [-t_gt[1], t_gt[0], 0]], device=device) @ \
+                           torch.tensor(R_gt, device=device) @ \
+                           torch.tensor(K1, device=device, dtype=torch.float64).inverse()
+                    F_gt = F_gt / F_gt.sum()
+                    F_gt = F_gt
+                        
+                    l1_ = F_gt @ pt1_
+                    d1 = pt2_.permute(1,0).unsqueeze(-2).bmm(l1_.permute(1,0).unsqueeze(-1)).squeeze().abs() / (l1_[:2]**2).sum(0).sqrt()
+                    
+                    l2_ = F_gt.T @ pt2_
+                    d2 = pt1_.permute(1,0).unsqueeze(-2).bmm(l2_.permute(1,0).unsqueeze(-1)).squeeze().abs() / (l2_[:2]**2).sum(0).sqrt()
+
+                    valid_matches = None
+                else:
+                    rad = 15
+                    
+                    H_gt = torch.tensor(dataset_data['H'][i], device=device)
+                    H_inv_gt = torch.tensor(dataset_data['H_inv'][i], device=device)
+                                        
+                    pt1_reproj = H_gt @ pt1_
+                    pt1_reproj = pt1_reproj[:2] / pt1_reproj[2].unsqueeze(0)
+                    d1 = ((pt2_[:2] - pt1_reproj)**2).sum(0).sqrt()
+                    
+                    pt2_reproj = H_inv_gt @ pt2_
+                    pt2_reproj = pt2_reproj[:2] / pt2_reproj[2].unsqueeze(0)
+                    d2 = ((pt1_[:2] - pt2_reproj)**2).sum(0).sqrt()
+                    
+                    valid_matches = torch.ones(nn, device=device, dtype=torch.bool)
+                    
+                    if dataset_data['im1_use_mask'][i]:
+                        valid_matches = valid_matches & ~invalid_matches(dataset_data['im1_mask'][i], dataset_data['im2_full_mask'][i], spt1, spt2, rad)
+
+                    if dataset_data['im2_use_mask'][i]:
+                        valid_matches = valid_matches & ~invalid_matches(dataset_data['im2_mask'][i], dataset_data['im1_full_mask'][i], spt2, spt1, rad)
+                                            
+                err = torch.maximum(d1, d2) 
+                err[~torch.isfinite(err)] = np.Inf
+                if not (valid_matches is None):
+                    err[~valid_matches] = np.NaN
+                
+                mask = torch.isnan(err)
+                if torch.any(mask): 
+                    viz.plot_matches(pt1[mask], pt2[mask], color=clr[-1], lw=0.2, ps=6, a=0.3, axes=axes, fig_num=fig.number)
+                                
+                for j in reversed(range(len(err_bound))):
+                    mask = (err >= err_bound[j][0]) & (err < err_bound[j][1])
+                    if torch.any(mask): 
+                        viz.plot_matches(pt1[mask], pt2[mask], color=clr[j], lw=0.2, ps=6, a=0.3, axes=axes, fig_num=fig.number)
+    
+                fig_dpi = fig.get_dpi()
+                fig_sz = [fig.get_figwidth() * fig_dpi, fig.get_figheight() * fig_dpi]
+    
+                fig_cz = min(fig_sz)
+                if fig_cz < fig_min_size:
+                    fig_sz[0] = fig_sz[0] / fig_cz * fig_min_size
+                    fig_sz[1] = fig_sz[1] / fig_cz * fig_min_size
+    
+                fig_cz = max(fig_sz)
+                if fig_cz > fig_min_size:
+                    fig_sz[0] = fig_sz[0] / fig_cz * fig_max_size
+                    fig_sz[1] = fig_sz[1] / fig_cz * fig_max_size
+                    
+                fig.set_size_inches(fig_sz[0] / fig_dpi, fig_sz[1]  / fig_dpi)
+    
+                viz.save_plot(pipe_img_save, fig)
+                viz.clear_plot(fig)
+    plt.close(fig)
