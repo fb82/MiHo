@@ -33,6 +33,7 @@ if __name__ == '__main__':
     how_many = -1 # number of (random chosen) patches to show, set to -1 to all patches, 15 for the paper table
     w = 10 # patch radius to display
     stretch = False # remove black unneeded background in patch images if True, True for the paper table
+    flat_folder = True
 
     tg = transforms.Compose([
             transforms.Grayscale(),
@@ -59,21 +60,29 @@ if __name__ == '__main__':
             ext = benchmark_data[b]['ext']
             im_path = os.path.join(bench_im, benchmark_data[b]['name'])        
 
-            # # first 10 image pairs in each benchmark
-            for i in  range(n):             
-            # # paper image pairs of megadepth data with debug=False some lines above
-            # for i in  [69, 301]:            
-                base_prefix = os.path.join(bench_path, 'patches', benchmark_data[b]['name'], pipe_name, str(i))
-                # base_prefix = os.path.join(bench_path, 'patches')                
-                name_prefix = ''
-                # name_prefix = benchmark_data[b]['name'] + '_' + str(i) + '_' + pipe_name + '_'                
+            # *** first 10 image pairs in each benchmark ***
+            for i in range(n):             
+            # *** paper image pairs of megadepth data with debug=False some lines above ***
+            # for i in  [289, 1481]:            
+                if flat_folder == False:
+                    base_prefix = os.path.join(bench_path, 'patches', benchmark_data[b]['name'], pipe_name, str(i))
+                    img_base_prefix = os.path.join(bench_path, 'patches', benchmark_data[b]['name'], 'image_pairs', str(i))
+                    name_prefix = ''
+                    img_name_prefix = ''                
+                else:
+                    base_prefix = os.path.join(bench_path, 'patches')                
+                    img_base_prefix = base_prefix
+                    name_prefix = benchmark_data[b]['name'] + '_' + str(i) + '_' + pipe_name + '_'                
+                    img_name_prefix = benchmark_data[b]['name'] + '_' + str(i) + '_'                
+                
                 os.makedirs(base_prefix, exist_ok=True)
+                os.makedirs(img_base_prefix, exist_ok=True)
 
                 im1 = os.path.join(bench_path, im_path, os.path.splitext(b_data['im1'][i])[0]) + ext
                 im2 = os.path.join(bench_path, im_path, os.path.splitext(b_data['im2'][i])[0]) + ext
                 
-                shutil.copyfile(im1, os.path.join(base_prefix, name_prefix + 'im1' + ext))
-                shutil.copyfile(im2, os.path.join(base_prefix, name_prefix + 'im2' + ext))
+                shutil.copyfile(im1, os.path.join(img_base_prefix, img_name_prefix + 'im1' + ext))
+                shutil.copyfile(im2, os.path.join(img_base_prefix, img_name_prefix + 'im2' + ext))
                   
                 K1 = b_data['K1']
                 K2 = b_data['K2']
