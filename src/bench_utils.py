@@ -71,9 +71,19 @@ def megadepth_1500_list(ppath='bench_data/gt_data/megadepth'):
     for name in npz_list:
         scene_info = np.load(os.path.join(ppath, name), allow_pickle=True)
     
+        # Sort to avoid pickle issues 
+        pidx = sorted([[pair_info[0][0], pair_info[0][1]] for pair_info in scene_info['pair_infos']])
+    
         # Collect pairs
-        for pair_info in scene_info['pair_infos']:
-            (id1, id2), overlap, _ = pair_info
+        #
+        # ***this is the old code - pickle dict handling can scramble ordering !!! ***
+        # *** restore for retrocompatibility with previously computed data         ***
+        # for pair_info in scene_info['pair_infos']:
+        #    (id1, id2), overlap, _ = pair_info
+        #
+        # *** fixed code ***
+        for idx in pidx:
+            id1, id2 = idx
             im1 = scene_info['image_paths'][id1].replace('Undistorted_SfM/', '')
             im2 = scene_info['image_paths'][id2].replace('Undistorted_SfM/', '')                        
             K1 = scene_info['intrinsics'][id1].astype(np.float32)
@@ -1633,6 +1643,7 @@ def show_pipe_other(pipe, dataset_data, dataset_name, bar_name, bench_path='benc
         [255,   0,   0],
         [255,   0, 255],
         [  0,   0, 255],
+        [ 96,  96,  96], # outside planes
         ]) / 255.0
 
     n = len(dataset_data['im1'])
@@ -1643,7 +1654,7 @@ def show_pipe_other(pipe, dataset_data, dataset_name, bar_name, bench_path='benc
         for i in p.track(range(n)):
             im1 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im1'][i])[0]) + ext
             im2 = os.path.join(bench_path, im_path, os.path.splitext(dataset_data['im2'][i])[0]) + ext
-                        
+
             pair_data = []            
             pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
             pipe_img_save_list = []
@@ -1719,12 +1730,39 @@ def show_pipe_other(pipe, dataset_data, dataset_name, bar_name, bench_path='benc
                     
                     l2_ = F_gt.T @ pt2_
                     d2 = pt1_.permute(1,0).unsqueeze(-2).bmm(l2_.permute(1,0).unsqueeze(-1)).squeeze().abs() / (l2_[:2]**2).sum(0).sqrt()
-                else:
-                    print("TODO")
 
+                    valid_matches = None
+                else:
+                    rad = 15
+                    
+                    H_gt = torch.tensor(dataset_data['H'][i], device=device)
+                    H_inv_gt = torch.tensor(dataset_data['H_inv'][i], device=device)
+                                        
+                    pt1_reproj = H_gt @ pt1_
+                    pt1_reproj = pt1_reproj[:2] / pt1_reproj[2].unsqueeze(0)
+                    d1 = ((pt2_[:2] - pt1_reproj)**2).sum(0).sqrt()
+                    
+                    pt2_reproj = H_inv_gt @ pt2_
+                    pt2_reproj = pt2_reproj[:2] / pt2_reproj[2].unsqueeze(0)
+                    d2 = ((pt1_[:2] - pt2_reproj)**2).sum(0).sqrt()
+                    
+                    valid_matches = torch.ones(nn, device=device, dtype=torch.bool)
+                    
+                    if dataset_data['im1_use_mask'][i]:
+                        valid_matches = valid_matches & ~invalid_matches(dataset_data['im1_mask'][i], dataset_data['im2_full_mask'][i], spt1, spt2, rad)
+
+                    if dataset_data['im2_use_mask'][i]:
+                        valid_matches = valid_matches & ~invalid_matches(dataset_data['im2_mask'][i], dataset_data['im1_full_mask'][i], spt2, spt1, rad)
+                                            
                 err = torch.maximum(d1, d2) 
                 err[~torch.isfinite(err)] = np.Inf
+                if not (valid_matches is None):
+                    err[~valid_matches] = np.NaN
                 
+                mask = torch.isnan(err)
+                if torch.any(mask): 
+                    viz.plot_matches(pt1[mask], pt2[mask], color=clr[-1], lw=0.2, ps=6, a=0.3, axes=axes, fig_num=fig.number)
+                                
                 for j in reversed(range(len(err_bound))):
                     mask = (err >= err_bound[j][0]) & (err < err_bound[j][1])
                     if torch.any(mask): 
