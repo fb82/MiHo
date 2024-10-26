@@ -1623,7 +1623,17 @@ def count_pipe_match(pipe, dataset_data,  dataset_name, bench_path='bench_data',
             compressed_pickle(save_to, eval_data)
 
 
-def show_pipe_other(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='showcase', force=False, ext='.png', save_ext='.jpg', fig_min_size=960, fig_max_size=1280, pipe_select=[-2, -1], save_mode='as_bench', b_index=None):
+def show_pipe_other(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='showcase', force=False, ext='.png', save_ext='.jpg', fig_min_size=960, fig_max_size=1280, pipe_select=[-2, -1], save_mode='as_bench', b_index=None, bench_mode='fundamental_matrix', use_scale=False):
+
+    err_bound = [[0, 1], [1, 3], [3, 7], [7, 15], [15, np.Inf]]
+    
+    clr = np.asarray([
+        [0  , 255,   0],
+        [255, 128,   0],
+        [255,   0,   0],
+        [255,   0, 255],
+        [  0,   0, 255],
+        ]) / 255.0
 
     n = len(dataset_data['im1'])
     im_path = os.path.join(bench_im, dataset_name)    
@@ -1671,11 +1681,54 @@ def show_pipe_other(pipe, dataset_data, dataset_name, bar_name, bench_path='benc
                 img1 = viz_utils.load_image(im1)
                 img2 = viz_utils.load_image(im2)
                 fig, axes = viz.plot_images([img1, img2], fig_num=fig.number)              
+                   
+                pt1 = pair_data[pp]['pt1']
+                pt2 = pair_data[pp]['pt2']
                 
-                mpt1 = pair_data[pp]['pt1']
-                mpt2 = pair_data[pp]['pt2']
-                clr = pipe_color[2]
-                viz.plot_matches(mpt1, mpt2, color=clr, lw=0.2, ps=6, a=0.3, axes=axes, fig_num=fig.number)
+                nn = pt1.shape[0]
+                
+                if use_scale == True:
+                    scales = dataset_data['im_pair_scale'][i]
+                else:
+                    scales = np.asarray([[1.0, 1.0], [1.0, 1.0]])                        
+                                
+                spt1 = pt1 * torch.tensor(scales[0], device=device)
+                spt2 = pt2 * torch.tensor(scales[1], device=device)
+
+                pt1_ = torch.vstack((torch.clone(spt1.T), torch.ones((1, nn), device=device))).type(torch.float64)
+                pt2_ = torch.vstack((torch.clone(spt2.T), torch.ones((1, nn), device=device))).type(torch.float64)
+                                                
+                if bench_mode == 'fundamental_matrix':
+                
+                    K1 = dataset_data['K1'][i]
+                    K2 = dataset_data['K2'][i]
+                    R_gt = dataset_data['R'][i]
+                    t_gt = dataset_data['T'][i]            
+        
+                    F_gt = torch.tensor(K2.T, device=device, dtype=torch.float64).inverse() @ \
+                           torch.tensor([[0, -t_gt[2], t_gt[1]],
+                                        [t_gt[2], 0, -t_gt[0]],
+                                        [-t_gt[1], t_gt[0], 0]], device=device) @ \
+                           torch.tensor(R_gt, device=device) @ \
+                           torch.tensor(K1, device=device, dtype=torch.float64).inverse()
+                    F_gt = F_gt / F_gt.sum()
+                    F_gt = F_gt
+                        
+                    l1_ = F_gt @ pt1_
+                    d1 = pt2_.permute(1,0).unsqueeze(-2).bmm(l1_.permute(1,0).unsqueeze(-1)).squeeze().abs() / (l1_[:2]**2).sum(0).sqrt()
+                    
+                    l2_ = F_gt.T @ pt2_
+                    d2 = pt1_.permute(1,0).unsqueeze(-2).bmm(l2_.permute(1,0).unsqueeze(-1)).squeeze().abs() / (l2_[:2]**2).sum(0).sqrt()
+                else:
+                    print("TODO")
+
+                err = torch.maximum(d1, d2) 
+                err[~torch.isfinite(err)] = np.Inf
+                
+                for j in reversed(range(len(err_bound))):
+                    mask = (err >= err_bound[j][0]) & (err < err_bound[j][1])
+                    if torch.any(mask): 
+                        viz.plot_matches(pt1[mask], pt2[mask], color=clr[j], lw=0.2, ps=6, a=0.3, axes=axes, fig_num=fig.number)
     
                 fig_dpi = fig.get_dpi()
                 fig_sz = [fig.get_figwidth() * fig_dpi, fig.get_figheight() * fig_dpi]

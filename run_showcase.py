@@ -166,7 +166,6 @@ if __name__ == '__main__':
 
     bench_path = '../bench_data'   
     save_to = 'res'
-    show_matches = False
     
     benchmark_data = {
             'megadepth': {'name': 'megadepth', 'Name': 'MegaDepth', 'setup': bench.megadepth_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.png', 'use_scale': True, 'also_metric': False, 'index': [69, 301]},
@@ -218,5 +217,5 @@ if __name__ == '__main__':
                         if hasattr(pipe_module, 'outdoor'): setattr(pipe_module, 'outdoor', benchmark_data[b]['is_outdoor'])
 
                     bench.run_pipe(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, ext=benchmark_data[b]['ext'])
-                    bench.show_pipe_other(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, ext=benchmark_data[b]['ext'], save_ext='.pdf', save_mode='flat', b_index=benchmark_data[b]['index'])
+                    bench.show_pipe_other(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, ext=benchmark_data[b]['ext'], save_ext='.pdf', save_mode='flat', b_index=benchmark_data[b]['index'], bench_mode=bench_mode, use_scale=benchmark_data[b]['use_scale'])
                         
