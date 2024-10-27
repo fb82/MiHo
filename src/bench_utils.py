@@ -1423,7 +1423,7 @@ def imc_phototourism_bench_setup(bench_path='bench_data', bench_imgs='imgs', sav
         with zipfile.ZipFile(file_to_download, "r") as zip_ref:
             zip_ref.extractall(out_dir)        
         
-    scenes = [scene for scene in os.listdir(os.path.join(out_dir, 'train')) if os.path.isdir(os.path.join(out_dir, 'train', scene))]
+    scenes = sorted([scene for scene in os.listdir(os.path.join(out_dir, 'train')) if os.path.isdir(os.path.join(out_dir, 'train', scene))])
 
     scale_file = os.path.join(out_dir, 'train', 'scaling_factors.csv')
     scale_dict = {}
