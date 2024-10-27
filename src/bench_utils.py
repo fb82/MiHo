@@ -840,7 +840,7 @@ def planar_bench_setup(to_exclude =['graf'], max_imgs=6, bench_path='bench_data'
         with zipfile.ZipFile(file_to_download, "r") as zip_ref:
             zip_ref.extractall(out_dir)        
 
-    planar_scenes = [scene[:-5] for scene in os.listdir(out_dir) if scene[-5:]=='1.png' and scene[:5]!='mask_']
+    planar_scenes = sorted([scene[:-5] for scene in os.listdir(out_dir) if scene[-5:]=='1.png' and scene[:5]!='mask_'])
     for i in to_exclude: planar_scenes.remove(i)
 
     in_path = out_dir
