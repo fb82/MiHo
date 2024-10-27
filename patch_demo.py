@@ -30,10 +30,16 @@ if __name__ == '__main__':
     bench_path = '../bench_data' # results will be in the subfolder "patches" 
     bench_im='imgs'  
     save_to = 'res'
-    how_many = -1 # number of (random chosen) patches to show, set to -1 to all patches, 15 for the paper table
     w = 10 # patch radius to display
-    stretch = False # remove black unneeded background in patch images if True, True for the paper table
-    flat_folder = True
+
+    how_many = -1 # number of (random chosen) patches to show, set to -1 to all patches
+    stretch = False # if True removes black unneeded background in patch images
+    flat_folder = False # single folder with long path as filename if True
+
+    # # paper table 
+    # how_many = 15
+    # stretch = True
+    # flat_folder = True
 
     tg = transforms.Compose([
             transforms.Grayscale(),
@@ -45,35 +51,45 @@ if __name__ == '__main__':
             ]) 
 
     benchmark_data = {
-            'megadepth': {'name': 'megadepth', 'Name': 'MegaDepth', 'setup': bench.megadepth_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.png', 'use_scale': True, 'also_metric': False},
-            'scannet': {'name': 'scannet', 'Name': 'ScanNet', 'setup': bench.scannet_bench_setup, 'is_outdoor': False, 'is_not_planar': True, 'ext': '.png', 'use_scale': False, 'also_metric': False},
+            'megadepth': {'name': 'megadepth', 'Name': 'MegaDepth', 'setup': bench.megadepth_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.png', 'use_scale': True, 'also_metric': False, 'index': [289, 1481]},
+            'scannet': {'name': 'scannet', 'Name': 'ScanNet', 'setup': bench.scannet_bench_setup, 'is_outdoor': False, 'is_not_planar': True, 'ext': '.png', 'use_scale': False, 'also_metric': False, 'index': [0]},
+            'planar': {'name': 'planar', 'Name': 'Planar', 'setup': bench.planar_bench_setup, 'is_outdoor': True, 'is_not_planar': False, 'ext': '.png', 'use_scale': False, 'also_metric': False, 'index': [120]},
+          # 'imc_phototourism': {'name': 'imc_phototourism', 'Name': 'IMC PhotoTourism', 'setup': bench.imc_phototourism_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.jpg', 'use_scale': False, 'also_metric': True, 'index': [0]},
         }
 
     for pipe_base in pipe_bases:
         pipe_name = pipe_base.get_id()
         
         for b in benchmark_data:    
-            # set debug=False for all image pairs
-            b_data, _ = benchmark_data[b]['setup'](bench_path=bench_path, upright=True, debug=True)
+            b_data, _ = benchmark_data[b]['setup'](bench_path=bench_path, upright=True)
+
+            # select image pair subset
+            b_index = benchmark_data[b]['index']
+            if not (b_index is None):
+                for bname in b_data.keys():
+                    if isinstance(b_data[bname], list): b_data[bname] = [b_data[bname][bb] for bb in b_index]
+                    if isinstance(b_data[bname], np.ndarray): b_data[bname] = b_data[bname][b_index]
         
             n = len(b_data['im1'])
             ext = benchmark_data[b]['ext']
             im_path = os.path.join(bench_im, benchmark_data[b]['name'])        
 
-            # *** first 10 image pairs in each benchmark ***
-            for i in range(n):             
-            # *** paper image pairs of megadepth data with debug=False some lines above ***
-            # for i in  [289, 1481]:            
+            for i in range(n):   
+                if b_index is None: 
+                    ii = i
+                else:
+                    ii = b_index[i]
+                                        
                 if flat_folder == False:
-                    base_prefix = os.path.join(bench_path, 'patches', benchmark_data[b]['name'], pipe_name, str(i))
-                    img_base_prefix = os.path.join(bench_path, 'patches', benchmark_data[b]['name'], 'image_pairs', str(i))
+                    base_prefix = os.path.join(bench_path, 'patches', benchmark_data[b]['name'], pipe_name, str(ii))
+                    img_base_prefix = os.path.join(bench_path, 'patches', benchmark_data[b]['name'], 'image_pairs', str(ii))
                     name_prefix = ''
                     img_name_prefix = ''                
                 else:
                     base_prefix = os.path.join(bench_path, 'patches')                
                     img_base_prefix = base_prefix
-                    name_prefix = benchmark_data[b]['name'] + '_' + str(i) + '_' + pipe_name + '_'                
-                    img_name_prefix = benchmark_data[b]['name'] + '_' + str(i) + '_'                
+                    name_prefix = benchmark_data[b]['name'] + '_' + str(ii) + '_' + pipe_name + '_'                
+                    img_name_prefix = benchmark_data[b]['name'] + '_' + str(ii) + '_'                
                 
                 os.makedirs(base_prefix, exist_ok=True)
                 os.makedirs(img_base_prefix, exist_ok=True)
@@ -84,20 +100,25 @@ if __name__ == '__main__':
                 shutil.copyfile(im1, os.path.join(img_base_prefix, img_name_prefix + 'im1' + ext))
                 shutil.copyfile(im2, os.path.join(img_base_prefix, img_name_prefix + 'im2' + ext))
                   
-                K1 = b_data['K1']
-                K2 = b_data['K2']
-                R_gt = b_data['R']
-                t_gt = b_data['T']            
-    
-                F_gt = torch.tensor(K2[i].T, device=device, dtype=torch.float64).inverse() @ \
-                       torch.tensor([[0, -t_gt[i][2], t_gt[i][1]],
-                                    [t_gt[i][2], 0, -t_gt[i][0]],
-                                    [-t_gt[i][1], t_gt[i][0], 0]], device=device) @ \
-                       torch.tensor(R_gt[i], device=device) @ \
-                       torch.tensor(K1[i], device=device, dtype=torch.float64).inverse()
-                F_gt = F_gt / F_gt.sum()
-                F_gt = F_gt
-    
+                if benchmark_data[b]['is_not_planar'] == True:                
+                    K1 = b_data['K1']
+                    K2 = b_data['K2']
+                    R_gt = b_data['R']
+                    t_gt = b_data['T']            
+        
+                    F_gt = torch.tensor(K2[i].T, device=device, dtype=torch.float64).inverse() @ \
+                           torch.tensor([[0, -t_gt[i][2], t_gt[i][1]],
+                                        [t_gt[i][2], 0, -t_gt[i][0]],
+                                        [-t_gt[i][1], t_gt[i][0], 0]], device=device) @ \
+                           torch.tensor(R_gt[i], device=device) @ \
+                           torch.tensor(K1[i], device=device, dtype=torch.float64).inverse()
+                    F_gt = F_gt / F_gt.sum()
+                    F_gt = F_gt
+                else:
+                    rad = 15                    
+                    H_gt = torch.tensor(b_data['H'][i], device=device)
+                    H_inv_gt = torch.tensor(b_data['H_inv'][i], device=device)
+
                 pipe_data_im = {'im1': im1, 'im2': im2}
                 pipe_data_base = pipe_base.run(**pipe_data_im)
                             
@@ -160,21 +181,43 @@ if __name__ == '__main__':
 
                         pt1_ = torch.vstack((torch.clone(spt1.T), torch.ones((1, nn), device=device))).type(torch.float64)
                         pt2_ = torch.vstack((torch.clone(spt2.T), torch.ones((1, nn), device=device))).type(torch.float64)
-                        
-                        l1_ = F_gt @ pt1_
-                        d1 = pt2_.permute(1,0).unsqueeze(-2).bmm(l1_.permute(1,0).unsqueeze(-1)).squeeze().abs() / (l1_[:2]**2).sum(0).sqrt()
-                        
-                        l2_ = F_gt.T @ pt2_
-                        d2 = pt1_.permute(1,0).unsqueeze(-2).bmm(l2_.permute(1,0).unsqueeze(-1)).squeeze().abs() / (l2_[:2]**2).sum(0).sqrt()
-                                                                                                                
+
+                        if benchmark_data[b]['is_not_planar'] == True:  
+                            
+                            l1_ = F_gt @ pt1_
+                            d1 = pt2_.permute(1,0).unsqueeze(-2).bmm(l1_.permute(1,0).unsqueeze(-1)).squeeze().abs() / (l1_[:2]**2).sum(0).sqrt()
+                            
+                            l2_ = F_gt.T @ pt2_
+                            d2 = pt1_.permute(1,0).unsqueeze(-2).bmm(l2_.permute(1,0).unsqueeze(-1)).squeeze().abs() / (l2_[:2]**2).sum(0).sqrt()                                                                                                                    
+                        else:                           
+                            pt1_reproj = H_gt @ pt1_
+                            pt1_reproj = pt1_reproj[:2] / pt1_reproj[2].unsqueeze(0)
+                            d1 = ((pt2_[:2] - pt1_reproj)**2).sum(0).sqrt()
+                            
+                            pt2_reproj = H_inv_gt @ pt2_
+                            pt2_reproj = pt2_reproj[:2] / pt2_reproj[2].unsqueeze(0)
+                            d2 = ((pt1_[:2] - pt2_reproj)**2).sum(0).sqrt()
+                            
+                            valid_matches = torch.ones(nn, device=device, dtype=torch.bool)
+                            
+                            if b_data['im1_use_mask'][i]:
+                                valid_matches = valid_matches & ~bench.invalid_matches(b_data['im1_mask'][i], b_data['im2_full_mask'][i], spt1, spt2, rad)
+        
+                            if b_data['im2_use_mask'][i]:
+                                valid_matches = valid_matches & ~bench.invalid_matches(b_data['im2_mask'][i], b_data['im1_full_mask'][i], spt2, spt1, rad)
+
+                            d1[~valid_matches] = np.NaN
+                            d2[~valid_matches] = np.NaN
+
                         pt1_list.append(pt1) 
                         pt2_list.append(pt2)                           
                         Hs_list.append(Hs)
-                        err_list.append(torch.maximum(d1, d2)) 
-    
+                        err_list.append(torch.maximum(d1, d2))
+
                     # remove outliers according to the GT
-                    inl_mask = torch.min(torch.cat([err_list[pi].unsqueeze(0) for pi in range(len(pp_list))]), dim=0)[0] < 10
-    
+                    err_min = torch.min(torch.cat([err_list[pi].unsqueeze(0) for pi in range(len(pp_list))]), dim=0)[0]
+                    inl_mask = (err_min < 10) & torch.isfinite(err_min)
+                        
                     for pi in range(len(pp_list.keys())):
                         pt1 = pt1_list[pi][inl_mask]
                         pt2 = pt2_list[pi][inl_mask]

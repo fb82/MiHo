@@ -23,6 +23,11 @@ import src.ConsensusClustering.consensusclustering_custom as consensusclustering
 # from src.DIM_modules.aliked_lightglue_module import aliked_lightglue_module
 # from src.DIM_modules.loftr_module import loftr_module
 
+# plot matches found by the pipeline with and without RANSAC
+# change index in benchmark_data to run on different image pairs
+# color matches are green, orange, red, purple, blue respectively for
+# error ranges [0, 1], [1, 3], [3, 7], [7, 15], [15, np.Inf] according to GT
+# gray is used for data with no GT in planar scenes
 
 if __name__ == '__main__':    
     # available RANSAC: pydegensac, magsac, poselib        
@@ -39,117 +44,117 @@ if __name__ == '__main__':
             pipe_ransac
         ],
 
-        # # [
-        # #     pipe_head,
-        # #     ncc.ncc_module(also_prev=True),
-        # #     pipe_ransac
-        # # ],
+        [
+            pipe_head,
+            ncc.ncc_module(also_prev=True),
+            pipe_ransac
+        ],
 
-        # # [
-        # #     pipe_head,
-        # #     miho_duplex.miho_module(),
-        # #     pipe_ransac
-        # # ],
+        [
+            pipe_head,
+            miho_duplex.miho_module(),
+            pipe_ransac
+        ],
 
-        # [
-        #     pipe_head,
-        #     miho_duplex.miho_module(),
-        #     ncc.ncc_module(also_prev=True),
-        #     pipe_ransac
-        # ],
+        [
+            pipe_head,
+            miho_duplex.miho_module(),
+            ncc.ncc_module(also_prev=True),
+            pipe_ransac
+        ],
 
-        # # [
-        # #     pipe_head,
-        # #     miho_unduplex.miho_module(),
-        # #     pipe_ransac
-        # # ],
+        [
+            pipe_head,
+            miho_unduplex.miho_module(),
+            pipe_ransac
+        ],
 
-        # # [
-        # #     pipe_head,
-        # #     miho_unduplex.miho_module(),
-        # #     ncc.ncc_module(also_prev=True),            
-        # #     pipe_ransac
-        # # ],
+        [
+            pipe_head,
+            miho_unduplex.miho_module(),
+            ncc.ncc_module(also_prev=True),            
+            pipe_ransac
+        ],
     
-        # [
-        #     pipe_head,
-        #     gms.gms_module(),
-        #     pipe_ransac
-        # ],
+        [
+            pipe_head,
+            gms.gms_module(),
+            pipe_ransac
+        ],
 
-        # [
-        #     pipe_head,
-        #     oanet.oanet_module(),
-        #     pipe_ransac
-        # ],
+        [
+            pipe_head,
+            oanet.oanet_module(),
+            pipe_ransac
+        ],
         
-        # [
-        #     pipe_head,
-        #     adalam.adalam_module(),
-        #     pipe_ransac
-        # ],                  
+        [
+            pipe_head,
+            adalam.adalam_module(),
+            pipe_ransac
+        ],                  
         
-        # [
-        #     pipe_head,
-        #     acne.acne_module(),
-        #     pipe_ransac
-        # ],        
+        [
+            pipe_head,
+            acne.acne_module(),
+            pipe_ransac
+        ],        
 
-        # [
-        #     pipe_head,
-        #     consensusclustering.consensusclustering_module(),
-        #     pipe_ransac
-        # ],
+        [
+            pipe_head,
+            consensusclustering.consensusclustering_module(),
+            pipe_ransac
+        ],
         
-        # [
-        #     pipe_head,
-        #     dematch.dematch_module(),
-        #     pipe_ransac
-        # ], 
+        [
+            pipe_head,
+            dematch.dematch_module(),
+            pipe_ransac
+        ], 
 
-        # [
-        #     pipe_head,
-        #     convmatch.convmatch_module(),
-        #     pipe_ransac
-        # ], 
+        [
+            pipe_head,
+            convmatch.convmatch_module(),
+            pipe_ransac
+        ], 
 
-        # [
-        #     pipe_head,
-        #     fcgnn.fcgnn_module(),
-        #     pipe_ransac
-        # ],  
+        [
+            pipe_head,
+            fcgnn.fcgnn_module(),
+            pipe_ransac
+        ],  
 
-        # [
-        #     pipe_head,
-        #     clnet.clnet_module(),
-        #     pipe_ransac
-        # ],
+        [
+            pipe_head,
+            clnet.clnet_module(),
+            pipe_ransac
+        ],
         
-        # [
-        #     pipe_head,
-        #     ms2dgnet.ms2dgnet_module(),
-        #     pipe_ransac
-        # ],
+        [
+            pipe_head,
+            ms2dgnet.ms2dgnet_module(),
+            pipe_ransac
+        ],
         
-        # [
-        #     pipe_head,
-        #     ncmnet.ncmnet_module(),
-        #     pipe_ransac
-        # ],            
+        [
+            pipe_head,
+            ncmnet.ncmnet_module(),
+            pipe_ransac
+        ],            
     ]
 
     pipe_heads = [
         pipe_base.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99),
-        # pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True),     
-        # pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint'),
-        # pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked'),
-        # pipe_base.lightglue_module(num_features=8000, upright=True, what='disk'),  
-        # pipe_base.loftr_module(num_features=8000, upright=True),        
-        # dedode2.dedode2_module(num_features=8000, upright=True),                
-        # # superpoint_lightglue_module(nmax_keypoints=8000),
-        # # aliked_lightglue_module(nmax_keypoints=8000),
-        # # disk_lightglue_module(nmax_keypoints=8000),
-        # # loftr_module(nmax_keypoints=8000),  
+        pipe_base.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True),     
+        pipe_base.lightglue_module(num_features=8000, upright=True, what='superpoint'),
+        pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked'),
+        pipe_base.lightglue_module(num_features=8000, upright=True, what='disk'),  
+        pipe_base.loftr_module(num_features=8000, upright=True),        
+        dedode2.dedode2_module(num_features=8000, upright=True),                
+        # superpoint_lightglue_module(nmax_keypoints=8000),
+        # aliked_lightglue_module(nmax_keypoints=8000),
+        # disk_lightglue_module(nmax_keypoints=8000),
+        # loftr_module(nmax_keypoints=8000),  
         ]
     
     pipe_ransacs = [
@@ -170,7 +175,7 @@ if __name__ == '__main__':
     benchmark_data = {
             'megadepth': {'name': 'megadepth', 'Name': 'MegaDepth', 'setup': bench.megadepth_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.png', 'use_scale': True, 'also_metric': False, 'index': [152, 584]},
             'scannet': {'name': 'scannet', 'Name': 'ScanNet', 'setup': bench.scannet_bench_setup, 'is_outdoor': False, 'is_not_planar': True, 'ext': '.png', 'use_scale': False, 'also_metric': False, 'index': [0, 69]},
-            'planar': {'name': 'planar', 'Name': 'Planar', 'setup': bench.planar_bench_setup, 'is_outdoor': True, 'is_not_planar': False, 'ext': '.png', 'use_scale': False, 'also_metric': False, 'index': [54, 60, 122]},
+            'planar': {'name': 'planar', 'Name': 'Planar', 'setup': bench.planar_bench_setup, 'is_outdoor': True, 'is_not_planar': False, 'ext': '.png', 'use_scale': False, 'also_metric': False, 'index': [54, 60]},
           # 'imc_phototourism': {'name': 'imc_phototourism', 'Name': 'IMC PhotoTourism', 'setup': bench.imc_phototourism_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.jpg', 'use_scale': False, 'also_metric': True, 'index': [0]},
         }
         
