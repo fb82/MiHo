@@ -68,20 +68,14 @@ def megadepth_1500_list(ppath='bench_data/gt_data/megadepth'):
     npz_list = [i for i in os.listdir(ppath) if (os.path.splitext(i)[1] == '.npz')]
 
     data = {'im1': [], 'im2': [], 'K1': [], 'K2': [], 'T': [], 'R': []}
-    for name in npz_list:
+    # Sort to avoid os.listdir issues 
+    for name in sorted(npz_list):
         scene_info = np.load(os.path.join(ppath, name), allow_pickle=True)
     
         # Sort to avoid pickle issues 
         pidx = sorted([[pair_info[0][0], pair_info[0][1]] for pair_info in scene_info['pair_infos']])
     
         # Collect pairs
-        #
-        # ***this is the old code - pickle dict handling can scramble ordering !!! ***
-        # *** restore for retrocompatibility with previously computed data         ***
-        # for pair_info in scene_info['pair_infos']:
-        #    (id1, id2), overlap, _ = pair_info
-        #
-        # *** fixed code ***
         for idx in pidx:
             id1, id2 = idx
             im1 = scene_info['image_paths'][id1].replace('Undistorted_SfM/', '')
