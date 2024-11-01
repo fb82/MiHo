@@ -1810,8 +1810,8 @@ def collect_pipe_time(pipe, dataset_data,  dataset_name, bench_path='bench_data'
 
         if (pipe_name_final in eval_data.keys()) and not force:
             eval_data_ = eval_data[pipe_name_final]
-            print(f"running time: {eval_data_['running_time_avg']} s")
-            print(f"running time percentage: {round(eval_data_['running_time_pct_avg']*100)} %")
+            print(f"running time: {np.round(eval_data_['running_time_avg']*100)/100} s")
+            print(f"running time percentage: {np.round(eval_data_['running_time_pct_avg']*100*100)/100} %")
             continue
 
         eval_data_ = {}
