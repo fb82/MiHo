@@ -1782,20 +1782,37 @@ def show_pipe_other(pipe, dataset_data, dataset_name, bar_name, bench_path='benc
     plt.close(fig)
 
 
-def collect_pipe_time(pipe, dataset_data,  dataset_name, bench_path='bench_data', bench_res='res', save_to='res_time.pbz2'):
+def collect_pipe_time(pipe, dataset_data,  dataset_name, bench_path='bench_data', bench_res='res', save_to='res_time.pbz2', force=False):
     warnings.filterwarnings("ignore", category=UserWarning)
 
-    eval_data = {}
-    
-    n = len(dataset_data['im1'])        
+    if os.path.isfile(save_to):
+        eval_data = decompress_pickle(save_to)
+    else:
+        eval_data = {}
+        
+    n = len(dataset_data['im1'])    
 
-    for l in range(len(pipe)):    
+    for l in range(len(pipe)):            
+        pipe_name_final = os.path.join(bench_path, bench_res, dataset_name)
+        pipe_name_final_small = ''
+
+        for pipe_module in pipe[:l+1]:
+            pipe_name_final = os.path.join(pipe_name_final, pipe_module.get_id())
+            pipe_name_final_small = os.path.join(pipe_name_final_small, pipe_module.get_id())
         
         pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
         pipe_name_base_small = ''
     
         pipe_mode = []
         ttable = [[] for i in range(n)]
+
+        print('Pipeline: ' + pipe_name_final_small)
+
+        if (pipe_name_final in eval_data.keys()) and not force:
+            eval_data_ = eval_data[pipe_name_final]
+            print(f"running time: {eval_data_['running_time_avg']} s")
+            print(f"running time percentage: {round(eval_data_['running_time_pct_avg']*100)} %")
+            continue
 
         eval_data_ = {}
     
