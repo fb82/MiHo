@@ -226,6 +226,7 @@ if __name__ == '__main__':
 
                     bench.run_pipe(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, ext=benchmark_data[b]['ext'], running_time=True)
                     bench.count_pipe_match(pipe, b_data, benchmark_data[b]['name'], bench_path=bench_path, save_to=to_save_file + 'match_count' + to_save_file_suffix + '.pbz2')
+                    bench.collect_pipe_time(pipe, b_data, benchmark_data[b]['name'], bench_path=bench_path, save_to=to_save_file + 'runtime' + to_save_file_suffix + '.pbz2')
 
                     if benchmark_data[b]['is_not_planar']:
                         bench.eval_pipe_fundamental(pipe, b_data, benchmark_data[b]['name'], benchmark_data[b]['Name'], bench_path=bench_path, save_to=to_save_file + 'fundamental' + to_save_file_suffix + '.pbz2', use_scale=benchmark_data[b]['use_scale'], also_metric=benchmark_data[b]['also_metric'])

@@ -1780,3 +1780,84 @@ def show_pipe_other(pipe, dataset_data, dataset_name, bar_name, bench_path='benc
                 viz.save_plot(pipe_img_save, fig)
                 viz.clear_plot(fig)
     plt.close(fig)
+
+
+def collect_pipe_time(pipe, dataset_data,  dataset_name, bench_path='bench_data', bench_res='res', save_to='res_time.pbz2', force=False):
+    warnings.filterwarnings("ignore", category=UserWarning)
+
+    if os.path.isfile(save_to):
+        eval_data = decompress_pickle(save_to)
+    else:
+        eval_data = {}
+    
+    n = len(dataset_data['im1'])        
+
+    pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
+    pipe_name_base_small = ''
+
+    pipe_mode = []
+
+    for pipe_module in pipe:
+        pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
+        pipe_name_base_small = os.path.join(pipe_name_base_small, pipe_module.get_id())
+
+        print('Pipeline: ' + pipe_name_base_small)
+
+        if hasattr(pipe_module, 'placeholder'):
+            if pipe_module.placeholder == 'head':
+                pipe_mode.append(0)
+            elif pipe_module.placeholder == 'ransac':
+                pipe_mode.append(2)
+            else: pipe_mode.append(1)
+
+        if (pipe_name_base in eval_data.keys()) and not force:
+            eval_data_ = eval_data[pipe_name_base]                
+                                                
+            continue
+                
+        eval_data_ = {}
+        eval_data_['runtime'] = []
+        
+        ttable = [[]] * n
+    
+        with progress_bar('Counting completion') as p:
+            for i in p.track(range(n)):
+                pipe_f = os.path.join(pipe_name_base, 'base', str(i) + '.pbz2')
+
+                if os.path.isfile(pipe_f):
+                    out_data = decompress_pickle(pipe_f)
+
+                    if 'running_time' in out_data.keys():
+                        r = out_data['running_time'][0]
+                    else:
+                        r = np.NaN
+
+                    ttable[i].append(r)
+
+        pipe_mode = np.asarray(pipe_mode)
+
+        ttable = np.asarray(ttable)
+        mask = np.all(ttable.isfinite(), axis=1)
+        
+        gtable = ttable[mask]
+        btable = np.sum(gtable[:, pipe_mode==0], axis=1)
+        ftable = np.sum(gtable[:, pipe_mode==1], axis=1)
+        rtable = np.sum(gtable[:, pipe_mode==2], axis=1)
+        
+        qtable = np.concatenate((btable, ftable, rtable), axis=1)
+        qtable = np.concatenate((qtable, np.sum(qtable, axis=1)), axis=1)
+
+        ptable = np.concatenate((btable/btable, ftable/btable, rtable/btable), axis=1)
+        ptable = np.concatenate((ptable, np.sum(ptable, axis=1)), axis=1)
+
+        ave_qtable = np.mean(qtable, dim=0)
+        ave_ptable = np.mean(ptable, dim=0)
+
+        eval_data_['running_time'] = qtable
+        eval_data_['running_time_pct'] = ptable
+
+        eval_data_['running_time_avg'] = ave_qtable
+        eval_data_['running_time_pct_avg'] = ave_ptable
+
+        eval_data[pipe_name_base] = eval_data_
+        compressed_pickle(save_to, eval_data)
