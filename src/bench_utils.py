@@ -1868,6 +1868,9 @@ def collect_pipe_time(pipe, dataset_data,  dataset_name, bench_path='bench_data'
     
         eval_data_['running_time_avg'] = ave_qtable
         eval_data_['running_time_pct_avg'] = ave_ptable
+
+        print(f"running time: {np.round(eval_data_['running_time_avg']*100)/100} s")
+        print(f"running time percentage: {np.round(eval_data_['running_time_pct_avg']*100*100)/100} %")
     
         eval_data[pipe_name_base] = eval_data_
         compressed_pickle(save_to, eval_data)
