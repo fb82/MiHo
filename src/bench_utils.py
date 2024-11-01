@@ -1780,3 +1780,97 @@ def show_pipe_other(pipe, dataset_data, dataset_name, bar_name, bench_path='benc
                 viz.save_plot(pipe_img_save, fig)
                 viz.clear_plot(fig)
     plt.close(fig)
+
+
+def collect_pipe_time(pipe, dataset_data,  dataset_name, bench_path='bench_data', bench_res='res', save_to='res_time.pbz2', force=False):
+    warnings.filterwarnings("ignore", category=UserWarning)
+
+    if os.path.isfile(save_to):
+        eval_data = decompress_pickle(save_to)
+    else:
+        eval_data = {}
+        
+    n = len(dataset_data['im1'])    
+
+    for l in range(len(pipe)):            
+        pipe_name_final = os.path.join(bench_path, bench_res, dataset_name)
+        pipe_name_final_small = ''
+
+        for pipe_module in pipe[:l+1]:
+            pipe_name_final = os.path.join(pipe_name_final, pipe_module.get_id())
+            pipe_name_final_small = os.path.join(pipe_name_final_small, pipe_module.get_id())
+        
+        pipe_name_base = os.path.join(bench_path, bench_res, dataset_name)
+        pipe_name_base_small = ''
+    
+        pipe_mode = []
+        ttable = [[] for i in range(n)]
+
+        print('Pipeline: ' + pipe_name_final_small)
+
+        if (pipe_name_final in eval_data.keys()) and not force:
+            eval_data_ = eval_data[pipe_name_final]
+            print(f"running time: {np.round(eval_data_['running_time_avg']*100)/100} s")
+            print(f"running time percentage: {np.round(eval_data_['running_time_pct_avg']*100*100)/100} %")
+            continue
+
+        eval_data_ = {}
+    
+        for pipe_module in pipe[:l+1]:
+            pipe_name_base = os.path.join(pipe_name_base, pipe_module.get_id())
+            pipe_name_base_small = os.path.join(pipe_name_base_small, pipe_module.get_id())
+        
+            if hasattr(pipe_module, 'placeholder'):
+                if pipe_module.placeholder == 'head': pipe_mode.append(0)
+                elif pipe_module.placeholder == 'ransac': pipe_mode.append(2)
+            else: pipe_mode.append(1)
+                                
+            with progress_bar('Running times collection completion') as p:
+                for i in p.track(range(n)):
+                    pipe_f = os.path.join(pipe_name_base, 'base', str(i) + '.pbz2')
+    
+                    if os.path.isfile(pipe_f):
+                        out_data = decompress_pickle(pipe_f)
+    
+                        if 'running_time' in out_data.keys():
+                            r = out_data['running_time'][0]
+                        else:
+                            r = np.NaN
+    
+                        ttable[i].append(r)
+    
+        pipe_mode = np.asarray(pipe_mode)
+    
+        ttable = np.asarray(ttable)
+        mask = np.all(np.isfinite(ttable), axis=1)
+        
+        gtable = ttable[mask]
+        btable = gtable[:, np.squeeze(np.argwhere(pipe_mode==0))]
+        ftable = gtable[:, np.squeeze(np.argwhere(pipe_mode==1))]
+        rtable = gtable[:, np.squeeze(np.argwhere(pipe_mode==2))]
+    
+        if len(btable.shape) < 2: btable = np.expand_dims(btable, -1)
+        if len(ftable.shape) < 2: ftable = np.expand_dims(ftable, -1)
+        if len(rtable.shape) < 2: rtable = np.expand_dims(rtable, -1)
+    
+        btable = np.sum(btable, axis=-1)
+        ftable = np.sum(ftable, axis=-1)
+        rtable = np.sum(rtable, axis=-1)
+        
+        qtable = np.stack((btable, ftable, rtable, btable + ftable + rtable), axis=1)
+        ptable = np.stack((btable/btable, ftable/btable, rtable/btable,  (btable + ftable + rtable) / btable ), axis=1)
+    
+        ave_qtable = np.mean(qtable, axis=0)
+        ave_ptable = np.mean(ptable, axis=0)
+    
+        eval_data_['running_time'] = qtable
+        eval_data_['running_time_pct'] = ptable
+    
+        eval_data_['running_time_avg'] = ave_qtable
+        eval_data_['running_time_pct_avg'] = ave_ptable
+
+        print(f"running time: {np.round(eval_data_['running_time_avg']*100)/100} s")
+        print(f"running time percentage: {np.round(eval_data_['running_time_pct_avg']*100*100)/100} %")
+    
+        eval_data[pipe_name_base] = eval_data_
+        compressed_pickle(save_to, eval_data)
