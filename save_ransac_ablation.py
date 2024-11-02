@@ -33,9 +33,9 @@ def csv_write(lines, save_to='nameless.csv'):
             f.write(l)   
 
 
-def csv_merger(csv_list, include_match_count=False):
+def csv_merger(csv_list, extra_columns=0):
 
-    if not include_match_count:
+    if extra_columns == 0:
         avg_idx = [[ 3,  6, 'F_AUC@avg_a',  0], # MegaDepth
                    [ 6,  9, 'E_AUC@avg_a',  6],
                    [11, 14, 'F_AUC@avg_a',  9], # ScanNet
@@ -46,7 +46,7 @@ def csv_merger(csv_list, include_match_count=False):
                    [27, 30, 'F_AUC@avg_m', 27],
                    [33, 36, 'E_AUC@avg_m', 33],
                    ]
-    else:           
+    elif extra_columns == 1:           
         avg_idx = [[ 4,  7, 'F_AUC@avg_a',  0], # MegaDepth
                    [ 7, 10, 'E_AUC@avg_a',  7], 
                    [13, 16, 'F_AUC@avg_a', 10], # ScanNet
@@ -56,7 +56,18 @@ def csv_merger(csv_list, include_match_count=False):
                    [34, 37, 'E_AUC@avg_a', 34],
                    [31, 34, 'F_AUC@avg_m', 31],
                    [37, 40, 'E_AUC@avg_m', 37],
-                   ]               
+                   ]       
+    else:   
+        avg_idx = [[ 5,  8, 'F_AUC@avg_a',  0], # MegaDepth
+                   [ 8, 11, 'E_AUC@avg_a',  8], 
+                   [15, 18, 'F_AUC@avg_a', 11], # ScanNet
+                   [18, 21, 'E_AUC@avg_a', 18],
+                   [24, 28, 'H_AUC@avg_m', 21], # Planar
+                   [32, 35, 'F_AUC@avg_a', 28], # PhotoTourism
+                   [38, 41, 'E_AUC@avg_a', 38],
+                   [35, 38, 'F_AUC@avg_m', 35],
+                   [41, 44, 'E_AUC@avg_m', 41],
+                   ]   
         
     csv_data = []
     for csv_file in csv_list:
@@ -901,7 +912,7 @@ if __name__ == '__main__':
             else:
                 csv_list.append(to_save_file + 'homography' + to_save_file_suffix + '.csv')
                 
-        fused_csv, fused_csv_order = csv_merger(csv_list, include_match_count=True)
+        fused_csv, fused_csv_order = csv_merger(csv_list, extra_columns=1)
         csv_write([';'.join(csv_row) + '\n' for csv_row in fused_csv], to_save_file.replace('_outdoor_true','').replace('_outdoor_false','')[:-1] + '.csv')
 
         if (ip % full_el == 0) and (ip != 0):
