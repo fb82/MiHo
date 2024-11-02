@@ -1066,7 +1066,7 @@ def csv_summary_non_planar(essential_th_list=[0.5, 1, 1.5], essential_load_from=
                 break
                 
         if not (tot_match is None):
-            runtime_header = ';running_time_increment_from_' + str(base_runtime) + '_sec'
+            runtime_header = ';runtime_increment_from_' + str(round(base_runtime*1000)/1000) + '_s'
 
     l = 0
     for pname in f_eval_data.keys(): l = max(l, len(pname[pname.rfind(to_remove_prefix):].split(os.path.sep)))
@@ -1159,7 +1159,7 @@ def csv_summary_planar(load_from='res_homography.pbz2', save_to='res_planar.csv'
                 break
                 
         if not (tot_match is None):
-            runtime_header = ';running_time_increment_from_' + str(base_runtime) + '_sec'
+            runtime_header = ';runtime_increment_from_' + str(round(base_runtime*1000)/1000) + '_s'
         
     l = 0
     for pname in eval_data.keys(): l = max(l, len(pname[pname.rfind(to_remove_prefix):].split(os.path.sep)))
