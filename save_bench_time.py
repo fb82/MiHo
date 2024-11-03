@@ -255,12 +255,16 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
             clean_pipe_renamed.append(pipe.replace(pipe_renamed[base_index], ''))
 
     print(clean_pipe_renamed)   
-            
+               
     clean_csv = [csv_head] + [[clean_pipe_renamed[i]] + csv_data[i][1:] for i in sort_idx]
     clean_csv_order = [csv_order[0]] + [csv_order[i + 1] for i in sort_idx]
         
     # csv_write([';'.join(csv_row) + '\n' for csv_row in clean_csv],'clean_table.csv')
-    
+
+    with_time = []
+    for i, w in enumerate(clean_csv[0]):
+        if 'runtime' in w: with_time.append([i, float(w[len('runtime_increment_from_'):-2])])
+     
     np_data = np.zeros((len(clean_csv), len(clean_csv[0])))
     for i in range(1, len(clean_csv)):
         for j in range(len(clean_csv[0])):
@@ -274,7 +278,14 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
             # numeric value            
             if isinstance(v, (int, float)):
                 if np.isfinite(v):                
-                    v = "{n:6.2f}".format(n=v*100)
+                    j_time = [qj for qj, qv in enumerate(with_time) if qv[0] == j]
+                
+                    if len(j_time) > 0:
+                        # v in csv is the time increment pct wrt the base matching
+                        v = "{n:6.3f}".format(n=(v+1)*with_time[j_time[0]][1])                
+                    else:
+                        v = "{n:6.2f}".format(n=v*100)
+
                     np_data[i, j] = v
     
                     # avoid alignement issues
@@ -282,7 +293,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
                         for g in range(len(v)):
                             if v[g] != ' ':
                                 break
-                        v = "\hphantom{" + "0" * g + "}" + v[g:]
+                    v = "\hphantom{" + "0" * g + "}" + v[g:]
                 else:
                     v = '\\hspace{0.5em}n/a'
                     np_data[i, j] = np.NaN
@@ -445,7 +456,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
     header_spec = []               
     for v in csv_head:
         if 'filtered' in v: v = 'Filtered'
-        if 'runtime' in v: v = '+Runtime'
+        if 'runtime' in v: v = 'Time (s)'
         v = v.replace('pipeline', 'Pipeline')
         v = v.replace('F_precision', 'Precision')
         v = v.replace('F_recall', 'Recall')
