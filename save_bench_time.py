@@ -137,7 +137,7 @@ def csv_merger(csv_list, extra_columns=0):
 
 def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=None, prev_latex_table=None, add_footer=True, caption_string=None, page_align='landscape', remove_nan_column=False, resize_mode='width'):
     header_type = 'nmmmmmmmmmmmmssssssssssss'
-    header_clr =  '-gvbrtopvtopvgvbrtopvtopv'
+    header_clr =  '-glbrtopvtopvglbrtopvtopv'
          
     pipe_count = csv_data[0][0]
     
@@ -445,7 +445,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
     header_spec = []               
     for v in csv_head:
         if 'filtered' in v: v = 'Filtered'
-        if 'runtime' in v: v = 'Runtime +'
+        if 'runtime' in v: v = '+Runtime'
         v = v.replace('pipeline', 'Pipeline')
         v = v.replace('F_precision', 'Precision')
         v = v.replace('F_recall', 'Recall')
@@ -559,7 +559,7 @@ if __name__ == '__main__':
         old_name = pipe[1].get_id().replace('_outdoor_true','').replace('_outdoor_false','').replace('_fundamental_matrix','').replace('_homography','')
         pipe_renamed.append([old_name, new_name])
 
-    bench_path = '../bench_data_time'
+    bench_path = '/media/bellavista/Dati1/miho_bench_run' # '../bench_data_time'
     save_to = 'res'
     latex_path = 'latex'    
     latex_folder = os.path.join(bench_path, save_to, latex_path)
@@ -575,7 +575,7 @@ if __name__ == '__main__':
 ###
 
     header_hold = 'nmmmm---m---mssss---s---s'
-    header_bar =  '-gbvrttttoooogbvrttttoooo'
+    header_bar =  '-glbrttttooooglbrttttoooo'
     full_el = 2
     
     latex_table_full = None
