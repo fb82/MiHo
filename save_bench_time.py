@@ -58,15 +58,23 @@ def csv_merger(csv_list, extra_columns=0):
                    [37, 40, 'E_AUC@avg_m', 37],
                    ]       
     else:   
-        avg_idx = [[ 5,  8, 'F_AUC@avg_a',  0], # MegaDepth
-                   [ 8, 11, 'E_AUC@avg_a',  8], 
-                   [15, 18, 'F_AUC@avg_a', 11], # ScanNet
+        avg_idx = [[ 2,  2, '',             0], # MegaDepth
+                   [ 5,  8, 'F_AUC@avg_a',  3], 
+                   [ 8, 11, 'E_AUC@avg_a',  8],
+                   [ 3,  3, '',             2],                   
+                   [12, 12, '',            11], # ScanNet
+                   [15, 18, 'F_AUC@avg_a', 13],
                    [18, 21, 'E_AUC@avg_a', 18],
-                   [24, 28, 'H_AUC@avg_m', 21], # Planar
-                   [32, 35, 'F_AUC@avg_a', 28], # PhotoTourism
+                   [13, 13, '',            12],
+                   [22, 22, '',            21], # Planar
+                   [24, 28, 'H_AUC@avg_m', 23],
+                   [23, 23, '',            22],
+                   [29, 29, '',            28], # PhotoTourism
+                   [32, 35, 'F_AUC@avg_a', 30],
                    [38, 41, 'E_AUC@avg_a', 38],
                    [35, 38, 'F_AUC@avg_m', 35],
                    [41, 44, 'E_AUC@avg_m', 41],
+                   [30, 30, '',            29],
                    ]   
         
     csv_data = []
@@ -101,8 +109,7 @@ def csv_merger(csv_list, extra_columns=0):
     for avg_i in avg_idx:
         if avg_i[1] <= len(row):
             trimmed_avg_idx.append(avg_i)
-    
-        
+            
     avg_csv = []
     for row in merged_csv:        
         if 'pipe_module' in row[0]:
@@ -121,8 +128,13 @@ def csv_merger(csv_list, extra_columns=0):
                 r = len(row_base)
             else:
                 r = trimmed_avg_idx[k][1]
+                
+            if trimmed_avg_idx[k][2] != '':
+                row_new =  row_base[l:r] + [str(row_avg.pop())] + row_new 
+            else:
+                row_avg.pop()
+                row_new =  row_base[l:r] + row_new 
                                
-            row_new =  row_base[l:r] + [str(row_avg.pop())] + row_new 
         fused_csv.append(row_new)
         
     only_num_csv = [row[1:] for row in fused_csv[1:]]
@@ -137,7 +149,7 @@ def csv_merger(csv_list, extra_columns=0):
 
 def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=None, prev_latex_table=None, add_footer=True, caption_string=None, page_align='landscape', remove_nan_column=False, resize_mode='width'):
     header_type = 'nmmmmmmmmmmmmssssssssssss'
-    header_clr =  '-glbrtopvtopvglbrtopvtopv'
+    header_clr =  '-gbrtopvtopvlgbrtopvtopvl'
          
     pipe_count = csv_data[0][0]
     
@@ -570,7 +582,7 @@ if __name__ == '__main__':
         old_name = pipe[1].get_id().replace('_outdoor_true','').replace('_outdoor_false','').replace('_fundamental_matrix','').replace('_homography','')
         pipe_renamed.append([old_name, new_name])
 
-    bench_path = '../bench_data_time'
+    bench_path = '../bench_time'
     save_to = 'res'
     latex_path = 'latex'    
     latex_folder = os.path.join(bench_path, save_to, latex_path)
@@ -585,8 +597,8 @@ if __name__ == '__main__':
     
 ###
 
-    header_hold = 'nmmmm---m---mssss---s---s'
-    header_bar =  '-glbrttttooooglbrttttoooo'
+    header_hold = 'nmmm---m---mmsss---s---ss'
+    header_bar =  '-gbrttttoooolgbrttttooool'
     full_el = 2
     
     latex_table_full = None
