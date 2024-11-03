@@ -256,6 +256,10 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
     clean_csv_order = [csv_order[0]] + [csv_order[i + 1] for i in sort_idx]
         
     # csv_write([';'.join(csv_row) + '\n' for csv_row in clean_csv],'clean_table.csv')
+
+    with_time = []
+    for i, w in enumerate(clean_csv[0]):
+        if 'runtime' in w: with_time.append([i, float(w[len('runtime_increment_from_'):-2])])
     
     np_data = np.zeros((len(clean_csv), len(clean_csv[0])))
     for i in range(1, len(clean_csv)):
@@ -270,7 +274,14 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
             # numeric value            
             if isinstance(v, (int, float)):
                 if np.isfinite(v):                
-                    v = "{n:6.2f}".format(n=v*100)
+                    j_time = [qj for qj, qv in enumerate(with_time) if qv[0] == j]
+                
+                    if len(j_time) > 0:
+                        # v in csv is the time increment pct wrt the base matching
+                        v = "{n:6.3f}".format(n=(v+1)*with_time[j_time[0]][1])                
+                    else:
+                        v = "{n:6.2f}".format(n=v*100)
+                        
                     np_data[i, j] = v
     
                     # avoid alignement issues
@@ -435,6 +446,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
     header_spec = []               
     for v in csv_head:
         if 'filtered' in v: v = 'Filtered'
+        if 'runtime' in v: v = 'Time (s)'        
         v = v.replace('pipeline', 'Pipeline')
         v = v.replace('F_precision', 'Precision')
         v = v.replace('F_recall', 'Recall')
