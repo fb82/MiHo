@@ -167,7 +167,7 @@ def to_latex_simple(csv_table, table_name=''):
         '\\newcolumntype{R}[1]{>{\\raggedleft\\let\\newline\\\\\\arraybackslash\\hspace{0pt}}m{#1}}\n',
         '\n',        
 #       '\\newlength\\MAXA\\setlength\\MAXA{\\widthof{' + ('a' * l1) + 'A.}}\n',
-        '\\newlength\\MAXA\\setlength\\MAXA{\\widthof{.SuperPoint+LightGlue.}}\n',
+        '\\newlength\\MAXA\\setlength\\MAXA{\\widthof{SuperPoint+LightGlue}}\n',
         '\\newlength\\MAXB\\setlength\\MAXB{\\widthof{' + ('a' * lo) + 'A.}}\n',
         '\n',        
         '\\begin{document}\n', 
