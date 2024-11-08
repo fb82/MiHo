@@ -25,7 +25,7 @@ MOP+MiHo+NCC is a modular, non-deep method designed to filter and refine image m
 ## Is it good?
 MOP+MiHo consistently improves match quality when used a pre-processing step for RANSAC, without negatively affecting the final results in any case. MOP+MiHo+NCC introduces additional improvements in the case of corner-like matches, which are common in methods such as [Key.Net](https://github.com/axelBarroso/Key.Net) or [SuperPoint](https://github.com/magicleap/SuperPointPretrainedNetwork). However, for blob-like matches, which are more typical of methods like SIFT, MOP+MiHo+NCC unfortunately tends to degrade performance.
 
-**Comparative evaluation is available [here](https://github.com/fb82/MiHo/tree/main/data/results/benchmark%20results/base)**.
+**Comparative evaluation is available [here](https://github.com/fb82/MiHo/tree/main/data/results/benchmark/base)**.
 
 Unlike other benchmarks, it assumes *no camera intrinsics are available*, which reflects a more general and realistic scenario. In the tables, $\text{AUC}^{F}_ \measuredangle$ represents the pose estimated by retrieving the essential matrix by adding camera intrinsics *after* computing the fundamental matrix, while $\text{AUC}^{E}_ \measuredangle$ indicates that the pose is estimated by normalizing keypoint coordinates through intrinsics *before* directly computing the essential matrix by the 5-point method using `cv2.findEssentialMat`. AUCs considering metric instead of angular translation errors are reported as $\text{AUC}^{F}_ \square$ and $\text{AUC}^{E}_ \square$ in the case of [IMC PhotoTourism](https://www.kaggle.com/competitions/image-matching-challenge-2022/data), for which about 13K random image pairs have been chosen.
 
