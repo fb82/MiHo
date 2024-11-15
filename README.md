@@ -11,6 +11,12 @@
 </p>
 
 <p align="center">
+  <h2 align="center"><p>
+    👉 📖 <a href="https://arxiv.org/abs/2411.09484" align="center">paper on arXiv</a> 📖 👈
+  </p></h2>
+<div align="center"></div>
+
+<p align="center">
     <img src="https://github.com/fb82/MiHo/blob/main/data/other/lions.png" alt="example" width=80%>
     <br>
     <em>Planar clusters assigned by MOP+MiHo, outlier matches are marked <br> with black diamonds, NCC keypoint shifts are not shown.</em>
@@ -37,5 +43,4 @@ Check the comments and run `miho_ncc_demo.py`. Notice that in the code MOP is de
 To run the full benchmark, use `run_bench.py` and generate result tables with `save_bench.py`. If you want to limit the methods or datasets being compared, you can comment out specific lines in the `pipes`, `pipe_heads`, `pipe_ransacs` and `benchmark_data` sections of the code. For RANSAC ablation, use the corresponding scripts `run_ransac_ablation.py` and `save_ransac_ablation.py`. For running times and `max_iters` ablation, use the corresponding scripts `run_bench_time.py` and `save_bench_time.py`. Visual matches can be inspected using `run_showcase.py` and NCC patches can be compared through `patch_demo.py`. Additional scripts like `intrinsiscs_bench.py` and `intrinsics_other_bench.py` provide more detailed reports on camera intrinsics, while `corr_bench.py` generates the correlation between different measurement errors. All detailed results are available in the `data/results` directory. 
 
 ## Where can I find more details?
-The initial idea of this approach can be found in the paper [Progressive keypoint localization and
-refinement in image matching](https://drive.google.com/file/d/1sxQOpbBTvvqnpfR98HGHQafquww6JuaK/edit) presented at FAPER2023. *More details will be available in an upcoming paper*.
+See the paper [Image Matching Filtering and Refinement by Planes and Beyond](https://arxiv.org/abs/2411.09484) for details of the approach and for the benchmark setup and results. The initial idea of this approach can be found instead in the paper [Progressive keypoint localization and refinement in image matching](https://drive.google.com/file/d/1sxQOpbBTvvqnpfR98HGHQafquww6JuaK/edit) presented at FAPER2023.
