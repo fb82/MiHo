@@ -505,8 +505,8 @@ def eval_pipe_essential(pipe, dataset_data, dataset_name, bar_name, bench_path='
     
                         print(f"AUC@{str(a).ljust(2,' ')},{str(m).ljust(3,' ')} (E) : {eval_data_['pose_error_em_auc_' + str(a) + '_' + str(m)]}")
 
-            eval_data[pipe_name_base + '_essential_th_list_' + str(essential_th)] = eval_data_
-            compressed_pickle(save_to, eval_data)
+                eval_data[pipe_name_base + '_essential_th_list_' + str(essential_th)] = eval_data_
+                compressed_pickle(save_to, eval_data)
 
 
 def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_path='bench_data', bench_res='res', save_to='res_fundamental.pbz2', force=False, use_scale=False, err_th_list=list(range(1,16)), also_metric=False):
