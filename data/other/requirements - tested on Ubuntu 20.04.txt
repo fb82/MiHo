@@ -1,5 +1,5 @@
 # pip install -r requirements.txt
-# tested on Ubuntu 24.04.1 LTS and Python 3.10
+# tested on Ubuntu 20.04.1 LTS and Python 3.10
 #
 # to run MOP+MiHo+NCC demo script, aka miho_ncc_demo.py
 numpy==1.26.4
