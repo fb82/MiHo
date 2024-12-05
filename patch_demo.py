@@ -206,8 +206,8 @@ if __name__ == '__main__':
                             if b_data['im2_use_mask'][i]:
                                 valid_matches = valid_matches & ~bench.invalid_matches(b_data['im2_mask'][i], b_data['im1_full_mask'][i], spt2, spt1, rad)
 
-                            d1[~valid_matches] = np.NaN
-                            d2[~valid_matches] = np.NaN
+                            d1[~valid_matches] = np.nan
+                            d2[~valid_matches] = np.nan
 
                         pt1_list.append(pt1) 
                         pt2_list.append(pt2)                           
