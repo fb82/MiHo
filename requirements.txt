@@ -34,4 +34,4 @@ lightglue @ git+https://github.com/cvg/LightGlue
 pymulticonsensus @ git+https://github.com/danini/clustering-in-consensus-space
 #
 # to activate DIM modules
-deep-image-matching @ git+https://github.com/3DOM-FBK/deep-image-matching
+# deep-image-matching @ git+https://github.com/3DOM-FBK/deep-image-matching
