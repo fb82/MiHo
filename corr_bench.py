@@ -134,7 +134,7 @@ def csv_merger(csv_list, include_match_count=False):
     m = np.asarray(only_num_csv, dtype=float)
     sidx = np.argsort(-m, axis=0)
     sidx_ = np.argsort(sidx, axis=0)
-    fused_csv_order = np.full((m.shape[0] + 1, m.shape[1] + 1), np.NaN)
+    fused_csv_order = np.full((m.shape[0] + 1, m.shape[1] + 1), np.nan)
     fused_csv_order[1:,1:] = sidx_
 
     return fused_csv, fused_csv_order

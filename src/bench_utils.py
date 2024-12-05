@@ -354,7 +354,7 @@ def run_pipe(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data'
                     # out_data_cc = out_data
                     # out_data_cc['mask'] = []
                     # if running_time:
-                    #    out_data_cc['running_time'] = [np.NaN]
+                    #    out_data_cc['running_time'] = [np.nan]
                     # os.makedirs(os.path.dirname(pipe_f), exist_ok=True)                 
                     # compressed_pickle(pipe_f, out_data)
                     # # end CC crash skip
@@ -1644,8 +1644,8 @@ def count_pipe_match(pipe, dataset_data,  dataset_name, bench_path='bench_data',
                     if not np.isfinite(filtered): filtered = 0                   
                     eval_data_['filtered'].append(filtered)
                 else:
-                    eval_data_['matches'].append(np.NaN)
-                    eval_data_['filtered'].append(np.NaN)
+                    eval_data_['matches'].append(np.nan)
+                    eval_data_['filtered'].append(np.nan)
                     
             eval_data_['matches'] = np.asarray(eval_data_['matches'])
             eval_data_['filtered'] = np.asarray(eval_data_['filtered'])                    
@@ -1785,7 +1785,7 @@ def show_pipe_other(pipe, dataset_data, dataset_name, bar_name, bench_path='benc
                 err = torch.maximum(d1, d2) 
                 err[~torch.isfinite(err)] = np.Inf
                 if not (valid_matches is None):
-                    err[~valid_matches] = np.NaN
+                    err[~valid_matches] = np.nan
                 
                 mask = torch.isnan(err)
                 if torch.any(mask): 
@@ -1869,7 +1869,7 @@ def collect_pipe_time(pipe, dataset_data,  dataset_name, bench_path='bench_data'
                         if 'running_time' in out_data.keys():
                             r = out_data['running_time'][0]
                         else:
-                            r = np.NaN
+                            r = np.nan
     
                         ttable[i].append(r)
     

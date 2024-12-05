@@ -141,7 +141,7 @@ def csv_merger(csv_list, extra_columns=0):
     m = np.asarray(only_num_csv, dtype=float)
     sidx = np.argsort(-m, axis=0)
     sidx_ = np.argsort(sidx, axis=0)
-    fused_csv_order = np.full((m.shape[0] + 1, m.shape[1] + 1), np.NaN)
+    fused_csv_order = np.full((m.shape[0] + 1, m.shape[1] + 1), np.nan)
     fused_csv_order[1:,1:] = sidx_
 
     return fused_csv, fused_csv_order
@@ -304,7 +304,7 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
                         v = "\hphantom{" + "0" * g + "}" + v[g:]
                 else:
                     v = '\\hspace{0.5em}n/a'
-                    np_data[i, j] = np.NaN
+                    np_data[i, j] = np.nan
 
                 # highlight top pipelines for each column
                 c_rank = int(clean_csv_order[i][j])        
@@ -337,10 +337,10 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
     v_min = np.maximum(v_min - v_off, 0)
     v_max = v_max + v_off
     val = (np_data[1:] - v_min) / (v_max - v_min)
-    bar_val = np.full(np_data.shape, np.NaN)
+    bar_val = np.full(np_data.shape, np.nan)
     bar_val[1:,1:] = val[:,1:]
     bar_val = np.round(bar_val * 1000) / 1000
-    bar_vag = np.full(np_data.shape, np.NaN, dtype=int)
+    bar_vag = np.full(np_data.shape, np.nan, dtype=int)
     for i in range(bar_val.shape[0]):
         for j in range(bar_val.shape[1]):
             if np.isfinite(bar_val[i, j]):
@@ -658,7 +658,7 @@ def to_latex_prev(csv_data, csv_order, renaming_list, header_hold=None, header_b
                         v = "\hphantom{" + "0" * g + "}" + v[g:]
                 else:
                     v = '\\hspace{0.5em}n/a'
-                    np_data[i, j] = np.NaN
+                    np_data[i, j] = np.nan
 
                 # highlight top pipelines for each column
                 c_rank = int(clean_csv_order[i][j])        
@@ -694,10 +694,10 @@ def to_latex_prev(csv_data, csv_order, renaming_list, header_hold=None, header_b
     v_min = np.maximum(v_min - v_off, 0)
     v_max = v_max + v_off
     val = (np_data[1:] - v_min) / (v_max - v_min)
-    bar_val = np.full(np_data.shape, np.NaN)
+    bar_val = np.full(np_data.shape, np.nan)
     bar_val[1:,1:] = val[:,1:]
     bar_val = np.round(bar_val * 1000) / 1000
-    bar_vag = np.full(np_data.shape, np.NaN, dtype=int)
+    bar_vag = np.full(np_data.shape, np.nan, dtype=int)
     for i in range(bar_val.shape[0]):
         for j in range(bar_val.shape[1]):
             if np.isfinite(bar_val[i, j]):

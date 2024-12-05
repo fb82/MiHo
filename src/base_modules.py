@@ -2,7 +2,15 @@ import numpy as np
 import torch
 import kornia as K
 import kornia.feature as KF
-import pydegensac
+
+try:
+    import pydegensac
+    pydegensac_off = True
+except:
+    pydegensac_off = False
+    import warnings
+    warnings.warn("cannot load pydegensac - DegenSAC module will return no matches")
+	
 import cv2
 import poselib
 from lightglue import LightGlue as lg_lightglue, SuperPoint as lg_superpoint, DISK as lg_disk, SIFT as lg_sift, ALIKED as lg_aliked, DoGHardNet as lg_doghardnet
@@ -70,35 +78,53 @@ class pydegensac_module:
     def get_id(self):
         return ('pydegensac_' + self.mode + '_th_' + str(self.px_th) + '_conf_' + str(self.conf) + '_max_iters_' + str(self.max_iters)).lower()
 
+    if pydegensac_off:
+        def run(self, **args):  
+            pt1 = args['pt1']
+            pt2 = args['pt2']
+            Hs = args['Hs']
         
-    def run(self, **args):  
-        pt1 = args['pt1']
-        pt2 = args['pt2']
-        Hs = args['Hs']
-        
-        if torch.is_tensor(pt1):
-            pt1 = np.ascontiguousarray(pt1.detach().cpu())
-            pt2 = np.ascontiguousarray(pt2.detach().cpu())
+            if torch.is_tensor(pt1):
+                pt1 = np.ascontiguousarray(pt1.detach().cpu())
+                pt2 = np.ascontiguousarray(pt2.detach().cpu())
 
-        F = None
-        mask = []
-            
-        if self.mode == 'fundamental_matrix':           
-            if (pt1.shape)[0] > 7:                        
-                F, mask = pydegensac.findFundamentalMatrix(pt1, pt2, px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
-        
-            pt1 = args['pt1'][mask]
-            pt2 = args['pt2'][mask]     
-            Hs = args['Hs'][mask]
-        else:
-            if (pt1.shape)[0] > 3:                        
-                F, mask = pydegensac.findHomography(pt1, pt2, px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
-                
+            F = None
+            mask = []
+                        
             pt1 = args['pt1'][mask]
             pt2 = args['pt2'][mask]     
             Hs = args['Hs'][mask]            
             
-        return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs, 'F': F, 'mask': mask}
+            return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs, 'F': F, 'mask': mask}
+    else:    
+        def run(self, **args):  
+            pt1 = args['pt1']
+            pt2 = args['pt2']
+            Hs = args['Hs']
+        
+            if torch.is_tensor(pt1):
+                pt1 = np.ascontiguousarray(pt1.detach().cpu())
+                pt2 = np.ascontiguousarray(pt2.detach().cpu())
+
+            F = None
+            mask = []
+            
+            if self.mode == 'fundamental_matrix':           
+                if (pt1.shape)[0] > 7:                        
+                    F, mask = pydegensac.findFundamentalMatrix(pt1, pt2, px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
+        
+                pt1 = args['pt1'][mask]
+                pt2 = args['pt2'][mask]     
+                Hs = args['Hs'][mask]
+            else:
+                if (pt1.shape)[0] > 3:                        
+                    F, mask = pydegensac.findHomography(pt1, pt2, px_th=self.px_th, conf=self.conf, max_iters=self.max_iters)
+                
+                pt1 = args['pt1'][mask]
+                pt2 = args['pt2'][mask]     
+                Hs = args['Hs'][mask]            
+            
+            return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs, 'F': F, 'mask': mask}
 
 
 class magsac_module:
