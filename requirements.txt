@@ -13,7 +13,7 @@ opencv-contrib-python==4.10.0.84
 opencv-python-headless==4.10.0.84
 pillow==11.0.0
 matplotlib==3.9.3
-pyqt6==6.7.1
+PyQt6==6.7.1
 # 
 # to run the benchmark script too
 tensorflow-cpu==2.18.0
