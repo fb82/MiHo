@@ -360,7 +360,7 @@ def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=20
         iidx, oidx = get_inlier_unduplex(H, pt1, pt2, sidx_.unsqueeze(0), ths)  
 
         if sum_midx > torch.sum(oidx):
-            H = best_model
+            H = best_model.unsqueeze(0)
 
             iidx, oidx = get_inlier_unduplex(best_model.unsqueeze(0), pt1, pt2, sidx_.unsqueeze(0), ths)
     else:
