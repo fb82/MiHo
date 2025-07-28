@@ -400,10 +400,10 @@ def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=20
         for i in range(c_par_sz):
             if (c_par[i] < sn):
                 if ssidx_sz[c_par[i]] > 4:
-                    aux = sidx[:, c_par[i]].flatten()
+                    aux = sidx[:, i].flatten()
                     tmp = torch.nonzero(ssidx[:, c_par[i]]).squeeze()
                     aux = tmp[aux]
-                    sidx[:, c_par[i]] = aux.reshape(min_iter, 4)                
+                    sidx[:, i] = aux.reshape(min_iter, 4)                
             else:
                 break
 
