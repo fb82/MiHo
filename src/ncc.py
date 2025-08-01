@@ -63,7 +63,7 @@ def get_inverse(pt1, pt2, Hs):
     return pt1_, pt2_, Hi, Hi1, Hi2
 
 
-def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right'], subpix=True, img_patches=False, save_prefix='ncc_patch_', im1_disp=None, im2_disp=None, use_covariance=True, centered_derivative=True):    
+def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right'], subpix=True, img_patches=False, save_prefix='ncc_patch_', im1_disp=None, im2_disp=None, use_covariance=False, centered_derivative=True):    
     l = Hs.size()[0] 
     
     if l==0:
@@ -121,7 +121,7 @@ def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right
     return pt1, pt2, Hs, val, T
 
 
-def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=['left', 'right'], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_', im1_disp=None, im2_disp=None, use_covariance=True, centered_derivative=True):    
+def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=['left', 'right'], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_', im1_disp=None, im2_disp=None, use_covariance=False, centered_derivative=True):    
     l = Hs.size()[0] 
     
     if l==0:
@@ -235,15 +235,17 @@ def go_save_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_diff_', s
     for k in range(pt1.shape[0]):
         pp = patch1[k]
         pm = torch.isfinite(pp)
-        m_ = pp[pm].min()
-        M_ = pp[pm].max()
+        if pm.any():
+            m_ = pp[pm].min()
+            M_ = pp[pm].max()
         pp[pm] = (pp[pm] - m_) / (M_ - m_)            
         patch1[k] = pp * 255        
     
         pp = patch2[k]
         pm = torch.isfinite(pp)
-        m_ = pp[pm].min()
-        M_ = pp[pm].max()
+        if pm.any():
+            m_ = pp[pm].min()
+            M_ = pp[pm].max()
         pp[pm] = (pp[pm] - m_) / (M_ - m_)            
         patch2[k] = pp * 255       
     
@@ -277,15 +279,17 @@ def go_save_list_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_list
         for k in range(n):
             pp = patch1[k]
             pm = torch.isfinite(pp)
-            m_ = pp[pm].min()
-            M_ = pp[pm].max()
+            if pm.any():
+                m_ = pp[pm].min()
+                M_ = pp[pm].max()
             pp[pm] = (pp[pm] - m_) / (M_ - m_)            
             patch1[k] = pp * 255        
         
             pp = patch2[k]
             pm = torch.isfinite(pp)
-            m_ = pp[pm].min()
-            M_ = pp[pm].max()
+            if pm.any():
+                m_ = pp[pm].min()
+                M_ = pp[pm].max()
             pp[pm] = (pp[pm] - m_) / (M_ - m_)            
             patch2[k] = pp * 255        
     
@@ -759,7 +763,7 @@ class ncc_module:
         self.subpix = True
         self.ref_images = 'both'
         self.also_prev = False
-        self.use_covariance=True
+        self.use_covariance=False
         self.centered_derivative=True
         
         self.transform = transforms.Compose([
