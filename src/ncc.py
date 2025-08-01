@@ -63,7 +63,7 @@ def get_inverse(pt1, pt2, Hs):
     return pt1_, pt2_, Hi, Hi1, Hi2
 
 
-def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right'], subpix=True, img_patches=False, save_prefix='ncc_patch_', im1_disp=None, im2_disp=None):    
+def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right'], subpix=True, img_patches=False, save_prefix='ncc_patch_', im1_disp=None, im2_disp=None, use_covariance=True, centered_derivative=True):    
     l = Hs.size()[0] 
     
     if l==0:
@@ -82,12 +82,12 @@ def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right
     patch_offset = torch.zeros(2, l, 2, device=device)
 
     if ('left' in ref_image) or ('both' in ref_image):
-        patch_offset0, patch_val0 = norm_corr(patch2, patch1.reshape(l, -1)[:, vidx.flatten()].reshape(l, w*2 + 1, w*2 + 1), subpix=subpix)
+        patch_offset0, patch_val0 = norm_corr(patch2, patch1.reshape(l, -1)[:, vidx.flatten()].reshape(l, w*2 + 1, w*2 + 1), subpix=subpix, use_covariance=use_covariance, centered_derivative=centered_derivative)
         patch_offset[0] = patch_offset0
         patch_val[0] = patch_val0
 
     if ('right' in ref_image) or ('both' in ref_image):
-        patch_offset1, patch_val1 = norm_corr(patch1, patch2.reshape(l, -1)[:, vidx.flatten()].reshape(l, w*2 + 1, w*2 + 1), subpix=subpix)
+        patch_offset1, patch_val1 = norm_corr(patch1, patch2.reshape(l, -1)[:, vidx.flatten()].reshape(l, w*2 + 1, w*2 + 1), subpix=subpix, use_covariance=use_covariance, centered_derivative=centered_derivative)
         patch_offset[1] = patch_offset1
         patch_val[1] = patch_val1
         
@@ -121,7 +121,7 @@ def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right
     return pt1, pt2, Hs, val, T
 
 
-def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=['left', 'right'], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_', im1_disp=None, im2_disp=None):    
+def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=['left', 'right'], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_', im1_disp=None, im2_disp=None, use_covariance=True, centered_derivative=True):    
     l = Hs.size()[0] 
     
     if l==0:
@@ -169,7 +169,7 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
                 patch2 = patchify(im2, pt2_, Hi2, w_big)
                 patch1_small = patchify(im1, pt1_, Hi1u, w)
         
-                patch_offset0, patch_val0 = norm_corr(patch2, patch1_small, subpix=subpix)
+                patch_offset0, patch_val0 = norm_corr(patch2, patch1_small, subpix=subpix, use_covariance=use_covariance, centered_derivative=centered_derivative)
 
                 mask = patch_val0 > patch_val[0]                
                 patch_offset[0, mask] = patch_offset0[mask]
@@ -180,7 +180,7 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
                 patch1 = patchify(im1, pt1_, Hi1, w_big)
                 patch2_small = patchify(im2, pt2_, Hi2u, w)  
                 
-                patch_offset1, patch_val1 = norm_corr(patch1, patch2_small, subpix=subpix)
+                patch_offset1, patch_val1 = norm_corr(patch1, patch2_small, subpix=subpix, use_covariance=use_covariance, centered_derivative=centered_derivative)
                 
                 mask = patch_val1 > patch_val[1]                
                 patch_offset[1, mask] = patch_offset1[mask]
@@ -446,10 +446,51 @@ def refinement_miho_other(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_ba
         return pt1, pt2, Hs, idx, Hs_laf
 
 
-def norm_corr(patch1, patch2, subpix=True):     
+def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivative=True):     
     w = patch2.size()[1]
     ww = w * w
     n = patch1.size()[0]
+    
+    if use_covariance:
+        if centered_derivative:     
+            dx = patch1[:, 1:-1, :-2] - patch1[:, 1:-1, 2:]
+            dy = patch1[:, :-2, 1:-1] - patch1[:, 2:, 1:-1]
+        else:
+            dx = patch1[:, :-1, :-1] - patch1[:, :-1, 1:]
+            dy = patch1[:, :-1, :-1] - patch1[:, 1:, :-1]    
+    
+        r = dx.shape[1] / 2 - 0.5
+        aux = torch.arange(-r, r + 0.5, device=device).unsqueeze(0).repeat([dx.shape[1], 1])
+        disk = ((aux ** 2) + (aux.permute([1, 0]) ** 2) <= r ** 2).unsqueeze(0)
+        
+        dx = dx * disk
+        dy = dy * disk
+    
+        d_ok = dx.isfinite() & dy.isfinite() 
+        dx[~d_ok] = 0
+        dy[~d_ok] = 0
+    
+        d_sum = d_ok.sum(dim=[1, 2])
+        
+        mu = torch.zeros((patch1.shape[0], 2, 2), device=device)    
+        mu[:, 0, 0] = (dx ** 2).sum(dim=[1, 2]) / d_sum
+        mu[:, 1, 1] = (dy ** 2).sum(dim=[1, 2]) / d_sum
+        mu[:, 0, 1] = (dx * dy).sum(dim=[1, 2]) / d_sum    
+        mu[:, 1, 0] = mu[:, 0, 1]
+        
+        d, v = torch.linalg.eigh(mu)
+        dm , _ = d.max(dim=1)
+        di = d / dm.unsqueeze(-1)
+        di = di ** 0.5
+        di[di < 2. / patch2.shape[1]] = 2. / patch2.shape[1]
+        di = 1. / di
+        v = v.permute([0, 2, 1])
+        
+        r = patch2.shape[1] / 2 - 0.5
+        aux = torch.arange(-r, r + 0.5, device=device).unsqueeze(0).repeat([patch2.shape[1], 1])
+    
+        xy = torch.stack((aux.flatten(), aux.permute([1, 0]).flatten()))    
+        mask = (((di.unsqueeze(-1) * (v @ xy)) ** 2).sum(dim=1) <= r ** 2).reshape((v.shape[0], patch2.shape[1], patch2.shape[2]))    
     
     with torch.no_grad():
         conv_ = torch.nn.Conv2d(1, 1, (w, w), padding='valid', bias=False, device=device)
@@ -470,11 +511,17 @@ def norm_corr(patch1, patch2, subpix=True):
     nc = ((ww * cc) - (m1 * m2.reshape(n, 1, 1))) / torch.sqrt(s1 * s2.reshape(n, 1, 1))   
     nc.flatten()[~torch.isfinite(nc.flatten())] = -torch.inf
 
+    if use_covariance:
+        nc_ = torch.clone(nc)
+        nc_[~mask] = -torch.inf
+    else:
+        nc_ = nc
+
     w_ = nc.shape[1]
     ww_ = w_ * w_    
     r = (w_ - 1) / 2
 
-    idx = nc.reshape(n, ww_).max(dim=1)
+    idx = nc_.reshape(n, ww_).max(dim=1)
     offset = (torch.vstack((idx[1] % w_, torch.div(idx[1], w_, rounding_mode='trunc')))).permute(1, 0).to(torch.float)
     
     if subpix:    
@@ -712,6 +759,8 @@ class ncc_module:
         self.subpix = True
         self.ref_images = 'both'
         self.also_prev = False
+        self.use_covariance=True
+        self.centered_derivative=True
         
         self.transform = transforms.Compose([
             transforms.Grayscale(),
@@ -733,11 +782,11 @@ class ncc_module:
         im1 = self.transform(im1).type(torch.float16).to(device)
         im2 = self.transform(im2).type(torch.float16).to(device)        
         
-        pt1, pt2, Hs_ncc, val, T = refinement_norm_corr_alternate(im1, im2, args['pt1'], args['pt2'], args['Hs'], w=self.w, w_big=self.w_big, ref_image=[self.ref_images], angle=self.angle, scale=self.scale, subpix=self.subpix, img_patches=False)   
+        pt1, pt2, Hs_ncc, val, T = refinement_norm_corr_alternate(im1, im2, args['pt1'], args['pt2'], args['Hs'], w=self.w, w_big=self.w_big, ref_image=[self.ref_images], angle=self.angle, scale=self.scale, subpix=self.subpix, img_patches=False, use_covariance=self.use_covariance, centered_derivative=self.centered_derivative)   
 
         laf_is_better = np.nan
         if self.also_prev and ('Hs_prev' in args.keys()) and (args['Hs'].size()[0] > 0):
-            pt1_, pt2_, Hs_ncc_, val_, T_ = refinement_norm_corr_alternate(im1, im2, args['pt1'], args['pt2'], args['Hs_prev'], w=self.w, w_big=self.w_big, ref_image=[self.ref_images], angle=[0, ], scale=[[1, 1], ], subpix=self.subpix, img_patches=False)   
+            pt1_, pt2_, Hs_ncc_, val_, T_ = refinement_norm_corr_alternate(im1, im2, args['pt1'], args['pt2'], args['Hs_prev'], w=self.w, w_big=self.w_big, ref_image=[self.ref_images], angle=[0, ], scale=[[1, 1], ], subpix=self.subpix, img_patches=False, use_covariance=self.use_covariance, centered_derivative=self.centered_derivative)   
             replace_idx = torch.argwhere((torch.cat((val.unsqueeze(0),val_.unsqueeze(0)), dim=0)).max(dim=0)[1] == 1)
             pt1[replace_idx] = pt1_[replace_idx]
             pt2[replace_idx] = pt2_[replace_idx]
