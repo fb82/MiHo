@@ -80,6 +80,29 @@ def get_inlier_unduplex(H, pt1, pt2, sidx_par, th):
     return final_mask.squeeze(dim=0)
 
 
+def go_check_reflection(pt1, pt2, sidx_par):
+    
+    if sidx_par.dtype != torch.bool:
+        l0 = sidx_par.size()[0]
+        l1 = sidx_par.size()[1]
+        
+        pt1_par = pt1[:, sidx_par.flatten()].reshape(3, l0, l1).permute(1, 0, 2)
+        pt2_par = pt2[:, sidx_par.flatten()].reshape(3, l0, l1).permute(1, 0, 2)
+    else:
+        l0 = 1
+        l1 = sidx_par.sum()
+        
+        pt1_par = pt1[:, sidx_par].reshape(3, l0, l1).permute(1, 0, 2)
+        pt2_par = pt2[:, sidx_par].reshape(3, l0, l1).permute(1, 0, 2)
+
+    check1 = pt1_par.permute(0, 2, 1)[:, [0, 1, 2]].det().sign() == pt2_par.permute(0, 2, 1)[:, [0, 1, 2]].det().sign()
+    check2 = pt1_par.permute(0, 2, 1)[:, [0, 1, 3]].det().sign() == pt2_par.permute(0, 2, 1)[:, [0, 1, 3]].det().sign()
+    check3 = pt1_par.permute(0, 2, 1)[:, [1, 2, 3]].det().sign() == pt2_par.permute(0, 2, 1)[:, [1, 2, 3]].det().sign()
+    check4 = pt1_par.permute(0, 2, 1)[:, [0, 2, 3]].det().sign() == pt2_par.permute(0, 2, 1)[:, [0, 2, 3]].det().sign()
+
+    return check1 & check2 & check3 & check4
+
+
 def compute_homography_unduplex(pt1, pt2, sidx_par):
     if sidx_par.dtype != torch.bool:
         l0 = sidx_par.size()[0]
@@ -193,7 +216,7 @@ def sampler4_par(n_par, m):
     return sidx.reshape(m, nn, 4)
 
 
-def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=2000, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000):
+def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=2000, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000, check_reflection=True):
     n = pt1.shape[1]
 
     th_in = th_in ** 2
@@ -277,6 +300,12 @@ def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=20
 
         sidx_par = sidx_par[good_sample_par]
         c_par = c_par[good_sample_par]             
+        
+        if check_reflection:
+            no_reflection = go_check_reflection(pt1, pt2, sidx_par)
+    
+            sidx_par = sidx_par[no_reflection]
+            c_par = c_par[no_reflection]           
         
         H, sv = compute_homography_unduplex(pt1, pt2, sidx_par)
         good_H = sv > svd_th
@@ -689,7 +718,7 @@ class miho:
         """all MiHo parameters with default values"""
         ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 2000,
                                 'min_iter': 50, 'p' :0.9, 'svd_th': 0.05,
-                                'buffers': 5}
+                                'buffers': 5, 'check_reflection': True}
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
                               'min_plane_pts': 12, 'min_pt_gap': 6,
                               'max_fail_count': 3, 'random_seed_init': 123,
