@@ -2,9 +2,9 @@ import numpy as np
 
 try:
     import pymulticonsensus
-    pymulticonsensus_off = True
-except:
     pymulticonsensus_off = False
+except:
+    pymulticonsensus_off = True
     import warnings
     warnings.warn("cannot load pymulticonsensus - Consensus Clustering (CC) module will return no matches")
 

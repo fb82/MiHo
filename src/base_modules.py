@@ -5,9 +5,9 @@ import kornia.feature as KF
 
 try:
     import pydegensac
-    pydegensac_off = True
-except:
     pydegensac_off = False
+except:
+    pydegensac_off = True
     import warnings
     warnings.warn("cannot load pydegensac - DegenSAC module will return no matches")
 	
