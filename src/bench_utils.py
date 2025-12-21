@@ -588,11 +588,18 @@ def eval_pipe_fundamental(pipe, dataset_data,  dataset_name, bar_name, bench_pat
                         scales = dataset_data['im_pair_scale'][i]
                     else:
                         scales = np.asarray([[1.0, 1.0], [1.0, 1.0]])
-                    
-                    pts1 = pts1 * scales[0]
-                    pts2 = pts2 * scales[1]
+
+                    if len(pts1.shape) == 1:
+                        pts1 = pts1[np.newaxis, :]
+                        pts2 = pts2[np.newaxis, :]
+
+                    if not((pts1.shape == 0) or (pts1.shape[1] == 0)):
+                        pts1 = pts1 * scales[0]
+                        pts2 = pts2 * scales[1]
                         
-                    nn = pts1.shape[0]
+                        nn = pts1.shape[0]
+                    else:
+                        nn = 0
                                                 
                     if nn < 8:
                         Rt_ = None
@@ -1263,12 +1270,19 @@ def eval_pipe_homography(pipe, dataset_data,  dataset_name, bar_name, bench_path
                         scales = dataset_data['im_pair_scale'][i]
                     else:
                         scales = np.asarray([[1.0, 1.0], [1.0, 1.0]])
-                    
-                    pts1 = pts1 * scales[0]
-                    pts2 = pts2 * scales[1]
+
+                    if len(pts1.shape) == 1:
+                        pts1 = pts1[np.newaxis, :]
+                        pts2 = pts2[np.newaxis, :]
+    
+                    if not((pts1.shape == 0) or (pts1.shape[1] == 0)):
+                        pts1 = pts1 * scales[0]
+                        pts2 = pts2 * scales[1]
                         
-                    nn = pts1.shape[0]
-                                                
+                        nn = pts1.shape[0]
+                    else:
+                        nn = 0
+
                     if nn < 4:
                         H = None
                     else:
@@ -1663,7 +1677,7 @@ def count_pipe_match(pipe, dataset_data,  dataset_name, bench_path='bench_data',
 
 def show_pipe_other(pipe, dataset_data, dataset_name, bar_name, bench_path='bench_data' , bench_im='imgs', bench_res='res', bench_plot='showcase', force=False, ext='.png', save_ext='.jpg', fig_min_size=960, fig_max_size=1280, pipe_select=[-2, -1], save_mode='as_bench', b_index=None, bench_mode='fundamental_matrix', use_scale=False):
 
-    err_bound = [[0, 1], [1, 3], [3, 7], [7, 15], [15, np.Inf]]
+    err_bound = [[0, 1], [1, 3], [3, 7], [7, 15], [15, np.inf]]
     
     clr = np.asarray([
         [0  , 255,   0],
@@ -1783,7 +1797,7 @@ def show_pipe_other(pipe, dataset_data, dataset_name, bar_name, bench_path='benc
                         valid_matches = valid_matches & ~invalid_matches(dataset_data['im2_mask'][i], dataset_data['im1_full_mask'][i], spt2, spt1, rad)
                                             
                 err = torch.maximum(d1, d2) 
-                err[~torch.isfinite(err)] = np.Inf
+                err[~torch.isfinite(err)] = np.inf
                 if not (valid_matches is None):
                     err[~valid_matches] = np.nan
                 

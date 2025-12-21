@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torchvision.transforms as transforms
 from PIL import Image
+import scipy as sp
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -394,7 +395,32 @@ def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True
         return pt1, pt2, Hs, idx, Hs_laf
 
 
-def refinement_miho_other(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, patch_ref='left', img_patches=False, also_laf=False, im1_disp=None, im2_disp=None):
+def get_half_homo(Hl):
+    Hs_list = []
+    cc = 0
+
+    for H_ in Hl:
+        H = H_[0].squeeze(0)
+        if H.det() < 0:
+            H = -H
+
+        Hh = sp.linalg.sqrtm(H.to('cpu').numpy())
+        if np.sum(np.abs((Hh.real @ Hh.real) - H.to('cpu').numpy()))/H.abs().sum() > 0.1:
+            Hs_list.append(None)
+            cc = cc + 1
+      
+        Hs = torch.zeros((2, 3, 3), device=device)
+        Hs[0] = torch.tensor(Hh.real, device=device)
+        Hs[1] = torch.tensor(Hh.real, device=device).inverse()
+    
+        Hs_list.append(Hs)
+            
+    # print(cc, len(Hl))
+    # print(Hs_list)
+    return Hs_list
+    
+
+def refinement_miho_other(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, patch_ref='left', img_patches=False, also_laf=False, im1_disp=None, im2_disp=None, half=False):
     l = pt1.shape[0]
     idx = torch.ones(l, dtype=torch.bool, device=device)
 
@@ -412,15 +438,21 @@ def refinement_miho_other(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_ba
                 return pt1, pt2, Hs, idx
 
     Hs = torch.zeros((l, 2, 3, 3), device=device)
+    Hh = get_half_homo(mihoo.Hs)
+        
     for i in range(l):
         ii = mihoo.Hidx[i]
         if ii > -1:
-            if not (patch_ref=='left'):
-                Hs[i, 0] = mihoo.Hs[ii][0]
-                Hs[i, 1] = torch.eye(3, device=device)
-            else:
-                Hs[i, 0] = torch.eye(3, device=device)
-                Hs[i, 1] = mihoo.Hs[ii][0].inverse()
+            if half and not (Hh[ii] is None):
+                Hs[i] = Hh[ii]                
+            else:            
+                if not (patch_ref=='left'):
+                    Hs[i, 0] = mihoo.Hs[ii][0]
+                    Hs[i, 1] = torch.eye(3, device=device)
+                else:
+                    Hs[i, 0] = torch.eye(3, device=device)
+                    Hs[i, 1] = mihoo.Hs[ii][0].inverse()
+
         elif Hs_laf is not None:
             Hs[i, 0] = Hs_laf[i, 0]
             Hs[i, 1] = Hs_laf[i, 1]
@@ -763,8 +795,8 @@ class ncc_module:
         self.subpix = True
         self.ref_images = 'both'
         self.also_prev = False
-        self.use_covariance=False
-        self.centered_derivative=True
+        self.use_covariance = False
+        self.centered_derivative = True
         
         self.transform = transforms.Compose([
             transforms.Grayscale(),
@@ -776,7 +808,10 @@ class ncc_module:
         
         
     def get_id(self):
-        return ('nnc_subpix_' + str(self.subpix) + '_w_' + str(self.w) + '_w_big_' + str(self.w_big) + '_ref_images_' + str(self.ref_images) + '_scales_' +  str(len(self.scale)) + '_angles_' + str(len(self.scale))).lower()
+        aux = ('nnc_subpix_' + str(self.subpix) + '_w_' + str(self.w) + '_w_big_' + str(self.w_big) + '_ref_images_' + str(self.ref_images) + '_scales_' +  str(len(self.scale)) + '_angles_' + str(len(self.scale))).lower()
+        if self.use_covariance: aux = aux + '_with_covariance'
+        if not self.centered_derivative: aux = aux + '_not_centered_derivative'
+        return aux
 
     
     def run(self, **args):

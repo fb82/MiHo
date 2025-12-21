@@ -368,7 +368,7 @@ def sampler4_par(n_par, m):
     return sidx.reshape(m, nn, 4)
 
 
-def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=2000, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000, check_reflection=True):
+def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=2000, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000, check_reflection=False):
     n = pt1.shape[1]
 
     th_in = th_in ** 2
@@ -1047,7 +1047,7 @@ class miho:
         """all MiHo parameters with default values"""
         ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 2000,
                                 'min_iter': 50, 'p' :0.9, 'svd_th': 0.05,
-                                'buffers': 5, 'check_reflection': True}
+                                'buffers': 5, 'check_reflection': False}
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
                               'min_plane_pts': 8, 'min_pt_gap': 4,
                               'max_fail_count': 3, 'random_seed_init': 123,

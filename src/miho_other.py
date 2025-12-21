@@ -216,7 +216,7 @@ def sampler4_par(n_par, m):
     return sidx.reshape(m, nn, 4)
 
 
-def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=2000, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000, check_reflection=True):
+def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=2000, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000, check_reflection=False):
     n = pt1.shape[1]
 
     th_in = th_in ** 2
@@ -718,7 +718,7 @@ class miho:
         """all MiHo parameters with default values"""
         ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 2000,
                                 'min_iter': 50, 'p' :0.9, 'svd_th': 0.05,
-                                'buffers': 5, 'check_reflection': True}
+                                'buffers': 5, 'check_reflection': False}
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
                               'min_plane_pts': 12, 'min_pt_gap': 6,
                               'max_fail_count': 3, 'random_seed_init': 123,
@@ -785,6 +785,7 @@ class miho:
 class miho_module:
     def __init__(self, **args):
         self.miho = miho()
+        self.half = False
         
         for k, v in args.items():
             setattr(self, k, v)
@@ -797,15 +798,20 @@ class miho_module:
         
     def get_id(self):
         if not hasattr(self, 'max_iter'):        
-            return ('miho_default_unduplex').lower()
+            aux = ('miho_default_unduplex').lower()
         else:
-            return ('miho_unduplex_max_iter_' + str(self.max_iter)).lower()
+            aux = ('miho_unduplex_max_iter_' + str(self.max_iter)).lower()
 
+        if self.half:
+            aux = aux.replace('miho','miho_half')
+        
+        return aux    
+        
 
     def run(self, **args):
         self.miho.planar_clustering(args['pt1'], args['pt2'])
         
-        pt1, pt2, Hs_miho, inliers, Hs_laf = refinement_miho_other(None, None, args['pt1'], args['pt2'], self.miho, args['Hs'], remove_bad=True, img_patches=False, also_laf=True)        
+        pt1, pt2, Hs_miho, inliers, Hs_laf = refinement_miho_other(None, None, args['pt1'], args['pt2'], self.miho, args['Hs'], remove_bad=True, img_patches=False, also_laf=True, half=self.half)        
             
         toreturn = {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_miho, 'mask': inliers}
         if not (Hs_laf is None): toreturn['Hs_prev'] = Hs_laf

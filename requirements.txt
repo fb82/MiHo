@@ -33,6 +33,9 @@ tqdm>=4.67.1
 tzdata==2024.2
 zipp>=3.21.0
 lightglue @ git+https://github.com/cvg/LightGlue
+romatch
+# progressive-x can be installed from git: https://github.com/danini/progressive-x/tree/master
+# key2subpx git: https://github.com/KimSinjeong/keypt2subpx
 # pymulticonsensus cannot be installed, removed until a fix is found
 # pymulticonsensus @ git+https://github.com/danini/clustering-in-consensus-space
 #
