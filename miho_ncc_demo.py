@@ -8,13 +8,15 @@ import scipy.io as sio
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-
 if __name__ == '__main__':
     # demo code
-    load_matches = False # used pre-computed matches without LAF
-    ncc_check = False    # img2 patches are img1 patches randomly traslated, only for testing NCC / NCC+
-    no_miho = False      # compute NCC / NCC+ on LAF without MiHo
-    miho_duplex = True   # duplex / unduplex MiHo - corresponding to MOP+MiHO / MOP in the paper
+    load_matches = False       # used pre-computed matches without LAF
+    ncc_check = False          # img2 patches are img1 patches randomly traslated, only for testing NCC / NCC+ (also starred)
+    ncc_mask = True            # masked NCC search according to gradient covariance - NCC* in the paper
+    no_miho = False            # compute NCC / NCC+ on LAF without MiHo
+    miho_duplex = True         # duplex / unduplex MiHo - corresponding to MOP+MiHo / MOP in the paper
+    miho_no_reflection = True  # allow planar reflections in MiHo - MOP* in the paper
+    miho_vsac = False          # enable VSAC when unduplex MiHo is used - MOP+VSAC in the paper
 
     if miho_duplex:    
         from src import miho as miho
@@ -75,6 +77,11 @@ if __name__ == '__main__':
     # params['get_avg_hom']['ransac_middle_args']['max_iter'] = 500
     # mihoo.update_params(params)
 
+    if miho_no_reflection:
+        params = mihoo.get_current()  
+        params['get_avg_hom']['ransac_middle_args']['check_reflection'] = True
+        mihoo.update_params(params)
+
     mihoo.attach_images(im1, im2)
 
     if ncc_check:
@@ -116,21 +123,21 @@ if __name__ == '__main__':
 
     if ncc_check:        
     # offset kpt shift, for testing - LAF -> NCC | NCC+
-        pt1__, pt2__, Hs_ncc, val, T = ncc.refinement_norm_corr(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
-        pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
+        pt1__, pt2__, Hs_ncc, val, T = ncc.refinement_norm_corr(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, use_covariance=ncc_mask)
+        pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, use_covariance=ncc_mask)
     else:     
         if no_miho:
         # LAF -> NCC | NCC+
-            pt1__, pt2__, Hs_ncc, val, T = ncc.refinement_norm_corr(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
-            pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
+            pt1__, pt2__, Hs_ncc, val, T = ncc.refinement_norm_corr(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, use_covariance=ncc_mask)
+            pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, use_covariance=ncc_mask)
         else:
         # LAF -> MiHo -> NCC | NCC+  
             if miho_duplex:
                 pt1_, pt2_, Hs_miho, inliers = ncc.refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2) 
             else:
-                pt1_, pt2_, Hs_miho, inliers = ncc.refinement_miho_other(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, patch_ref='right', img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2) 
-            pt1__, pt2__, Hs_ncc, val, T = ncc.refinement_norm_corr(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)   
-            pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)   
+                pt1_, pt2_, Hs_miho, inliers = ncc.refinement_miho_other(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, patch_ref='right', img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, half=miho_vsac) 
+            pt1__, pt2__, Hs_ncc, val, T = ncc.refinement_norm_corr(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, use_covariance=ncc_mask)   
+            pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, use_covariance=ncc_mask)   
     
     end = time.time()
     print("Elapsed = %s (NCC refinement)" % (end - start))
