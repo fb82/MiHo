@@ -66,17 +66,17 @@ if __name__ == '__main__':
 
     # # miho params examples:
     #
-    # params = miho.all_params()
+    # params = miho.miho.all_params()
     # params['go_assign']['method'] = cluster_assign_base
     # params['go_assign']['method_args']['err_th'] = 16
-    # mihoo = miho(params)
+    # mihoo = miho.miho(params)
     #
     # # but also:
     #
     # params = mihoo.get_current()
     # params['get_avg_hom']['ransac_middle_args']['max_iter'] = 500
     # mihoo.update_params(params)
-
+    
     if miho_no_reflection:
         params = mihoo.get_current()  
         params['get_avg_hom']['ransac_middle_args']['check_reflection'] = True

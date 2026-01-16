@@ -103,7 +103,7 @@ def go_check_reflection(pt1, pt2, sidx_par):
     return check1 & check2 & check3 & check4
 
 
-def compute_homography_duplex(pt1, pt2, ptm, sidx_par):
+def compute_homography_duplex(pt1, pt2, ptm, sidx_par, fix_device=device):
     
     if sidx_par.dtype != torch.bool:
         l0 = sidx_par.size()[0]
@@ -222,12 +222,12 @@ def compute_homography_duplex(pt1, pt2, ptm, sidx_par):
     A[l0:, 2*l1:, 4] = torch.mul(pmx, p2y)
     A[l0:, 2*l1:, 5] = pmx
 
-
-    _, D, V = torch.linalg.svd(A, full_matrices=True)
-    H12 = V[:, -1].reshape(l0*2, 3, 3)
+    # fix_device = 'cpu' # reduce GPU OOM
+    _, D, V = torch.linalg.svd(A.to(fix_device), full_matrices=True)
+    H12 = V[:, -1].to(device).reshape(l0*2, 3, 3)
     H12 = Tm @ H12 @ T12
 
-    sv = torch.amax(D[:, -2].reshape(2, l0), dim=0)
+    sv = torch.amax(D.to(device)[:, -2].reshape(2, l0), dim=0)
     
     return H12, sv
 
@@ -368,7 +368,12 @@ def sampler4_par(n_par, m):
     return sidx.reshape(m, nn, 4)
 
 
-def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=2000, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000, check_reflection=False):
+def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=2000, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000, check_reflection=False, fix_device=False):
+    if fix_device:
+        fix_device = 'cpu'
+    else:
+        fix_device = device
+
     n = pt1.shape[1]
 
     th_in = th_in ** 2
@@ -462,7 +467,7 @@ def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=20
             sidx_par = sidx_par[no_reflection]
             c_par = c_par[no_reflection]   
         
-        H12, sv = compute_homography_duplex(pt1, pt2, ptm, sidx_par)
+        H12, sv = compute_homography_duplex(pt1, pt2, ptm, sidx_par, fix_device=fix_device)
         good_H = sv > svd_th
 
         H12 = H12[good_H.repeat(2)]            
@@ -541,7 +546,7 @@ def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=20
     if sum_midx >= 4:
         bidx = midx[:, 0]
 
-        H12, _ = compute_homography_duplex(pt1, pt2, ptm, bidx)
+        H12, _ = compute_homography_duplex(pt1, pt2, ptm, bidx, fix_device=fix_device)
         H1, H2 = H12
 
         iidx, oidx = get_inlier_duplex(H12, pt1, pt2, ptm, sidx_.unsqueeze(0), ths)                        
@@ -1047,7 +1052,8 @@ class miho:
         """all MiHo parameters with default values"""
         ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 2000,
                                 'min_iter': 50, 'p' :0.9, 'svd_th': 0.05,
-                                'buffers': 5, 'check_reflection': False}
+                                'buffers': 5, 'check_reflection': False,
+                                'fix_device': False}
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
                               'min_plane_pts': 8, 'min_pt_gap': 4,
                               'max_fail_count': 3, 'random_seed_init': 123,
