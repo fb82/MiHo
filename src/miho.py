@@ -1130,14 +1130,24 @@ class miho_module:
             params = self.miho.get_current()
             params['get_avg_hom']['ransac_middle_args']['max_iter'] = self.max_iter
             self.miho.update_params(params)        
+
+        if hasattr(self, 'check_reflection'):
+            params = self.miho.get_current()
+            params['get_avg_hom']['ransac_middle_args']['check_reflection'] = self.check_reflection
+            self.miho.update_params(params)        
         
         
     def get_id(self):
         if not hasattr(self, 'max_iter'):
-            return ('miho_default_duplex').lower()
+            aux = 'miho_default_duplex'
         else:
-            return ('miho_duplex_max_iter_' + str(self.max_iter)).lower()
+            aux = 'miho_duplex_max_iter_' + str(self.max_iter)
             
+        if hasattr(self, 'check_reflection'):        
+            aux = aux + '_check_reflection_' + str(self.check_reflection)
+
+        return aux.lower()
+
 
     def run(self, **args):
         self.miho.planar_clustering(args['pt1'], args['pt2'])

@@ -17,6 +17,7 @@ import src.NCMNet.ncmnet_custom as ncmnet
 import src.bench_utils as bench
 import src.ConvMatch.convmatch_custom as convmatch
 import src.ConsensusClustering.consensusclustering_custom as consensusclustering
+import src.ProgressiveX.progx_custom as progx
 
 # from src.DIM_modules.superpoint_lightglue_module import superpoint_lightglue_module
 # from src.DIM_modules.disk_lightglue_module import disk_lightglue_module
@@ -29,7 +30,7 @@ import src.ConsensusClustering.consensusclustering_custom as consensusclustering
 # error ranges [0, 1], [1, 3], [3, 7], [7, 15], [15, np.Inf] according to GT
 # gray is used for data with no GT in planar scenes
 
-if __name__ == '__main__':    
+if __name__ == '__main__':   
     # available RANSAC: pydegensac, magsac, poselib        
 
     pipe_head = lambda: None
@@ -46,36 +47,50 @@ if __name__ == '__main__':
 
         [
             pipe_head,
-            ncc.ncc_module(also_prev=True),
+            ncc.ncc_module(also_prev=True, use_covariance=True),
             pipe_ransac
         ],
 
         [
             pipe_head,
-            miho_duplex.miho_module(),
+            miho_duplex.miho_module(check_reflection=True),
             pipe_ransac
         ],
 
         [
             pipe_head,
-            miho_duplex.miho_module(),
-            ncc.ncc_module(also_prev=True),
+            miho_duplex.miho_module(check_reflection=True),
+            ncc.ncc_module(also_prev=True, use_covariance=True),
             pipe_ransac
         ],
 
         [
             pipe_head,
-            miho_unduplex.miho_module(),
+            miho_unduplex.miho_module(check_reflection=True, half=False),
             pipe_ransac
         ],
 
         [
             pipe_head,
-            miho_unduplex.miho_module(),
-            ncc.ncc_module(also_prev=True),            
+            miho_unduplex.miho_module(check_reflection=True, half=False),
+            ncc.ncc_module(also_prev=True, use_covariance=True),            
             pipe_ransac
         ],
-    
+
+
+        [
+            pipe_head,
+            miho_unduplex.miho_module(check_reflection=True, half=True),
+            pipe_ransac
+        ],
+
+        [
+            pipe_head,
+            miho_unduplex.miho_module(check_reflection=True, half=True),
+            ncc.ncc_module(also_prev=True, use_covariance=True),            
+            pipe_ransac
+        ],
+
         [
             pipe_head,
             gms.gms_module(),
@@ -141,6 +156,12 @@ if __name__ == '__main__':
             ncmnet.ncmnet_module(),
             pipe_ransac
         ],            
+
+        [
+            pipe_head,
+            progx.progressivex_module(),
+            pipe_ransac
+        ],            
     ]
 
     pipe_heads = [
@@ -150,7 +171,10 @@ if __name__ == '__main__':
         pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked'),
         pipe_base.lightglue_module(num_features=8000, upright=True, what='disk'),  
         pipe_base.loftr_module(num_features=8000, upright=True),        
-        dedode2.dedode2_module(num_features=8000, upright=True),                
+        dedode2.dedode2_module(num_features=8000, upright=True),
+        pipe_base.keypt2subpx_module(num_features=8000, upright=True, what='superpoint'),
+        pipe_base.roma_module(max_matches=2048, upright=True),
+        pipe_base.mast3r_module(max_keypoints=2048, upright=True)
         # superpoint_lightglue_module(nmax_keypoints=8000),
         # aliked_lightglue_module(nmax_keypoints=8000),
         # disk_lightglue_module(nmax_keypoints=8000),

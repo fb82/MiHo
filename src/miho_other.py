@@ -801,12 +801,20 @@ class miho_module:
             params['get_avg_hom']['ransac_middle_args']['max_iter'] = self.max_iter
             self.miho.update_params(params)   
 
+        if hasattr(self, 'check_reflection'):
+            params = self.miho.get_current()
+            params['get_avg_hom']['ransac_middle_args']['check_reflection'] = self.check_reflection
+            self.miho.update_params(params)    
+
         
     def get_id(self):
         if not hasattr(self, 'max_iter'):        
             aux = ('miho_default_unduplex').lower()
         else:
             aux = ('miho_unduplex_max_iter_' + str(self.max_iter)).lower()
+
+        if hasattr(self, 'check_reflection'):        
+            aux = aux + '_check_reflection_' + str(self.check_reflection)
 
         if self.half:
             aux = aux.replace('miho','miho_half')

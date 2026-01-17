@@ -11,7 +11,6 @@ except:
 from PIL import Image
 from .utils import model_type
 
-
 class consensusclustering_module:
     def __init__(self, **args):
         self.inlier_th = 7 # 1.5 in the authors' git example

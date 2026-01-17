@@ -15,6 +15,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 if __name__ == '__main__': 
+    # if you get OOM just choose only one pipe_base
     pipe_bases = [
         base_pipe.keynetaffnethardnet_module(num_features=8000, upright=True, th=0.99),
         base_pipe.sift_module(num_features=8000, upright=True, th=0.95, rootsift=True),
@@ -23,9 +24,16 @@ if __name__ == '__main__':
         base_pipe.lightglue_module(num_features=8000, upright=True, what='disk'),  
         base_pipe.loftr_module(num_features=8000, upright=True),        
         dedode2.dedode2_module(num_features=8000, upright=True), 
+        base_pipe.keypt2subpx_module(num_features=8000, upright=True, what='superpoint'),
+        base_pipe.roma_module(max_matches=2048, upright=True),
+        base_pipe.mast3r_module(max_keypoints=2048, upright=True)
     ]
-    pipe_miho =  miho_duplex.miho_module()
-    pipe_ncc = ncc.ncc_module(also_prev=True)
+
+    # MOP* since check_reflection is True
+    pipe_miho =  miho_duplex.miho_module(check_reflection=True)
+    
+    # NCC* since use_covariance is True
+    pipe_ncc = ncc.ncc_module(also_prev=True, use_covariance=True)
 
     bench_path = '../bench_data' # results will be in the subfolder "patches" 
     bench_im='imgs'  
@@ -120,6 +128,9 @@ if __name__ == '__main__':
                     H_inv_gt = torch.tensor(b_data['H_inv'][i], device=device)
 
                 pipe_data_im = {'im1': im1, 'im2': im2}
+                
+                if hasattr(pipe_base, 'outdoor'): setattr(pipe_base, 'outdoor', benchmark_data[b]['is_outdoor'])
+
                 pipe_data_base = pipe_base.run(**pipe_data_im)
                             
                 for k, v in pipe_data_im.items():
