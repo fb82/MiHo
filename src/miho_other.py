@@ -103,7 +103,7 @@ def go_check_reflection(pt1, pt2, sidx_par):
     return check1 & check2 & check3 & check4
 
 
-def compute_homography_unduplex(pt1, pt2, sidx_par):
+def compute_homography_unduplex(pt1, pt2, sidx_par, fix_device=device):
     if sidx_par.dtype != torch.bool:
         l0 = sidx_par.size()[0]
         l1 = sidx_par.size()[1]
@@ -172,14 +172,14 @@ def compute_homography_unduplex(pt1, pt2, sidx_par):
     A[:, 2*l1:, 4] = torch.mul(p2x, p1y)
     A[:, 2*l1:, 5] = p2x
 
-    _, D, V = torch.linalg.svd(A, full_matrices=True)
-    H12 = V[:, -1].reshape(l0, 3, 3)
+    # fix_device = 'cpu' # reduce GPU OOM
+    _, D, V = torch.linalg.svd(A.to(fix_device), full_matrices=True)
+    H12 = V[:, -1].to(device).reshape(l0, 3, 3)
     H12 = T2 @ H12 @ T1
 
-    sv = D[:, -2]
+    sv = D[:, -2].to(device)
 
     return H12, sv
-
 
 def data_normalize(pts):
     c = torch.mean(pts, dim=1)
@@ -216,7 +216,12 @@ def sampler4_par(n_par, m):
     return sidx.reshape(m, nn, 4)
 
 
-def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=2000, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000, check_reflection=False):
+def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=2000, min_iter=50, p=0.9, svd_th=0.05, buffers=5, ssidx=None, par_value=100000, check_reflection=False, fix_device=False):
+    if fix_device:
+        fix_device = 'cpu'
+    else:
+        fix_device = device
+
     n = pt1.shape[1]
 
     th_in = th_in ** 2
@@ -307,7 +312,7 @@ def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=20
             sidx_par = sidx_par[no_reflection]
             c_par = c_par[no_reflection]           
         
-        H, sv = compute_homography_unduplex(pt1, pt2, sidx_par)
+        H, sv = compute_homography_unduplex(pt1, pt2, sidx_par, fix_device=fix_device)
         good_H = sv > svd_th
 
         H = H[good_H]            
@@ -384,7 +389,7 @@ def ransac_middle(pt1, pt2, dd=None, th_grid=15, th_in=7, th_out=15, max_iter=20
     if sum_midx >= 4:
         bidx = midx[:, 0]
 
-        H, _ = compute_homography_unduplex(pt1, pt2, bidx)
+        H, _ = compute_homography_unduplex(pt1, pt2, bidx, fix_device=fix_device)
 
         iidx, oidx = get_inlier_unduplex(H, pt1, pt2, sidx_.unsqueeze(0), ths)  
 
@@ -718,7 +723,8 @@ class miho:
         """all MiHo parameters with default values"""
         ransac_middle_params = {'th_in': 7, 'th_out': 15, 'max_iter': 2000,
                                 'min_iter': 50, 'p' :0.9, 'svd_th': 0.05,
-                                'buffers': 5, 'check_reflection': False}
+                                'buffers': 5, 'check_reflection': False,
+                                'fix_device': False}
         get_avg_hom_params = {'ransac_middle_args': ransac_middle_params,
                               'min_plane_pts': 12, 'min_pt_gap': 6,
                               'max_fail_count': 3, 'random_seed_init': 123,
