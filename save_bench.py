@@ -51,7 +51,7 @@ def csv_merger(csv_list, extra_columns=0):
                    [ 7, 10, 'E_AUC@avg_a',  7], 
                    [13, 16, 'F_AUC@avg_a', 10], # ScanNet
                    [16, 19, 'E_AUC@avg_a', 16],
-                   [21, 25, 'H_AUC@avg_m', 19], # Planar
+                   [22, 25, 'H_AUC@avg_m', 19], # Planar
                    [28, 31, 'F_AUC@avg_a', 25], # PhotoTourism
                    [34, 37, 'E_AUC@avg_a', 34],
                    [31, 34, 'F_AUC@avg_m', 31],
