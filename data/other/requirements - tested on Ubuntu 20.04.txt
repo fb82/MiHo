@@ -36,3 +36,4 @@ pymulticonsensus @ git+https://github.com/danini/clustering-in-consensus-space
 #
 # to activate DIM modules
 # deep-image-matching @ git+https://github.com/3DOM-FBK/deep-image-matching
+#
