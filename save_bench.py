@@ -27,6 +27,14 @@ import shutil
 # from src.DIM_modules.loftr_module import loftr_module
 
 
+def csv_read(load_from='nameless.csv'):
+
+    aux = [csv_line.split(';') for csv_line in  open(load_from, 'r').read().splitlines()]
+    to_fuse = max([idx for idx, el in enumerate([s.startswith('pipe_module') for s in aux[0]]) if el == True]) + 1
+
+    return aux, to_fuse
+
+
 def csv_write(lines, save_to='nameless.csv'):
 
     with open(save_to, 'w') as f:
@@ -80,11 +88,14 @@ def csv_merger(csv_list, extra_columns=0):
         
     csv_data = []
     for csv_file in csv_list:
-        aux = [csv_line.split(';') for csv_line in  open(csv_file, 'r').read().splitlines()]
+        aux = [csv_line.split(';') for csv_line in open(csv_file, 'r').read().splitlines()]
         to_fuse = max([idx for idx, el in enumerate([s.startswith('pipe_module') for s in aux[0]]) if el == True]) + 1
 
         tmp = {}
         for row in aux:
+            if 'keypt2subpx' in row[0]:
+                row[0] = row[0].replace('keypt2subpx_', '') + ';keypt2subpx'
+
             what = ';'.join(row[:to_fuse]).replace('_outdoor_true','').replace('_outdoor_false','').replace('_fundamental_matrix','').replace('_homography','')
             tmp[what] = row[to_fuse:]
 
@@ -856,6 +867,12 @@ def compile_latex(latex_file):
 
 
 if __name__ == '__main__':    
+    class subpx:
+        def __init__(self, **args):
+            pass
+            
+        def get_id(self):
+            return 'keypt2subpx'.lower()    
 
     pipes = [
         [      '0MAGSAC^', pipe_base.magsac_module(px_th=1.00)],
@@ -868,13 +885,14 @@ if __name__ == '__main__':
         [       'AdaLAM', adalam.adalam_module()],
         [         'ACNe', acne.acne_module()],
         [           'CC', consensusclustering.consensusclustering_module()],
+        ['Progressive-X', progx.progressivex_module()],        
         [      'DeMatch', dematch.dematch_module()],
         [    'ConvMatch', convmatch.convmatch_module()],
         [        'CLNet', clnet.clnet_module()],
         [       'NCMNet', ncmnet.ncmnet_module()],
         [       'FC-GNN', fcgnn.fcgnn_module()],
         [ 'MS$^2$DG-Net', ms2dgnet.ms2dgnet_module()],
-        ['Progressive-X', progx.progressivex_module()],
+        [    'Kpt2Subpx', subpx()],
     ]
 
     pipe_heads = [
@@ -890,6 +908,8 @@ if __name__ == '__main__':
       # # [      'DISK+LightGlue (DIM)', disk_lightglue_module(nmax_keypoints=8000)],
       # # [               'LoFTR (DIM)', loftr_module(nmax_keypoints=8000)],  
         ]
+
+    pipe_head_aux = ['SuperPoint+LightGlue', pipe_base.keypt2subpx_module(num_features=8000, upright=True, what='superpoint')]
     
 ###
 
@@ -936,7 +956,17 @@ if __name__ == '__main__':
                 csv_list.append(to_save_file + 'fundamental_and_essential' + to_save_file_suffix + '.csv')
             else:
                 csv_list.append(to_save_file + 'homography' + to_save_file_suffix + '.csv')
-                
+
+        if pipe_heads[ip][0] == pipe_head_aux[0]:
+            for b in benchmark_data.keys():
+                to_save_file =  os.path.join(bench_path, save_to, save_to + '_' + pipe_head_aux[1].get_id() + '_')
+                to_save_file_suffix ='_' + benchmark_data[b]['name']
+    
+                if benchmark_data[b]['is_not_planar']:
+                    csv_list.append(to_save_file + 'fundamental_and_essential' + to_save_file_suffix + '.csv')
+                else:
+                    csv_list.append(to_save_file + 'homography' + to_save_file_suffix + '.csv')
+            
         fused_csv, fused_csv_order = csv_merger(csv_list, extra_columns=1)
         csv_write([';'.join(csv_row) + '\n' for csv_row in fused_csv], to_save_file.replace('_outdoor_true','').replace('_outdoor_false','')[:-1] + '.csv')
 
