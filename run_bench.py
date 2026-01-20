@@ -205,7 +205,12 @@ if __name__ == '__main__':
 
                 print("*** " + pipe_ransac.get_id() + " ***")
                 
-                for i, pipe in enumerate(pipes):                                        
+                if 'keypt2subpx' in pipe_head.get_id():
+                    pl = 1
+                else:
+                    pl = len(pipes)
+                                
+                for i, pipe in enumerate(pipes[:pl]):                                        
                     print(f"*** Pipeline {i+1}/{len(pipes)} ***")        
 
                     for k, pipe_module in enumerate(pipe):
