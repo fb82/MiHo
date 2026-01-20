@@ -162,7 +162,7 @@ class clnet_module:
 
         self.opt, unparsed = get_config()    
         self.model = CLNet(self.opt)
-        checkpoint = torch.load(os.path.join(clnet_dir, 'CLNet_models/clnet_yfcc_sift.pth'), map_location=torch.device(device))
+        checkpoint = torch.load(os.path.join(clnet_dir, 'CLNet_models/clnet_yfcc_sift.pth'), map_location=torch.device(device), weights_only=False)
     
         state_dict = {}
         for key in checkpoint['state_dict'].keys():

@@ -31,7 +31,7 @@ class ncmnet_module:
         self.obj_geod_th = self.config.obj_geod_th
 
         self.model = Model(self.config)
-        checkpoint = torch.load(os.path.join(model_dir, 'model_best.pth'))
+        checkpoint = torch.load(os.path.join(model_dir, 'model_best.pth'), weights_only=False)
         self.model.load_state_dict(checkpoint['state_dict'])
         self.model.eval().to(device)
 

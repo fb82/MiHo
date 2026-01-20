@@ -30,7 +30,7 @@ class ms2dgnet_module:
 
         self.config, unparsed = get_config()
         self.model = Model(self.config)
-        checkpoint = torch.load(os.path.join(model_dir, 'yfcc', 'model_best.pth'))
+        checkpoint = torch.load(os.path.join(model_dir, 'yfcc', 'model_best.pth'), weights_only=False)
         
         ###
         # del checkpoint['state_dict']['weights_init.att1_1.attk2.weight']

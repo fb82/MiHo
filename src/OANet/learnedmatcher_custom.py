@@ -73,7 +73,7 @@ class LearnedMatcher(object):
         self.device = device_to_use
 
         # print('load model from ' + model_path)
-        checkpoint = torch.load(model_path,map_location=self.device)
+        checkpoint = torch.load(model_path,map_location=self.device, weights_only=False)
         self.model.load_state_dict(checkpoint['state_dict'])
         self.model.to(self.device)
         self.model.eval()

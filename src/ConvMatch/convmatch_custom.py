@@ -156,7 +156,7 @@ class convmatch_module:
         else:
             model_path = os.path.join(convmatch_dir, 'convmatch_models', 'sun3d', 'model_best.pth')
  
-        checkpoint = torch.load(model_path, map_location=torch.device(device))
+        checkpoint = torch.load(model_path, map_location=torch.device(device), weights_only=False)
         self.model.load_state_dict(checkpoint['state_dict'])
         self.model.cuda()
         self.model.eval()
