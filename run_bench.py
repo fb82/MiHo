@@ -16,6 +16,7 @@ import src.NCMNet.ncmnet_custom as ncmnet
 import src.bench_utils as bench
 import src.ConvMatch.convmatch_custom as convmatch
 import src.ConsensusClustering.consensusclustering_custom as consensusclustering
+import src.ProgressiveX.progx_custom as progx
 
 # from src.DIM_modules.superpoint_lightglue_module import superpoint_lightglue_module
 # from src.DIM_modules.disk_lightglue_module import disk_lightglue_module
@@ -134,6 +135,12 @@ if __name__ == '__main__':
             pipe_head,
             ncmnet.ncmnet_module(),
             pipe_ransac
+        ],    
+
+        [
+            pipe_head,
+            progx.progressivex_module(),
+            pipe_ransac
         ],            
     ]
 
@@ -144,7 +151,8 @@ if __name__ == '__main__':
         pipe_base.lightglue_module(num_features=8000, upright=True, what='aliked'),
         pipe_base.lightglue_module(num_features=8000, upright=True, what='disk'),  
         pipe_base.loftr_module(num_features=8000, upright=True),        
-        dedode2.dedode2_module(num_features=8000, upright=True),                
+        dedode2.dedode2_module(num_features=8000, upright=True), 
+        pipe_base.keypt2subpx_module(num_features=8000, upright=True, what='superpoint'),               
         # superpoint_lightglue_module(nmax_keypoints=8000),
         # aliked_lightglue_module(nmax_keypoints=8000),
         # disk_lightglue_module(nmax_keypoints=8000),
