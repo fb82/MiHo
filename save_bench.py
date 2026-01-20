@@ -42,7 +42,7 @@ def csv_write(lines, save_to='nameless.csv'):
             f.write(l)   
 
 
-def csv_merger(csv_list, extra_columns=0):
+def csv_merger(csv_list, extra_columns=0, csv_aux_list=None):
 
     if extra_columns == 0:
         avg_idx = [[ 3,  6, 'F_AUC@avg_a',  0], # MegaDepth
@@ -87,7 +87,7 @@ def csv_merger(csv_list, extra_columns=0):
                    ]   
         
     csv_data = []
-    for csv_file in csv_list:
+    for k, csv_file in enumerate(csv_list):
         aux = [csv_line.split(';') for csv_line in open(csv_file, 'r').read().splitlines()]
         to_fuse = max([idx for idx, el in enumerate([s.startswith('pipe_module') for s in aux[0]]) if el == True]) + 1
 
@@ -100,6 +100,19 @@ def csv_merger(csv_list, extra_columns=0):
             tmp[what] = row[to_fuse:]
 
         csv_data.append(tmp)
+
+    if not (csv_aux_list is None): 
+        for k, csv_file in enumerate(csv_aux_list):
+            aux = [csv_line.split(';') for csv_line in open(csv_file, 'r').read().splitlines()]
+            to_fuse = max([idx for idx, el in enumerate([s.startswith('pipe_module') for s in aux[0]]) if el == True]) + 1
+            
+            tmp = {}
+            for row in aux[1:]:
+                if 'keypt2subpx' in row[0]:
+                    row[0] = row[0].replace('keypt2subpx_', '') + ';keypt2subpx'
+
+                what = ';'.join(row[:to_fuse]).replace('_outdoor_true','').replace('_outdoor_false','').replace('_fundamental_matrix','').replace('_homography','')
+                csv_data[k][what] = row[to_fuse:]
     
     pipe_set = {}
     for k in csv_data:
@@ -909,8 +922,10 @@ if __name__ == '__main__':
       # # [               'LoFTR (DIM)', loftr_module(nmax_keypoints=8000)],  
         ]
 
-    pipe_head_aux = ['SuperPoint+LightGlue', pipe_base.keypt2subpx_module(num_features=8000, upright=True, what='superpoint')]
-    
+  # # Keypt2Subpx loading is incompatible with other modules like DeMatch or ConvMatch, you have to deactivate them in order to run it
+  # pipe_head_aux = ['SuperPoint+LightGlue', pipe_base.keypt2subpx_module(num_features=8000, upright=True, what='superpoint')]
+    pipe_head_aux = ['none', None]
+
 ###
 
     pipe_renamed = []
@@ -946,6 +961,7 @@ if __name__ == '__main__':
     latex_table_full = None
     for ip in range(len(pipe_heads)):
         csv_list = []
+        csv_aux_list = []
         pipe_head = pipe_heads[ip][1]
 
         for b in benchmark_data.keys():
@@ -963,11 +979,11 @@ if __name__ == '__main__':
                 to_save_file_suffix ='_' + benchmark_data[b]['name']
     
                 if benchmark_data[b]['is_not_planar']:
-                    csv_list.append(to_save_file + 'fundamental_and_essential' + to_save_file_suffix + '.csv')
+                    csv_aux_list.append(to_save_file + 'fundamental_and_essential' + to_save_file_suffix + '.csv')
                 else:
-                    csv_list.append(to_save_file + 'homography' + to_save_file_suffix + '.csv')
-            
-        fused_csv, fused_csv_order = csv_merger(csv_list, extra_columns=1)
+                    csv_aux_list.append(to_save_file + 'homography' + to_save_file_suffix + '.csv')
+                        
+        fused_csv, fused_csv_order = csv_merger(csv_list, extra_columns=1, csv_aux_list=csv_aux_list)
         csv_write([';'.join(csv_row) + '\n' for csv_row in fused_csv], to_save_file.replace('_outdoor_true','').replace('_outdoor_false','')[:-1] + '.csv')
 
         if (ip % full_el == 0) and (ip != 0):

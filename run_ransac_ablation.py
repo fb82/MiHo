@@ -28,10 +28,10 @@ if __name__ == '__main__':
         pipe_base.lightglue_module(num_features=8000, upright=True, what='disk'),  
         pipe_base.loftr_module(num_features=8000, upright=True),        
         dedode2.dedode2_module(num_features=8000, upright=True),                
-        # superpoint_lightglue_module(nmax_keypoints=8000),
-        # aliked_lightglue_module(nmax_keypoints=8000),
-        # disk_lightglue_module(nmax_keypoints=8000),
-        # loftr_module(nmax_keypoints=8000),  
+      # superpoint_lightglue_module(nmax_keypoints=8000),
+      # aliked_lightglue_module(nmax_keypoints=8000),
+      # disk_lightglue_module(nmax_keypoints=8000),
+      # loftr_module(nmax_keypoints=8000),  
         ]
     
     pipe_ransacs = [
