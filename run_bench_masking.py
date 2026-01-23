@@ -105,28 +105,28 @@ if __name__ == '__main__':
 
         [
             pipe_head,
-            ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=[0.5, 1.0]),
+            ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5),
             pipe_ransac
         ],
 
         [
             pipe_head,
             miho_duplex.miho_module(),
-            ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=[0.5, 1.0]),
+            ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5),
             pipe_ransac
         ],
 
         [
             pipe_head,
             miho_unduplex.miho_module(),
-            ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=[0.5, 1.0]),          
+            ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5),          
             pipe_ransac
         ],
 
         [
             pipe_head,
             miho_unduplex.miho_module(half=True),
-            ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=[0.5, 1.0]),           
+            ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5),           
             pipe_ransac
         ],
 
@@ -187,7 +187,7 @@ if __name__ == '__main__':
             'megadepth': {'name': 'megadepth', 'Name': 'MegaDepth', 'setup': bench.megadepth_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.png', 'use_scale': True, 'also_metric': False},
             'scannet': {'name': 'scannet', 'Name': 'ScanNet', 'setup': bench.scannet_bench_setup, 'is_outdoor': False, 'is_not_planar': True, 'ext': '.png', 'use_scale': False, 'also_metric': False},
             'planar': {'name': 'planar', 'Name': 'Planar', 'setup': bench.planar_bench_setup, 'is_outdoor': True, 'is_not_planar': False, 'ext': '.png', 'use_scale': False, 'also_metric': False},
-            'imc_phototourism': {'name': 'imc_phototourism', 'Name': 'IMC PhotoTourism', 'setup': bench.imc_phototourism_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.jpg', 'use_scale': False, 'also_metric': True},
+#           'imc_phototourism': {'name': 'imc_phototourism', 'Name': 'IMC PhotoTourism', 'setup': bench.imc_phototourism_bench_setup, 'is_outdoor': True, 'is_not_planar': True, 'ext': '.jpg', 'use_scale': False, 'also_metric': True},
         }
     
     for b in benchmark_data.keys():

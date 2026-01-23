@@ -584,7 +584,7 @@ def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivat
 
 ###
 
-def norm_corr_masked(patch1, patch2, subpix=True, use_covariance=True, centered_derivative=True, search_gauss_mask=-1, covariance_gauss_mask=-1):     
+def norm_corr_dev(patch1, patch2, subpix=True, use_covariance=True, centered_derivative=True, search_gauss_mask=-1, covariance_gauss_mask=-1):     
     w = patch2.size()[1]
     ww = w * w
     n = patch1.size()[0]
@@ -936,7 +936,7 @@ class ncc_module:
         if not self.centered_derivative: aux = aux + '_not_centered_derivative'
 
         if self.search_gauss_mask != -1:
-            aux = aux + '_search_gauss_mask_' + str(self.search_gauss_mask0)
+            aux = aux + '_search_gauss_mask_' + str(self.search_gauss_mask)
 
         if self.covariance_gauss_mask != -1:
             aux = aux + '_covariance_gauss_mask_' + str(self.covariance_gauss_mask)
