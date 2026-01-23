@@ -18,7 +18,7 @@ if __name__ == '__main__':
         [
             pipe_head,
             miho_duplex.miho_module(),
-            ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=[0.5, 1.0], covariance_gauss_mask=0.5),
+            ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5, covariance_gauss_mask=0.5),
             pipe_ransac
         ],
                 

@@ -482,7 +482,7 @@ def refinement_miho_other(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_ba
         return pt1, pt2, Hs, idx, Hs_laf
 
 
-def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivative=True, **args):     
+def norm_corr_old(patch1, patch2, subpix=True, use_covariance=True, centered_derivative=True, **args):     
     w = patch2.size()[1]
     ww = w * w
     n = patch1.size()[0]
@@ -584,7 +584,7 @@ def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivat
 
 ###
 
-def norm_corr_dev(patch1, patch2, subpix=True, use_covariance=True, centered_derivative=True, search_gauss_mask=-1, covariance_gauss_mask=-1):     
+def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivative=True, search_gauss_mask=-1, covariance_gauss_mask=-1):     
     w = patch2.size()[1]
     ww = w * w
     n = patch1.size()[0]
@@ -595,7 +595,6 @@ def norm_corr_dev(patch1, patch2, subpix=True, use_covariance=True, centered_der
         s = search_gauss_mask* r
         ge = torch.exp(-((g / s) ** 2))
         gn = ge.unsqueeze(1) @ ge.unsqueeze(0)
-        gn = gn ** search_gauss_mask[1]
         gn = gn / gn.sum()
     else:
         gn = torch.full((w, w), 1.0 / ww)
@@ -609,17 +608,18 @@ def norm_corr_dev(patch1, patch2, subpix=True, use_covariance=True, centered_der
             dy = patch1[:, :-1, :-1] - patch1[:, 1:, :-1]    
                 
         r = dx.shape[1] / 2 - 0.5
-        aux = torch.arange(-r, r + 0.5, device=device).unsqueeze(0).repeat([dx.shape[1], 1])
-        disk = ((aux ** 2) + (aux.permute([1, 0]) ** 2) <= r ** 2).unsqueeze(0)
-
+        
         if covariance_gauss_mask > 0:
             g = torch.arange(-r, r+1, device=device)
             s = covariance_gauss_mask * r
             ge = torch.exp(-((g / s) ** 2))
-            gn = ge.unsqueeze(1) @ ge.unsqueeze(0)
-            gn = gn ** search_gauss_mask[1]
-            disk = disk * gn.unsqueeze(0)
-            disk = disk / disk.sum()
+            disk = ge.unsqueeze(1) @ ge.unsqueeze(0)
+            disk = disk.unsqueeze(0)
+        else:
+            aux = torch.arange(-r, r + 0.5, device=device).unsqueeze(0).repeat([dx.shape[1], 1])
+            disk = ((aux ** 2) + (aux.permute([1, 0]) ** 2) <= r ** 2).unsqueeze(0)        
+
+        disk = disk / disk.sum()
                     
         dx = dx * disk
         dy = dy * disk
@@ -650,17 +650,19 @@ def norm_corr_dev(patch1, patch2, subpix=True, use_covariance=True, centered_der
         xy = torch.stack((aux.flatten(), aux.permute([1, 0]).flatten()))    
         mask = (((di.unsqueeze(-1) * (v @ xy)) ** 2).sum(dim=1) <= r ** 2).reshape((v.shape[0], patch2.shape[1], patch2.shape[2]))    
 
-    weight = gn.repeat(n, 1, 1)
-    
-    m1 = torch.nn.functional.conv2d(patch1.unsqueeze(1), weight.unsqueeze(0), padding='valid', device=device).squeeze()
-    e1 = torch.nn.functional.conv2d(patch1.unsqueeze(1) ** 2, weight.unsqueeze(0), padding='valid', device=device).squeeze()
+#   weight = gn.repeat(n, 1, 1)
+    weight = gn.unsqueeze(0)
+ 
+   
+    m1 = torch.nn.functional.conv2d(patch1.unsqueeze(1), weight.unsqueeze(0), padding='valid', ).squeeze()
+    e1 = torch.nn.functional.conv2d(patch1.unsqueeze(1) ** 2, weight.unsqueeze(0), padding='valid').squeeze()
     s1 = e1 - m1 ** 2
        
     m2 = (patch2 * weight).sum(dim=[1, 2])
     e2 = (patch2 ** 2 * weight).sum(dim=[1, 2])    
     s2 = e2 - m2 ** 2
         
-    cc = torch.nn.functional.conv2d(patch1.unsqueeze(0), (patch2 * gn).unsqueeze(1), padding='valid', device=device).squeeze()
+    cc = torch.nn.functional.conv2d(patch1.unsqueeze(0), (patch2 * gn).unsqueeze(1), padding='valid').squeeze()
 
     nc = (cc - (m1 * m2.reshape(n, 1, 1))) / torch.sqrt(s1 * s2.reshape(n, 1, 1))   
     nc.flatten()[~torch.isfinite(nc.flatten())] = -torch.inf
