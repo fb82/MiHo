@@ -179,7 +179,7 @@ if __name__ == '__main__':
 
 ###
 
-    bench_path = '../bench_data'   
+    bench_path = '../bench_data'
     save_to = 'res'
     show_matches = False
     
