@@ -14,14 +14,7 @@ if __name__ == '__main__':
     pipe_ransac = lambda: None
     pipe_ransac.placeholder = 'ransac'
 
-    pipes = [
-        [
-            pipe_head,
-            miho_duplex.miho_module(),
-            ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5, covariance_gauss_mask=0.5),
-            pipe_ransac
-        ],
-                
+    pipes = [                
         [
             pipe_head,
             pipe_ransac

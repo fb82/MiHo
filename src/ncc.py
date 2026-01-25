@@ -588,8 +588,8 @@ def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivat
     w = patch2.size()[1]
     ww = w * w
     n = patch1.size()[0]
-    
-    if not (search_gauss_mask is None):
+        
+    if search_gauss_mask > 0:
         r = (w - 1) / 2    
         g = torch.arange(-r, r+1, device=device)
         s = search_gauss_mask* r
@@ -597,7 +597,7 @@ def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivat
         gn = ge.unsqueeze(1) @ ge.unsqueeze(0)
         gn = gn / gn.sum()
     else:
-        gn = torch.full((w, w), 1.0 / ww)
+        gn = torch.full((w, w), 1.0 / ww, device=device)
     
     if use_covariance:
         if centered_derivative:     
@@ -650,10 +650,8 @@ def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivat
         xy = torch.stack((aux.flatten(), aux.permute([1, 0]).flatten()))    
         mask = (((di.unsqueeze(-1) * (v @ xy)) ** 2).sum(dim=1) <= r ** 2).reshape((v.shape[0], patch2.shape[1], patch2.shape[2]))    
 
-#   weight = gn.repeat(n, 1, 1)
     weight = gn.unsqueeze(0)
  
-   
     m1 = torch.nn.functional.conv2d(patch1.unsqueeze(1), weight.unsqueeze(0), padding='valid', ).squeeze()
     e1 = torch.nn.functional.conv2d(patch1.unsqueeze(1) ** 2, weight.unsqueeze(0), padding='valid').squeeze()
     s1 = e1 - m1 ** 2
@@ -662,7 +660,7 @@ def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivat
     e2 = (patch2 ** 2 * weight).sum(dim=[1, 2])    
     s2 = e2 - m2 ** 2
         
-    cc = torch.nn.functional.conv2d(patch1.unsqueeze(0), (patch2 * gn).unsqueeze(1), padding='valid').squeeze()
+    cc = torch.nn.functional.conv2d(patch1.unsqueeze(0), (patch2 * gn.unsqueeze(0)).unsqueeze(1), groups=n, padding='valid').squeeze()
 
     nc = (cc - (m1 * m2.reshape(n, 1, 1))) / torch.sqrt(s1 * s2.reshape(n, 1, 1))   
     nc.flatten()[~torch.isfinite(nc.flatten())] = -torch.inf
