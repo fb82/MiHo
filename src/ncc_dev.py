@@ -5,8 +5,8 @@ from PIL import Image
 import scipy as sp
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = 'cpu'
 
 def laf2homo(kps):
     c = kps[:, :, 2]
@@ -122,7 +122,7 @@ def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right
     return pt1, pt2, Hs, val, T
 
 
-def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=['left', 'right'], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_', im1_disp=None, im2_disp=None, use_covariance=False, centered_derivative=True, search_gauss_mask=-1, covariance_gauss_mask=-1):    
+def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=['left', 'right'], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_', im1_disp=None, im2_disp=None, use_covariance=False, centered_derivative=True, search_gauss_mask=-1, covariance_gauss_mask=-1, center_fix=True):    
     l = Hs.size()[0] 
     
     if l==0:
@@ -215,6 +215,10 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
     T[:, 2] = -aux[:, 0]
     T[:, 5] = -aux[:, 1]
     T = T.reshape(l*2, 3, 3)
+
+
+    if center_fix:
+        go_center_fix(im1, im2, pt1, pt2, Hsu, w, centered_derivative=centered_derivative)
     
     if img_patches:
         if im1_disp is None: im1_disp=im1
@@ -261,6 +265,76 @@ def go_save_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_diff_', s
     both_patches[1] = patch2
 
     save_patch(both_patches, save_prefix=save_prefix, save_suffix='.png', stretch=stretch)
+
+
+def go_center_fix(im1, im2, pt1, pt2, Hs, w, b=1024, centered_derivative=True):        
+    # warning image must be grayscale and not rgb!
+
+    n = pt1.shape[0]
+    
+    for l in torch.arange(0, n, step=b):
+        r = min(l+b, n)
+        s = r - l
+            
+        pt1_, pt2_, _, Hi1, Hi2 = get_inverse(pt1[l:r], pt2[l:r], Hs[l:r]) 
+            
+        patch1 = patchify(im1, pt1_, Hi1, w)
+        patch2 = patchify(im2, pt2_, Hi2, w)
+            
+        if centered_derivative:     
+            dx1 = patch1[:, 1:-1, :-2] - patch1[:, 1:-1, 2:]
+            dy1 = patch1[:, :-2, 1:-1] - patch1[:, 2:, 1:-1]
+        else:
+            dx1 = patch1[:, :-1, :-1] - patch1[:, :-1, 1:]
+            dy1 = patch1[:, :-1, :-1] - patch1[:, 1:, :-1]    
+
+        if centered_derivative:     
+            dx2 = patch2[:, 1:-1, :-2] - patch2[:, 1:-1, 2:]
+            dy2 = patch2[:, :-2, 1:-1] - patch2[:, 2:, 1:-1]
+        else:
+            dx2 = patch2[:, :-1, :-1] - patch2[:, :-1, 1:]
+            dy2 = patch2[:, :-1, :-1] - patch2[:, 1:, :-1]    
+
+
+        rd = dx1.shape[1] / 2 - 0.5
+        aux = torch.arange(-rd, rd + 0.5, device=device).unsqueeze(0).repeat([dx1.shape[1], 1])
+        disk = ((aux ** 2) + (aux.permute([1, 0]) ** 2) <= rd ** 2).unsqueeze(0)
+        
+        dm1 = (dx1**2 + dy1**2) ** 0.5
+        dm2 = (dx2**2 + dy2**2) ** 0.5
+
+        dm1[~dm1.isfinite()] = -torch.inf
+        dm2[~dm2.isfinite()] = -torch.inf
+
+        mpool1= torch.nn.functional.max_pool2d(dm1, (3, 3), stride=1, padding=1)
+        mask1 = (mpool1 == dm1) & dm1.isfinite() 
+
+        mpool2= torch.nn.functional.max_pool2d(dm2, (3, 3), stride=1, padding=1)
+        mask2 = (mpool2 == dm2) & dm2.isfinite() 
+
+        hard_mask = mask1 & mask2 & (disk > 0)
+        hard_count = hard_mask.reshape(s, -1).sum(dim=1)
+        
+        dm1 = dm1 * disk
+        dm2 = dm2 * disk
+    
+        d_ok = dm1.isfinite() & dm2.isfinite() 
+        dm1[~d_ok] = torch.nan
+        dm2[~d_ok] = torch.nan
+
+        m1 = dm1.reshape(s, -1).nanmean(dim=1)
+        m2 = dm2.reshape(s, -1).nanmean(dim=1)
+
+        d_mm = (dm1 > m1.reshape(s, 1, 1)) & (dm2 > m2.reshape(s, 1, 1))
+        
+        dm1[~d_mm] = torch.nan
+        dm2[~d_mm] = torch.nan
+
+        dm = dm1 * dm2        
+        dm[~dm.isfinite()] = -torch.inf
+
+        mpool= torch.nn.functional.max_pool2d(dm, (3, 3), stride=1, padding=1)
+        mask = (mpool == dm) & dm.isfinite() 
 
 
 def go_save_list_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_list_diff_', remove_same=False, bar_idx=None, bar_width=2, stretch=False):        
@@ -635,12 +709,12 @@ def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivat
         mu[:, 1, 1] = (dy ** 2).sum(dim=[1, 2]) / d_sum
         mu[:, 0, 1] = (dx * dy).sum(dim=[1, 2]) / d_sum    
         mu[:, 1, 0] = mu[:, 0, 1]
-        
+
         mu_check = mu.reshape(patch1.shape[0], -1).isfinite().all(dim=1)
-        mu[~mu_check, 0, 0] = 1
-        mu[~mu_check, 1, 1] = 1
-        mu[~mu_check, 0, 1] = 0
-        mu[~mu_check, 1, 0] = 0
+        mu[mu_check, 0, 0] = 1
+        mu[mu_check, 1, 1] = 1
+        mu[mu_check, 0, 1] = 0
+        mu[mu_check, 1, 0] = 0
         
         d, v = torch.linalg.eigh(mu)
         dm , _ = d.max(dim=1)
