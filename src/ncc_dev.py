@@ -122,7 +122,7 @@ def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right
     return pt1, pt2, Hs, val, T
 
 
-def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=['left', 'right'], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_', im1_disp=None, im2_disp=None, use_covariance=False, centered_derivative=True, search_gauss_mask=-1, covariance_gauss_mask=-1, center_fix=True):    
+def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=['left', 'right'], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_', im1_disp=None, im2_disp=None, use_covariance=False, centered_derivative=True, search_gauss_mask=-1, covariance_gauss_mask=-1):    
     l = Hs.size()[0] 
     
     if l==0:
@@ -215,10 +215,6 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
     T[:, 2] = -aux[:, 0]
     T[:, 5] = -aux[:, 1]
     T = T.reshape(l*2, 3, 3)
-
-
-    if center_fix:
-        go_center_fix(im1, im2, pt1, pt2, Hsu, w, centered_derivative=centered_derivative)
     
     if img_patches:
         if im1_disp is None: im1_disp=im1
@@ -267,10 +263,11 @@ def go_save_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_diff_', s
     save_patch(both_patches, save_prefix=save_prefix, save_suffix='.png', stretch=stretch)
 
 
-def go_center_fix(im1, im2, pt1, pt2, Hs, w, b=1024, centered_derivative=True):        
+def go_center_fix(im1, im2, pt1, pt2, Hs, w, b=1024, centered_derivative=True, hdt=-1):        
     # warning image must be grayscale and not rgb!
 
     n = pt1.shape[0]
+    filtered = torch.zeros(n, device=device, dtype=torch.bool)
     
     for l in torch.arange(0, n, step=b):
         r = min(l+b, n)
@@ -315,26 +312,30 @@ def go_center_fix(im1, im2, pt1, pt2, Hs, w, b=1024, centered_derivative=True):
         hard_mask = mask1 & mask2 & (disk > 0)
         hard_count = hard_mask.reshape(s, -1).sum(dim=1)
         
-        dm1 = dm1 * disk
-        dm2 = dm2 * disk
-    
-        d_ok = dm1.isfinite() & dm2.isfinite() 
-        dm1[~d_ok] = torch.nan
-        dm2[~d_ok] = torch.nan
-
-        m1 = dm1.reshape(s, -1).nanmean(dim=1)
-        m2 = dm2.reshape(s, -1).nanmean(dim=1)
-
-        d_mm = (dm1 > m1.reshape(s, 1, 1)) & (dm2 > m2.reshape(s, 1, 1))
+        filtered[l:r] = hard_count > hdt
         
-        dm1[~d_mm] = torch.nan
-        dm2[~d_mm] = torch.nan
+        # dm1 = dm1 * disk
+        # dm2 = dm2 * disk
+    
+        # d_ok = dm1.isfinite() & dm2.isfinite() 
+        # dm1[~d_ok] = torch.nan
+        # dm2[~d_ok] = torch.nan
 
-        dm = dm1 * dm2        
-        dm[~dm.isfinite()] = -torch.inf
+        # m1 = dm1.reshape(s, -1).nanmean(dim=1)
+        # m2 = dm2.reshape(s, -1).nanmean(dim=1)
 
-        mpool= torch.nn.functional.max_pool2d(dm, (3, 3), stride=1, padding=1)
-        mask = (mpool == dm) & dm.isfinite() 
+        # d_mm = (dm1 > m1.reshape(s, 1, 1)) & (dm2 > m2.reshape(s, 1, 1))
+        
+        # dm1[~d_mm] = torch.nan
+        # dm2[~d_mm] = torch.nan
+
+        # dm = dm1 * dm2        
+        # dm[~dm.isfinite()] = -torch.inf
+
+        # mpool= torch.nn.functional.max_pool2d(dm, (3, 3), stride=1, padding=1)
+        # mask = (mpool == dm) & dm.isfinite() 
+
+    return filtered
 
 
 def go_save_list_diff_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_list_diff_', remove_same=False, bar_idx=None, bar_width=2, stretch=False):        
@@ -731,11 +732,34 @@ def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivat
         mask = (((di.unsqueeze(-1) * (v @ xy)) ** 2).sum(dim=1) <= r ** 2).reshape((v.shape[0], patch2.shape[1], patch2.shape[2]))    
 
     weight = gn.unsqueeze(0)
- 
+
+    # if centered_derivative:     
+    #     dx1 = patch1[:, 1:-1, :-2] - patch1[:, 1:-1, 2:]
+    #     dy1 = patch1[:, :-2, 1:-1] - patch1[:, 2:, 1:-1]
+
+    #     dx2 = patch2[:, 1:-1, :-2] - patch2[:, 1:-1, 2:]
+    #     dy2 = patch2[:, :-2, 1:-1] - patch2[:, 2:, 1:-1]
+
+    # else:
+    #     dx1 = patch1[:, :-1, :-1] - patch1[:, :-1, 1:]
+    #     dy1 = patch1[:, :-1, :-1] - patch1[:, 1:, :-1]        
+
+    #     dx2 = patch2[:, 1:-1, :-2] - patch2[:, 1:-1, 2:]
+    #     dy2 = patch2[:, :-2, 1:-1] - patch2[:, 2:, 1:-1]
+
+    # dm1 = (dx1 ** 2 + dy1 ** 2) ** 0.5
+    # dm2 = (dx2 ** 2 + dy2 ** 2) ** 0.5
+
+    # dm1 = torch.nn.functional.pad(dm1, (1, 1, 1, 1))
+    # dm2 = torch.nn.functional.pad(dm2, (1, 1, 1, 1))
+
+    # patch1 = dm1
+    # patch2 = dm2
+
     m1 = torch.nn.functional.conv2d(patch1.unsqueeze(1), weight.unsqueeze(0), padding='valid', ).squeeze()
     e1 = torch.nn.functional.conv2d(patch1.unsqueeze(1) ** 2, weight.unsqueeze(0), padding='valid').squeeze()
     s1 = e1 - m1 ** 2
-       
+           
     m2 = (patch2 * weight).sum(dim=[1, 2])
     e2 = (patch2 ** 2 * weight).sum(dim=[1, 2])    
     s2 = e2 - m2 ** 2
