@@ -793,7 +793,102 @@ def cluster_assign_base(Hdata, pt1, pt2, H1_pre, H2_pre, **dummy_args):
     return max_size_idx
 
 
+def cluster_iou(Hdata):
+    l = len(Hdata)
+    n = Hdata[0][-2].shape[0]
+    
+    aux = torch.zeros((n, l), dtype=torch.bool, device=device)
+    for i in range(l): aux[:, i] = Hdata[i][-2]
+
+    iou = torch.zeros((l, l), device=device)
+
+    for i in range(l):
+        iou[i,:] = (aux[:, i].reshape(-1, 1) & aux).sum(dim=0) / (aux[:, i].reshape(-1, 1) | aux).sum(dim=0)
+
+
+def fun_error(pt1, pt2, F):    
+    l1_ = F @ pt1
+    d1 = pt2.permute(1,0).unsqueeze(-2).bmm(l1_.permute(1,0).unsqueeze(-1)).squeeze().abs() / (l1_[:2]**2).sum(0).sqrt()
+    
+    l2_ = F.T @ pt2
+    d2 = pt1.permute(1,0).unsqueeze(-2).bmm(l2_.permute(1,0).unsqueeze(-1)).squeeze().abs() / (l2_[:2]**2).sum(0).sqrt()
+    
+    epi_max_err = torch.maximum(d1, d2)                               
+
+    return d1, d2, epi_max_err
+
+
+def fun_from_2hom(Hdata, pt1, pt2, err_th=15, svd_th=0.05):
+    l = len(Hdata)
+    n = pt1.shape[0]
+
+    if not((l>0) and (n>0)):
+        return torch.zeros((n, ), dtype=torch.bool, device=device)
+
+    pt1 = torch.vstack((pt1.T, torch.ones((1, n), device=device)))
+    pt2 = torch.vstack((pt2.T, torch.ones((1, n), device=device)))
+
+    err_mat = torch.full((l, l, n), torch.inf, device= device)
+
+    or_pts = torch.zeros(n, dtype=torch.bool, device=device)
+    for i in range(l):
+        or_pts = or_pts | Hdata[i][-2]
+    
+    for i in range(l):
+        for j in range(i+1, l):
+            mask = Hdata[i][-2] | Hdata[j][-2]
+            F, D = compute_fun_matrix(pt1[:, mask], pt2[:, mask])
+            
+            if D[-2] < svd_th:
+                continue
+                
+            d1, d2, epi_max_err = fun_error(pt1, pt2, F)                     
+            err_mat[i,j] = epi_max_err
+            
+    pt_check = ((err_mat < 15) & or_pts.reshape(1, 1, -1)).reshape(-1,n).sum(dim=0) > l
+            
+    return err_mat, pt_check
+
+
+def compute_fun_matrix(pts1, pts2):
+    T1 = data_normalize(pts1)
+    T2 = data_normalize(pts2)
+
+    npts1 = torch.matmul(T1, pts1)
+    npts2 = torch.matmul(T2, pts2)
+
+    l = npts1.shape[1]
+    A = torch.zeros((l, 9), dtype=torch.float32, device=device)
+    A[:, 0] = npts1[0, :] * npts2[0, :]
+    A[:, 1] = npts1[0, :] * npts2[1, :]
+    A[:, 2] = npts2[0, :]    
+    A[:, 3] = npts1[1, :] * npts2[0, :]
+    A[:, 4] = npts1[1, :] * npts2[1, :]
+    A[:, 5] = npts2[1, :]
+    A[:, 6] = npts1[0, :]
+    A[:, 7] = npts1[1, :]
+    A[:, 8] = 1
+
+    try:
+        _, D, V = torch.linalg.svd(A, full_matrices=True)
+        F = V[-1, :].reshape(3, 3)
+
+        U_, D_, V_ = torch.linalg.svd(F, full_matrices=True)
+        D_[-1] = 0
+        
+        F = T2.T @ U_ @ D_.diag() @ V_ @ T1
+    except:
+        F = None
+        D = torch.zeros(9, dtype=torch.float32)
+
+    return F, D
+
+
 def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **dummy_args):    
+
+    # debug from here!
+    fun_from_2hom(Hdata, pt1, pt2)
+
     l = len(Hdata)
     n = pt1.shape[0]
 

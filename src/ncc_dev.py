@@ -418,6 +418,22 @@ def go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_', stretch=Fal
     save_patch(patch2, save_prefix=save_prefix, save_suffix='_b.png', stretch=stretch)
 
 
+    dx1 = patch1[:, :, 1:-1, :-2] - patch1[:, :, 1:-1, 2:]
+    dy1 = patch1[:, :, :-2, 1:-1] - patch1[:, :, 2:, 1:-1]
+
+    dx2 = patch2[:, :, 1:-1, :-2] - patch2[:, :, 1:-1, 2:]
+    dy2 = patch2[:, :, :-2, 1:-1] - patch2[:, :, 2:, 1:-1]
+
+    dm1 = (dx1 ** 2 + dy1 ** 2) ** 0.5
+    dm2 = (dx2 ** 2 + dy2 ** 2) ** 0.5
+    
+    dm1 = torch.nn.functional.pad(dm1, (1, 1, 1, 1))
+    dm2 = torch.nn.functional.pad(dm2, (1, 1, 1, 1))
+    
+    save_patch(dm1, save_prefix='dm_' + save_prefix, save_suffix='_a.png', stretch=stretch)
+    save_patch(dm2, save_prefix='dm_' + save_prefix, save_suffix='_b.png', stretch=stretch)
+
+
 def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, img_patches=False, also_laf=False, im1_disp=None, im2_disp=None):
     l = pt1.shape[0]
     idx = torch.ones(l, dtype=torch.bool, device=device)
@@ -732,30 +748,7 @@ def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivat
         mask = (((di.unsqueeze(-1) * (v @ xy)) ** 2).sum(dim=1) <= r ** 2).reshape((v.shape[0], patch2.shape[1], patch2.shape[2]))    
 
     weight = gn.unsqueeze(0)
-
-    # if centered_derivative:     
-    #     dx1 = patch1[:, 1:-1, :-2] - patch1[:, 1:-1, 2:]
-    #     dy1 = patch1[:, :-2, 1:-1] - patch1[:, 2:, 1:-1]
-
-    #     dx2 = patch2[:, 1:-1, :-2] - patch2[:, 1:-1, 2:]
-    #     dy2 = patch2[:, :-2, 1:-1] - patch2[:, 2:, 1:-1]
-
-    # else:
-    #     dx1 = patch1[:, :-1, :-1] - patch1[:, :-1, 1:]
-    #     dy1 = patch1[:, :-1, :-1] - patch1[:, 1:, :-1]        
-
-    #     dx2 = patch2[:, 1:-1, :-2] - patch2[:, 1:-1, 2:]
-    #     dy2 = patch2[:, :-2, 1:-1] - patch2[:, 2:, 1:-1]
-
-    # dm1 = (dx1 ** 2 + dy1 ** 2) ** 0.5
-    # dm2 = (dx2 ** 2 + dy2 ** 2) ** 0.5
-
-    # dm1 = torch.nn.functional.pad(dm1, (1, 1, 1, 1))
-    # dm2 = torch.nn.functional.pad(dm2, (1, 1, 1, 1))
-
-    # patch1 = dm1
-    # patch2 = dm2
-
+    
     m1 = torch.nn.functional.conv2d(patch1.unsqueeze(1), weight.unsqueeze(0), padding='valid', ).squeeze()
     e1 = torch.nn.functional.conv2d(patch1.unsqueeze(1) ** 2, weight.unsqueeze(0), padding='valid').squeeze()
     s1 = e1 - m1 ** 2
