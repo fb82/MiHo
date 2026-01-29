@@ -805,6 +805,8 @@ def cluster_iou(Hdata):
     for i in range(l):
         iou[i,:] = (aux[:, i].reshape(-1, 1) & aux).sum(dim=0) / (aux[:, i].reshape(-1, 1) | aux).sum(dim=0)
 
+    return iou
+
 
 def fun_error(pt1, pt2, F):    
     l1_ = F @ pt1
@@ -818,8 +820,23 @@ def fun_error(pt1, pt2, F):
     return d1, d2, epi_max_err
 
 
-def fun_from_2hom(Hdata, pt1, pt2, err_th=15, svd_th=0.05):
+def fun_from_2hom(Hdata, pt1, pt2, ransac_middle_args={'th_in': 7, 'svd_th': 0.05}, min_plane_pts=8):
+    
+    if 'th_in' in ransac_middle_args:
+        th_in = ransac_middle_args['th_in']
+    else:
+        th_in = 7            
+
+    if 'svd_th' in ransac_middle_args:
+        svd_th = ransac_middle_args['svd_th']
+    else:
+        svd_th = 0.05            
+    
     l = len(Hdata)
+    
+    if l < 4:
+        return Hdata
+    
     n = pt1.shape[0]
 
     if not((l>0) and (n>0)):
@@ -845,9 +862,22 @@ def fun_from_2hom(Hdata, pt1, pt2, err_th=15, svd_th=0.05):
             d1, d2, epi_max_err = fun_error(pt1, pt2, F)                     
             err_mat[i,j] = epi_max_err
             
-    pt_check = ((err_mat < 15) & or_pts.reshape(1, 1, -1)).reshape(-1,n).sum(dim=0) > l
-            
-    return err_mat, pt_check
+    pt_check = ((err_mat < th_in) & or_pts.reshape(1, 1, -1)).reshape(-1, n).sum(dim=0) >= l
+    
+    if not pt_check.any():
+        return Hdata
+    
+    H_to_retain = [(pt_check & Hdata[i][-2]).sum().item() > min_plane_pts for i in range(l)]
+
+    if not any(H_to_retain):
+        return Hdata
+    
+    Hdata = [Hdata[i] for i, v in enumerate(H_to_retain) if v]
+    
+    for i in range(len(Hdata)):
+        Hdata[i][-2] = Hdata[i][-2] & pt_check 
+
+    return Hdata
 
 
 def compute_fun_matrix(pts1, pts2):
@@ -885,10 +915,6 @@ def compute_fun_matrix(pts1, pts2):
 
 
 def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **dummy_args):    
-
-    # debug from here!
-    fun_from_2hom(Hdata, pt1, pt2)
-
     l = len(Hdata)
     n = pt1.shape[0]
 
@@ -1010,7 +1036,7 @@ def cluster_assign_other(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15, **dumm
     return err_min_idx
 
 
-def show_fig(im1, im2, pt1, pt2, Hidx, tosave='miho_buffered_rot_pytorch_gpu.pdf', fig_dpi=300,
+def show_fig(im1, im2, pt1, pt2, Hidx, Hdata=None, tosave='miho_buffered_rot_pytorch_gpu.pdf', fig_dpi=300,
              colors = ['#FF1F5B', '#00CD6C', '#009ADE', '#FFC61E', '#F28522', '#AF58BA'],
              markers = ['o','^','s','p','h'], bad_marker = 'd', bad_color = '#000000',
              plot_opt = {'markersize': 2, 'markeredgewidth': 0.5,
@@ -1024,30 +1050,62 @@ def show_fig(im1, im2, pt1, pt2, Hidx, tosave='miho_buffered_rot_pytorch_gpu.pdf
     im12.paste(im1, (0, 0))
     im12.paste(im2, (im1.width, 0))
 
-    plt.figure()
-    plt.axis('off')
-    plt.imshow(im12)
+    if Hdata is None:
+        plt.figure()
+        plt.axis('off')
+        plt.imshow(im12)
+    
+        cn = len(colors)
+        mn = len(markers)
+    
+        for i, idx in enumerate(np.ndarray.tolist(np.unique(Hidx))):
+            mask = Hidx == idx
+            x = np.vstack((pt1[mask, 0], pt2[mask, 0]+im1.width))
+            y = np.vstack((pt1[mask, 1], pt2[mask, 1]))
+            if (idx == -1):
+                color = bad_color
+                marker = bad_marker
+                plot_opt['markerfacecolor'] = color
+            else:
+                color = colors[((i-1)%(cn*mn))%cn]
+                marker = markers[((i-1)%(cn*mn))//cn]
+                plot_opt['markerfacecolor'] = color
+            plt.plot(x, y, linestyle='', color=color, marker=marker, **plot_opt)
 
-    cn = len(colors)
-    mn = len(markers)
+        plt.savefig(tosave, dpi = fig_dpi, bbox_inches='tight')    
+    else:
+        cn = len(colors)
+        mn = len(markers)
+        
+        for i in range(len(Hdata)):        
+            plt.figure()
+            plt.axis('off')
+            plt.imshow(im12)
+        
+            mask = Hdata[i][-2]
 
-    for i, idx in enumerate(np.ndarray.tolist(np.unique(Hidx))):
-        mask = Hidx == idx
-        x = np.vstack((pt1[mask, 0], pt2[mask, 0]+im1.width))
-        y = np.vstack((pt1[mask, 1], pt2[mask, 1]))
-        if (idx == -1):
-            color = bad_color
-            marker = bad_marker
-            plot_opt['markerfacecolor'] = color
-        else:
+            mask_ = torch.zeros_like(mask, device=device)
+            for j in range(len(Hdata)):
+                if j == i: continue
+                mask_ = mask_ | Hdata[j][-2]
+
+            x = np.vstack((pt1[mask & ~mask_, 0], pt2[mask & ~mask_, 0]+im1.width))
+            y = np.vstack((pt1[mask & ~mask_, 1], pt2[mask & ~mask_, 1]))
             color = colors[((i-1)%(cn*mn))%cn]
             marker = markers[((i-1)%(cn*mn))//cn]
             plot_opt['markerfacecolor'] = color
-        plt.plot(x, y, linestyle='', color=color, marker=marker, **plot_opt)
+            plt.plot(x, y, linestyle='', color=color, marker=marker, **plot_opt)
 
-    plt.savefig(tosave, dpi = fig_dpi, bbox_inches='tight')
+            x = np.vstack((pt1[mask & mask_, 0], pt2[mask & mask_, 0]+im1.width))
+            y = np.vstack((pt1[mask & mask_, 1], pt2[mask & mask_, 1]))
+            color = colors[((i-1)%(cn*mn))%cn]
+            marker = bad_marker
+            plot_opt['markerfacecolor'] = color
+            plt.plot(x, y, linestyle='', color=color, marker=marker, **plot_opt)
 
+            plt.savefig(tosave[:-4] + '_' + '{:02d}'.format(i) + tosave[-4:], dpi = fig_dpi, bbox_inches='tight')
 
+        
 def go_assign(Hdata, pt1, pt2, H1_pre, H2_pre, method=cluster_assign, method_args={}):
     return method(Hdata, pt1, pt2, H1_pre, H2_pre, **method_args)
 
@@ -1169,13 +1227,16 @@ class miho:
                 'go_assign': go_assign_params,
                 'show_clustering': show_clustering_params}
 
-
-    def planar_clustering(self, pt1, pt2):
+    def planar_clustering(self, pt1, pt2, pairwise_filter=False):
         """run MiHo"""
         self.pt1 = pt1
         self.pt2 = pt2
 
         Hdata, H1_pre, H2_pre = get_avg_hom(self.pt1, self.pt2, **self.params['get_avg_hom'])
+
+        if pairwise_filter:
+            Hdata = fun_from_2hom(Hdata, pt1, pt2, **self.params['get_avg_hom'])            
+
         self.Hs = Hdata
         self.H1_pre = H1_pre
         self.H2_pre = H2_pre
@@ -1207,10 +1268,14 @@ class miho:
         return True
 
 
-    def show_clustering(self):
+    def show_clustering(self, all_clusters=False):
         """ show MiHo clutering"""
         if hasattr(self, 'Hs') and hasattr(self, 'img1'):
-            show_fig(self.img1, self.img2, self.pt1.cpu(), self.pt2.cpu(), self.Hidx.cpu(), **self.params['show_clustering'])
+
+            if not all_clusters:
+                show_fig(self.img1, self.img2, self.pt1.cpu(), self.pt2.cpu(), self.Hidx.cpu(), **self.params['show_clustering'])
+            else:
+                show_fig(self.img1, self.img2, self.pt1.cpu(), self.pt2.cpu(), self.Hidx.cpu(), Hdata=self.Hs, **self.params['show_clustering'])
         else:
             warnings.warn("planar_clustering must run before!!!")
 

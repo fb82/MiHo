@@ -110,7 +110,7 @@ if __name__ == '__main__':
     ### MiHo
     start = time.time()
     
-    mihoo.planar_clustering(pt1, pt2)
+    mihoo.planar_clustering(pt1, pt2, pairwise_filter=True)
 
     end = time.time()
     print("Elapsed = %s (MiHo clustering)" % (end - start))
@@ -142,3 +142,4 @@ if __name__ == '__main__':
     # display MiHo clusters, outliers are black diamonds    
     if not ncc_check:
         mihoo.show_clustering()
+        mihoo.show_clustering(all_clusters=True)
