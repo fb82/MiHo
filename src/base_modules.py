@@ -559,8 +559,8 @@ class loftr_module:
             kps1 = kps1_best
             kps2 = ((R @ (kps2_best.permute(1, 0) - (torch.tensor([[hw2_best[1]], [hw2_best[0]]], device=device) / 2) ).type(torch.double)) + (torch.tensor([[hw2_orig[1]], [hw2_orig[0]]], device=device) / 2).type(torch.double)).permute(1, 0)
 
-        kps1 = kps1.squeeze().detach().to(device).clone()
-        kps2 = kps2.squeeze().detach().to(device).clone()
+        kps1 = kps1.detach().to(device).clone()
+        kps2 = kps2.detach().to(device).clone()
 
         kps1[:, 0] = kps1[:, 0] * (hw1[1] / float(hw1_[1]))
         kps1[:, 1] = kps1[:, 1] * (hw1[0] / float(hw1_[0]))
