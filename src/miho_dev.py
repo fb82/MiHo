@@ -808,6 +808,21 @@ def cluster_iou(Hdata):
     return iou
 
 
+def cluster_sub(Hdata):
+    l = len(Hdata)
+    n = Hdata[0][-2].shape[0]
+    
+    aux = torch.zeros((n, l), dtype=torch.bool, device=device)
+    for i in range(l): aux[:, i] = Hdata[i][-2]
+
+    sub = torch.zeros((l, l), device=device)
+
+    for i in range(l):
+        sub[i,:] = aux[:,i].sum(dim=0) / (aux[:, i].reshape(-1, 1) | aux).sum(dim=0)
+
+    return sub
+
+
 def fun_error(pt1, pt2, F):    
     l1_ = F @ pt1
     d1 = pt2.permute(1,0).unsqueeze(-2).bmm(l1_.permute(1,0).unsqueeze(-1)).squeeze().abs() / (l1_[:2]**2).sum(0).sqrt()
@@ -820,13 +835,18 @@ def fun_error(pt1, pt2, F):
     return d1, d2, epi_max_err
 
 
-def fun_from_2hom(Hdata, pt1, pt2, ransac_middle_args={'th_in': 7, 'svd_th': 0.05}, min_plane_pts=8):
-    
-    if 'th_in' in ransac_middle_args:
-        th_in = ransac_middle_args['th_in']
-    else:
-        th_in = 7            
+def fun_from_2hom(Hdata, pt1, pt2, H1_pre=None, H2_pre=None, ransac_middle_args={'th_in': 7, 'svd_th': 0.05}, min_plane_pts=8):
 
+    if 'th_out' in ransac_middle_args:
+        th_out = ransac_middle_args['th_out']
+    else:
+        th_out = 15
+
+    # if 'th_in' in ransac_middle_args:
+    #     th_in = ransac_middle_args['th_in']
+    # else:
+    #     th_in = 7
+                
     if 'svd_th' in ransac_middle_args:
         svd_th = ransac_middle_args['svd_th']
     else:
@@ -845,38 +865,70 @@ def fun_from_2hom(Hdata, pt1, pt2, ransac_middle_args={'th_in': 7, 'svd_th': 0.0
     pt1 = torch.vstack((pt1.T, torch.ones((1, n), device=device)))
     pt2 = torch.vstack((pt2.T, torch.ones((1, n), device=device)))
 
+    pt1_ = torch.matmul(H1_pre, pt1)
+    pt1_ = pt1_ / pt1_[2]
+
+    pt2_ = torch.matmul(H2_pre, pt2)
+    pt2_ = pt2_ / pt2_[2]
+
+    ptm = (pt1_ + pt2_) / 2
+
+    H12 = torch.zeros((l*2, 3, 3), device=device)
+    sidx_par = torch.zeros((l, 4), device=device, dtype=torch.long)
+    inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
+
+    for i in range(l):
+        H12[i] = Hdata[i][0]
+        H12[i+l] = Hdata[i][1]
+        sidx_par[i] = Hdata[i][3]
+
+        inl_mask[:, i] = Hdata[i][2]
+
+    err = get_error_duplex(H12, pt1, pt2, ptm, sidx_par).permute(1,0) ** 0.5
+    err_ = err < th_out
+
     err_mat = torch.full((l, l, n), torch.inf, device= device)
 
     or_pts = torch.zeros(n, dtype=torch.bool, device=device)
     for i in range(l):
-        or_pts = or_pts | Hdata[i][-2]
+        or_pts = or_pts | (err_[:, i])
     
     for i in range(l):
         for j in range(i+1, l):
-            mask = Hdata[i][-2] | Hdata[j][-2]
+            mask = err_[:, i] | err_[:, j]
             F, D = compute_fun_matrix(pt1[:, mask], pt2[:, mask])
             
             if D[-2] < svd_th:
                 continue
                 
             d1, d2, epi_max_err = fun_error(pt1, pt2, F)                     
-            err_mat[i,j] = epi_max_err
+            err_mat[i, j] = epi_max_err
             
-    pt_check = ((err_mat < th_in) & or_pts.reshape(1, 1, -1)).reshape(-1, n).sum(dim=0) >= l
+            
+    only_in = torch.zeros(l, device=device)
+    for i in range(l):
+        only_in[i] = (err_[:,i] & ~(err_[:,:i].any(dim=1) | err_[:,i+1:].any(dim=1))).sum()  
+
+  # pt_check = ((err_mat < th_out) & or_pts.reshape(1, 1, -1)).reshape(-1, n).sum(dim=0) >= l            
+    pt_check = ((err_mat < th_out) & or_pts.reshape(1, 1, -1)).reshape(-1, n).sum(dim=0) >= (only_in / err_.sum(dim=0)).sum() 
     
     if not pt_check.any():
         return Hdata
     
-    H_to_retain = [(pt_check & Hdata[i][-2]).sum().item() > min_plane_pts for i in range(l)]
+    pt_count = (err_ & pt_check.unsqueeze(1)).sum(dim=0)        
+    H_to_retain = pt_count > min_plane_pts
 
-    if not any(H_to_retain):
+    print(f'Pairwise filter removed {(~H_to_retain).sum().item()} of {len(H_to_retain)} homographies')
+    print(pt_count)
+
+    if not H_to_retain.any():
         return Hdata
+    
+    for i in range(len(Hdata)):
+        Hdata[i][-2] = err[:, i] < th_out    
     
     Hdata = [Hdata[i] for i, v in enumerate(H_to_retain) if v]
     
-    for i in range(len(Hdata)):
-        Hdata[i][-2] = Hdata[i][-2] & pt_check 
-
     return Hdata
 
 
@@ -1235,7 +1287,7 @@ class miho:
         Hdata, H1_pre, H2_pre = get_avg_hom(self.pt1, self.pt2, **self.params['get_avg_hom'])
 
         if pairwise_filter:
-            Hdata = fun_from_2hom(Hdata, pt1, pt2, **self.params['get_avg_hom'])            
+            Hdata = fun_from_2hom(Hdata, self.pt1, self.pt2, H1_pre=H1_pre, H2_pre=H2_pre, **self.params['get_avg_hom'])            
 
         self.Hs = Hdata
         self.H1_pre = H1_pre
