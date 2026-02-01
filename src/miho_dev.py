@@ -842,10 +842,10 @@ def fun_from_2hom(Hdata, pt1, pt2, H1_pre=None, H2_pre=None, ransac_middle_args=
     else:
         th_out = 15
 
-    # if 'th_in' in ransac_middle_args:
-    #     th_in = ransac_middle_args['th_in']
-    # else:
-    #     th_in = 7
+    if 'th_in' in ransac_middle_args:
+        th_in = ransac_middle_args['th_in']
+    else:
+        th_in = 7
                 
     if 'svd_th' in ransac_middle_args:
         svd_th = ransac_middle_args['svd_th']
@@ -904,13 +904,22 @@ def fun_from_2hom(Hdata, pt1, pt2, H1_pre=None, H2_pre=None, ransac_middle_args=
             d1, d2, epi_max_err = fun_error(pt1, pt2, F)                     
             err_mat[i, j] = epi_max_err
             
+    iou = torch.zeros((l, l), device=device)
+
+    for i in range(l):
+        for j in range(i+1, l):
+            iou[i, j] = 1 - ((err_[:, i] & err_[:, j]).sum() / (err_[:, i] | err_[:, j]).sum())
+
+    reweight_factor = iou.sum() / (l * (l - 1) / 2) 
             
     only_in = torch.zeros(l, device=device)
     for i in range(l):
         only_in[i] = (err_[:,i] & ~(err_[:,:i].any(dim=1) | err_[:,i+1:].any(dim=1))).sum()  
 
   # pt_check = ((err_mat < th_out) & or_pts.reshape(1, 1, -1)).reshape(-1, n).sum(dim=0) >= l            
-    pt_check = ((err_mat < th_out) & or_pts.reshape(1, 1, -1)).reshape(-1, n).sum(dim=0) >= (only_in / err_.sum(dim=0)).sum() 
+  # pt_check = ((err_mat < th_out) & or_pts.reshape(1, 1, -1)).reshape(-1, n).sum(dim=0) >= (only_in / err_.sum(dim=0)).sum() 
+        
+    pt_check = ((err_mat < th_in) & or_pts.reshape(1, 1, -1)).reshape(-1, n).sum(dim=0) >= l * reweight_factor
     
     if not pt_check.any():
         return Hdata
@@ -919,7 +928,7 @@ def fun_from_2hom(Hdata, pt1, pt2, H1_pre=None, H2_pre=None, ransac_middle_args=
     H_to_retain = pt_count > min_plane_pts
 
     print(f'Pairwise filter removed {(~H_to_retain).sum().item()} of {len(H_to_retain)} homographies')
-    print(pt_count)
+  # print(pt_count)
 
     if not H_to_retain.any():
         return Hdata
