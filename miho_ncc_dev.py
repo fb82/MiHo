@@ -24,8 +24,8 @@ if __name__ == '__main__':
     else:
         from src import miho_other as miho
       
-    # img1 = '../bench_data/non_planar_dataset_and_gt/data/non_planar/bf0.png'
-    # img2 = '../bench_data/non_planar_dataset_and_gt/data/non_planar/bf1.png'
+    # img1 = '../bench_data/non_planar_dataset_and_gt/data/non_planar/valbonne0.png'
+    # img2 = '../bench_data/non_planar_dataset_and_gt/data/non_planar/valbonne1.png'
     img1 = 'data/demo/im1.png'
     img2 = 'data/demo/im2_rot.png'
     if load_matches: match_file = 'data/demo/matches_rot.mat'
@@ -112,7 +112,7 @@ if __name__ == '__main__':
     ### MiHo
     start = time.time()
     
-    mihoo.planar_clustering(pt1, pt2, pairwise_filter=True)
+    mihoo.planar_clustering(pt1, pt2, pairwise_filter=False)
 
     end = time.time()
     print("Elapsed = %s (MiHo clustering)" % (end - start))

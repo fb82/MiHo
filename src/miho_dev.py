@@ -862,6 +862,14 @@ def fun_from_2hom(Hdata, pt1, pt2, H1_pre=None, H2_pre=None, ransac_middle_args=
     if not((l>0) and (n>0)):
         return torch.zeros((n, ), dtype=torch.bool, device=device)
 
+    d1 = dist2(pt1)    
+    d1_idx = (d1 < th_out ** 2)
+    d1_idx.fill_diagonal_(False)
+
+    d2 = dist2(pt2)    
+    d2_idx = (d2 < th_out ** 2)
+    d2_idx.fill_diagonal_(False)
+
     pt1 = torch.vstack((pt1.T, torch.ones((1, n), device=device)))
     pt2 = torch.vstack((pt2.T, torch.ones((1, n), device=device)))
 
@@ -886,7 +894,21 @@ def fun_from_2hom(Hdata, pt1, pt2, H1_pre=None, H2_pre=None, ransac_middle_args=
 
     err = get_error_duplex(H12, pt1, pt2, ptm, sidx_par).permute(1,0) ** 0.5
     err_ = err < th_out
+    
+    inl = err_.sum(dim=1) > 0
+    d1_idx [~inl, :] = False
+    d1_idx [:, ~inl] = False
+    d2_idx [~inl, :] = False
+    d2_idx [:, ~inl] = False
 
+    di = (d1_idx & d2_idx).sum(dim=1)
+    du = (d1_idx | d2_idx).sum(dim=1)
+
+    diou = di / du
+    diou[du == 0] = 0
+    
+    err_[~diou] = torch.inf
+ 
     err_mat = torch.full((l, l, n), torch.inf, device= device)
 
     or_pts = torch.zeros(n, dtype=torch.bool, device=device)
@@ -941,6 +963,100 @@ def fun_from_2hom(Hdata, pt1, pt2, H1_pre=None, H2_pre=None, ransac_middle_args=
     return Hdata
 
 
+def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **dummy_args):    
+    l = len(Hdata)
+    n = pt1.shape[0]
+
+    if not((l>0) and (n>0)):
+        return torch.full((n, ), -1, dtype=torch.int, device=device)
+
+    d1 = dist2(pt1)    
+    d1_idx = (d1 < err_th ** 2)
+    d1_idx.fill_diagonal_(False)
+
+    d2 = dist2(pt2)    
+    d2_idx = (d2 < err_th ** 2)
+    d2_idx.fill_diagonal_(False)
+
+    pt1 = torch.vstack((pt1.T, torch.ones((1, n), device=device)))
+    pt2 = torch.vstack((pt2.T, torch.ones((1, n), device=device)))
+
+    pt1_ = torch.matmul(H1_pre, pt1)
+    pt1_ = pt1_ / pt1_[2]
+
+    pt2_ = torch.matmul(H2_pre, pt2)
+    pt2_ = pt2_ / pt2_[2]
+
+    ptm = (pt1_ + pt2_) / 2
+
+    # err = torch.zeros((n, l), device=device)
+    # inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
+    #
+    # for i in range(l):
+    #     H1 = Hdata[i][0]
+    #     H2 = Hdata[i][1]
+    #     sidx = Hdata[i][3]
+    #
+    #     inl_mask[:, i] = Hdata[i][2]
+    #
+    #     err[:, i] = torch.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
+
+    H12 = torch.zeros((l*2, 3, 3), device=device)
+    sidx_par = torch.zeros((l, 4), device=device, dtype=torch.long)
+    inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
+
+    for i in range(l):
+        H12[i] = Hdata[i][0]
+        H12[i+l] = Hdata[i][1]
+        sidx_par[i] = Hdata[i][3]
+
+        inl_mask[:, i] = Hdata[i][2]
+
+    err = get_error_duplex(H12, pt1, pt2, ptm, sidx_par).permute(1,0)
+    err_ = err < err_th ** 2
+    
+    inl = err_.sum(dim=1) > 0
+    d1_idx [~inl, :] = False
+    d1_idx [:, ~inl] = False
+    d2_idx [~inl, :] = False
+    d2_idx [:, ~inl] = False
+
+    di = (d1_idx & d2_idx).sum(dim=1)
+    du = (d1_idx | d2_idx).sum(dim=1)
+
+    diou = di / du
+    diou[du == 0] = 1
+    
+    vals = err
+    vals[~err_] = torch.inf
+    vals[diou == 0, :] = torch.inf
+
+  # h1 = d1_idx.to(torch.int) @ err_.to(torch.int)
+  # hc1 = (h1 > 0).sum(dim=1)    
+  # hp1 = h1 / hc1.unsqueeze(1)
+  # ht1 = (hp1 > (1 / (hc1 + 1)).unsqueeze(1)) | ((hc1 == 0).unsqueeze(1) & err_)
+
+  # h2 = d2_idx.to(torch.int) @ err_.to(torch.int)  
+  # hc2 = (h2 > 0).sum(dim=1)
+  # hp2 = h2 / hc2.unsqueeze(1)
+  # ht2 = (hp2 > (1 / (hc2 + 1)).unsqueeze(1)) | ((hc2 == 0).unsqueeze(1) & err_)
+
+  #   h = torch.minimum((d1_idx.to(torch.int) @ err_.to(torch.int)), (d2_idx.to(torch.int) @ err_.to(torch.int)))
+  #   hc = (h > 0).sum(dim=1)    
+  #   hp = h / hc.unsqueeze(1)
+  #   ht = (hp > (1 / (hc + 1)).unsqueeze(1)) | ((hc == 0).unsqueeze(1) & err_)
+
+  # # ht = ht1 & ht2
+
+  #   vals = ht.to(torch.float) * err
+  #   vals[~ht] = torch.inf
+
+    abs_err, abs_idx = torch.min(vals, dim=1)
+    abs_idx[abs_err >= err_th **2] = -1
+    
+    return abs_idx
+
+
 def compute_fun_matrix(pts1, pts2):
     T1 = data_normalize(pts1)
     T2 = data_normalize(pts2)
@@ -975,7 +1091,7 @@ def compute_fun_matrix(pts1, pts2):
     return F, D
 
 
-def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **dummy_args):    
+def cluster_assign_(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **dummy_args):    
     l = len(Hdata)
     n = pt1.shape[0]
 
