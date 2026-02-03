@@ -895,6 +895,18 @@ def fun_from_2hom(Hdata, pt1, pt2, H1_pre=None, H2_pre=None, ransac_middle_args=
     err = get_error_duplex(H12, pt1, pt2, ptm, sidx_par).permute(1,0) ** 0.5
     err_ = err < th_out
     
+
+    h1 = d1_idx.to(torch.int) @ err_.to(torch.int)
+    hc1 = (h1 > 0).sum(dim=1)    
+    hp1 = h1 / hc1.unsqueeze(1)
+    ht1 = (hp1 > (1 / (hc1 + 1)).unsqueeze(1)) | ((hc1 == 0).unsqueeze(1) & err_)
+
+    h2 = d2_idx.to(torch.int) @ err_.to(torch.int)  
+    hc2 = (h2 > 0).sum(dim=1)
+    hp2 = h2 / hc2.unsqueeze(1)
+    ht2 = (hp2 > (1 / (hc2 + 1)).unsqueeze(1)) | ((hc2 == 0).unsqueeze(1) & err_)
+
+
     inl = err_.sum(dim=1) > 0
     d1_idx [~inl, :] = False
     d1_idx [:, ~inl] = False
@@ -963,13 +975,7 @@ def fun_from_2hom(Hdata, pt1, pt2, H1_pre=None, H2_pre=None, ransac_middle_args=
     return Hdata
 
 
-def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **dummy_args):    
-    l = len(Hdata)
-    n = pt1.shape[0]
-
-    if not((l>0) and (n>0)):
-        return torch.full((n, ), -1, dtype=torch.int, device=device)
-
+def filters(err_, pt1, pt2, err_th=15, h_min_size=8, svd_th=0.05, th_in=7, **dummy_args):    
     d1 = dist2(pt1)    
     d1_idx = (d1 < err_th ** 2)
     d1_idx.fill_diagonal_(False)
@@ -977,6 +983,83 @@ def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **du
     d2 = dist2(pt2)    
     d2_idx = (d2 < err_th ** 2)
     d2_idx.fill_diagonal_(False)
+    
+    h1 = (d1_idx.to(torch.int) @ err_.to(torch.int)) * err_
+    h2 = (d2_idx.to(torch.int) @ err_.to(torch.int)) * err_
+    h12 = h1 + h2
+    h12c = ((h1 + h2) > 0).sum(dim=1)
+    h12p = h12 / h12.sum(dim=1).unsqueeze(1)
+    h12t = h12p > 1 / (h12c + 1).unsqueeze(1)
+    h12t[torch.argwhere(h12c == 0), :] = True
+    
+    check = h12t & err_
+    check[:, check.sum(dim=0) <= h_min_size] = False 
+
+    check_sum_old = err_.sum(dim=0)
+    check_sum = check.sum(dim=0)
+    print(check_sum)
+    
+    while not (torch.all(check_sum_old == check_sum)):
+        h1 = (d1_idx.to(torch.int) @ check.to(torch.int)) * check
+        h2 = (d2_idx.to(torch.int) @ check.to(torch.int)) * check
+        h12 = h1 + h2
+        h12c = ((h1 + h2) > 0).sum(dim=1)
+        h12p = h12 / h12.sum(dim=1).unsqueeze(1)
+        h12t = h12p > 1 / (h12c + 1).unsqueeze(1)
+        h12t[torch.argwhere(h12c == 0), :] = True
+
+        check_sum_old = check_sum
+        
+        check = h12t & check   
+        check[:, check.sum(dim=0) <= h_min_size] = False 
+        
+        check_sum = check.sum(dim=0)    
+        print(check_sum)
+
+    n = check.shape[0]
+    l = check.shape[1]
+
+    err_ = err_ & check
+
+    or_pts = torch.zeros(n, dtype=torch.bool, device=device)
+    for i in range(l):
+        or_pts = or_pts | (err_[:, i])
+
+    err_mat = torch.full((l, l, n), torch.inf, device= device)    
+    for i in range(l):
+        for j in range(i+1, l):
+            mask = err_[:, i] | err_[:, j]
+            F, D = compute_fun_matrix(pt1.permute(1,0)[:, mask], pt2.permute(1,0)[:, mask])
+            
+            if D[-2] < svd_th:
+                continue
+                
+            d1, d2, epi_max_err = fun_error(pt1.permute(1,0), pt2.permute(1,0), F)                     
+            err_mat[i, j] = epi_max_err
+            
+    iou = torch.zeros((l, l), device=device)
+    for i in range(l):
+        for j in range(i+1, l):
+            iou[i, j] = 1 - ((err_[:, i] & err_[:, j]).sum() / (err_[:, i] | err_[:, j]).sum())
+
+    # reweight_factor = iou.sum() / (l * (l - 1) / 2) 
+            
+    only_in = torch.zeros(l, device=device)
+    for i in range(l):
+        only_in[i] = (err_[:,i] & ~(err_[:,:i].any(dim=1) | err_[:,i+1:].any(dim=1))).sum()  
+
+        
+    pt_check = ((err_mat < th_in) & or_pts.reshape(1, 1, -1)).reshape(-1, n).sum(dim=0) > 0 # >= l * reweight_factor
+    
+    return check & pt_check.unsqueeze(1)
+
+
+def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, h_min_size=8, **dummy_args):    
+    l = len(Hdata)
+    n = pt1.shape[0]
+
+    if not((l>0) and (n>0)):
+        return torch.full((n, ), -1, dtype=torch.int, device=device)
 
     pt1 = torch.vstack((pt1.T, torch.ones((1, n), device=device)))
     pt2 = torch.vstack((pt2.T, torch.ones((1, n), device=device)))
@@ -988,18 +1071,6 @@ def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **du
     pt2_ = pt2_ / pt2_[2]
 
     ptm = (pt1_ + pt2_) / 2
-
-    # err = torch.zeros((n, l), device=device)
-    # inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
-    #
-    # for i in range(l):
-    #     H1 = Hdata[i][0]
-    #     H2 = Hdata[i][1]
-    #     sidx = Hdata[i][3]
-    #
-    #     inl_mask[:, i] = Hdata[i][2]
-    #
-    #     err[:, i] = torch.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
 
     H12 = torch.zeros((l*2, 3, 3), device=device)
     sidx_par = torch.zeros((l, 4), device=device, dtype=torch.long)
@@ -1015,44 +1086,15 @@ def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **du
     err = get_error_duplex(H12, pt1, pt2, ptm, sidx_par).permute(1,0)
     err_ = err < err_th ** 2
     
-    inl = err_.sum(dim=1) > 0
-    d1_idx [~inl, :] = False
-    d1_idx [:, ~inl] = False
-    d2_idx [~inl, :] = False
-    d2_idx [:, ~inl] = False
-
-    di = (d1_idx & d2_idx).sum(dim=1)
-    du = (d1_idx | d2_idx).sum(dim=1)
-
-    diou = di / du
-    diou[du == 0] = 1
+    check = filters(err_, pt1.permute(1,0), pt2.permute(1,0), err_th, h_min_size) 
     
-    vals = err
-    vals[~err_] = torch.inf
-    vals[diou == 0, :] = torch.inf
+    print(((err < err_th ** 2) != check).sum())
 
-  # h1 = d1_idx.to(torch.int) @ err_.to(torch.int)
-  # hc1 = (h1 > 0).sum(dim=1)    
-  # hp1 = h1 / hc1.unsqueeze(1)
-  # ht1 = (hp1 > (1 / (hc1 + 1)).unsqueeze(1)) | ((hc1 == 0).unsqueeze(1) & err_)
-
-  # h2 = d2_idx.to(torch.int) @ err_.to(torch.int)  
-  # hc2 = (h2 > 0).sum(dim=1)
-  # hp2 = h2 / hc2.unsqueeze(1)
-  # ht2 = (hp2 > (1 / (hc2 + 1)).unsqueeze(1)) | ((hc2 == 0).unsqueeze(1) & err_)
-
-  #   h = torch.minimum((d1_idx.to(torch.int) @ err_.to(torch.int)), (d2_idx.to(torch.int) @ err_.to(torch.int)))
-  #   hc = (h > 0).sum(dim=1)    
-  #   hp = h / hc.unsqueeze(1)
-  #   ht = (hp > (1 / (hc + 1)).unsqueeze(1)) | ((hc == 0).unsqueeze(1) & err_)
-
-  # # ht = ht1 & ht2
-
-  #   vals = ht.to(torch.float) * err
-  #   vals[~ht] = torch.inf
+    vals = err    
+    vals[~check] = torch.inf
 
     abs_err, abs_idx = torch.min(vals, dim=1)
-    abs_idx[abs_err >= err_th **2] = -1
+    abs_idx[abs_err >= err_th ** 2] = -1
     
     return abs_idx
 
@@ -1091,7 +1133,7 @@ def compute_fun_matrix(pts1, pts2):
     return F, D
 
 
-def cluster_assign_(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **dummy_args):    
+def cluster_assign_previous(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **dummy_args):    
     l = len(Hdata)
     n = pt1.shape[0]
 
@@ -1109,18 +1151,6 @@ def cluster_assign_(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **d
 
     ptm = (pt1_ + pt2_) / 2
 
-    # err = torch.zeros((n, l), device=device)
-    # inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
-    #
-    # for i in range(l):
-    #     H1 = Hdata[i][0]
-    #     H2 = Hdata[i][1]
-    #     sidx = Hdata[i][3]
-    #
-    #     inl_mask[:, i] = Hdata[i][2]
-    #
-    #     err[:, i] = torch.maximum(get_error(pt1, ptm, H1, sidx), get_error(pt2, ptm, H2, sidx))
-
     H12 = torch.zeros((l*2, 3, 3), device=device)
     sidx_par = torch.zeros((l, 4), device=device, dtype=torch.long)
     inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
@@ -1132,7 +1162,7 @@ def cluster_assign_(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **d
 
         inl_mask[:, i] = Hdata[i][2]
 
-    err = get_error_duplex(H12, pt1, pt2, ptm, sidx_par).permute(1,0)
+    err = get_error_duplex(H12, pt1, pt2, ptm, sidx_par).permute(1,0)    
 
     # min error
     abs_err_min_val, abs_err_min_idx = torch.min(err, dim=1)
