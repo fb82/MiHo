@@ -6,13 +6,13 @@ import matplotlib.pyplot as plt
 import torch
 import torchvision.transforms as transforms
 import warnings
-from .ncc_dev import refinement_miho
+from .ncc import refinement_miho
 
 
 # cv2.ocl.setUseOpenCL(False)
 # matplotlib.use('tkagg')
-# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = 'cpu'
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = 'cpu'
 EPS_ = torch.finfo(torch.float32).eps
 sqrt2 = np.sqrt(2)
 
@@ -835,157 +835,21 @@ def fun_error(pt1, pt2, F):
     return d1, d2, epi_max_err
 
 
-def fun_from_2hom(Hdata, pt1, pt2, H1_pre=None, H2_pre=None, ransac_middle_args={'th_in': 7, 'svd_th': 0.05}, min_plane_pts=8):
+def filters(err_, pt1, pt2, howto=2, th_in=7, th_out=15, h_min_size=8, svd_th=0.05, **dummy_args):    
 
-    if 'th_out' in ransac_middle_args:
-        th_out = ransac_middle_args['th_out']
-    else:
-        th_out = 15
-
-    if 'th_in' in ransac_middle_args:
-        th_in = ransac_middle_args['th_in']
-    else:
-        th_in = 7
-                
-    if 'svd_th' in ransac_middle_args:
-        svd_th = ransac_middle_args['svd_th']
-    else:
-        svd_th = 0.05            
-    
-    l = len(Hdata)
-    
-    if l < 4:
-        return Hdata
-    
-    n = pt1.shape[0]
-
-    if not((l>0) and (n>0)):
-        return torch.zeros((n, ), dtype=torch.bool, device=device)
+    if howto == 0: return err_
 
     d1 = dist2(pt1)    
+    d2 = dist2(pt2)    
+
     d1_idx = (d1 < th_out ** 2)
     d1_idx.fill_diagonal_(False)
 
-    d2 = dist2(pt2)    
     d2_idx = (d2 < th_out ** 2)
     d2_idx.fill_diagonal_(False)
-
-    pt1 = torch.vstack((pt1.T, torch.ones((1, n), device=device)))
-    pt2 = torch.vstack((pt2.T, torch.ones((1, n), device=device)))
-
-    pt1_ = torch.matmul(H1_pre, pt1)
-    pt1_ = pt1_ / pt1_[2]
-
-    pt2_ = torch.matmul(H2_pre, pt2)
-    pt2_ = pt2_ / pt2_[2]
-
-    ptm = (pt1_ + pt2_) / 2
-
-    H12 = torch.zeros((l*2, 3, 3), device=device)
-    sidx_par = torch.zeros((l, 4), device=device, dtype=torch.long)
-    inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
-
-    for i in range(l):
-        H12[i] = Hdata[i][0]
-        H12[i+l] = Hdata[i][1]
-        sidx_par[i] = Hdata[i][3]
-
-        inl_mask[:, i] = Hdata[i][2]
-
-    err = get_error_duplex(H12, pt1, pt2, ptm, sidx_par).permute(1,0) ** 0.5
-    err_ = err < th_out
     
-
-    h1 = d1_idx.to(torch.int) @ err_.to(torch.int)
-    hc1 = (h1 > 0).sum(dim=1)    
-    hp1 = h1 / hc1.unsqueeze(1)
-    ht1 = (hp1 > (1 / (hc1 + 1)).unsqueeze(1)) | ((hc1 == 0).unsqueeze(1) & err_)
-
-    h2 = d2_idx.to(torch.int) @ err_.to(torch.int)  
-    hc2 = (h2 > 0).sum(dim=1)
-    hp2 = h2 / hc2.unsqueeze(1)
-    ht2 = (hp2 > (1 / (hc2 + 1)).unsqueeze(1)) | ((hc2 == 0).unsqueeze(1) & err_)
-
-
-    inl = err_.sum(dim=1) > 0
-    d1_idx [~inl, :] = False
-    d1_idx [:, ~inl] = False
-    d2_idx [~inl, :] = False
-    d2_idx [:, ~inl] = False
-
-    di = (d1_idx & d2_idx).sum(dim=1)
-    du = (d1_idx | d2_idx).sum(dim=1)
-
-    diou = di / du
-    diou[du == 0] = 0
-    
-    err_[~diou] = torch.inf
- 
-    err_mat = torch.full((l, l, n), torch.inf, device= device)
-
-    or_pts = torch.zeros(n, dtype=torch.bool, device=device)
-    for i in range(l):
-        or_pts = or_pts | (err_[:, i])
-    
-    for i in range(l):
-        for j in range(i+1, l):
-            mask = err_[:, i] | err_[:, j]
-            F, D = compute_fun_matrix(pt1[:, mask], pt2[:, mask])
-            
-            if D[-2] < svd_th:
-                continue
-                
-            d1, d2, epi_max_err = fun_error(pt1, pt2, F)                     
-            err_mat[i, j] = epi_max_err
-            
-    iou = torch.zeros((l, l), device=device)
-
-    for i in range(l):
-        for j in range(i+1, l):
-            iou[i, j] = 1 - ((err_[:, i] & err_[:, j]).sum() / (err_[:, i] | err_[:, j]).sum())
-
-    reweight_factor = iou.sum() / (l * (l - 1) / 2) 
-            
-    only_in = torch.zeros(l, device=device)
-    for i in range(l):
-        only_in[i] = (err_[:,i] & ~(err_[:,:i].any(dim=1) | err_[:,i+1:].any(dim=1))).sum()  
-
-  # pt_check = ((err_mat < th_out) & or_pts.reshape(1, 1, -1)).reshape(-1, n).sum(dim=0) >= l            
-  # pt_check = ((err_mat < th_out) & or_pts.reshape(1, 1, -1)).reshape(-1, n).sum(dim=0) >= (only_in / err_.sum(dim=0)).sum() 
-        
-    pt_check = ((err_mat < th_in) & or_pts.reshape(1, 1, -1)).reshape(-1, n).sum(dim=0) >= l * reweight_factor
-    
-    if not pt_check.any():
-        return Hdata
-    
-    pt_count = (err_ & pt_check.unsqueeze(1)).sum(dim=0)        
-    H_to_retain = pt_count > min_plane_pts
-
-    print(f'Pairwise filter removed {(~H_to_retain).sum().item()} of {len(H_to_retain)} homographies')
-  # print(pt_count)
-
-    if not H_to_retain.any():
-        return Hdata
-    
-    for i in range(len(Hdata)):
-        Hdata[i][-2] = err[:, i] < th_out    
-    
-    Hdata = [Hdata[i] for i, v in enumerate(H_to_retain) if v]
-    
-    return Hdata
-
-
-def filters(err_, pt1, pt2, err_th=15, h_min_size=8, svd_th=0.05, th_in=7, **dummy_args):    
-    d1 = dist2(pt1)    
-    d1_idx = (d1 < err_th ** 2)
-    d1_idx.fill_diagonal_(False)
-
-    d2 = dist2(pt2)    
-    d2_idx = (d2 < err_th ** 2)
-    d2_idx.fill_diagonal_(False)
-    
-    h1 = (d1_idx.to(torch.int) @ err_.to(torch.int)) * err_
-    h2 = (d2_idx.to(torch.int) @ err_.to(torch.int)) * err_
+    h1 = (d1_idx.to(torch.float) @ err_.to(torch.float)) * err_
+    h2 = (d2_idx.to(torch.float) @ err_.to(torch.float)) * err_
     h12 = h1 + h2
     h12c = ((h1 + h2) > 0).sum(dim=1)
     h12p = h12 / h12.sum(dim=1).unsqueeze(1)
@@ -997,11 +861,11 @@ def filters(err_, pt1, pt2, err_th=15, h_min_size=8, svd_th=0.05, th_in=7, **dum
 
     check_sum_old = err_.sum(dim=0)
     check_sum = check.sum(dim=0)
-    print(check_sum)
+    # print(check_sum)
     
     while not (torch.all(check_sum_old == check_sum)):
-        h1 = (d1_idx.to(torch.int) @ check.to(torch.int)) * check
-        h2 = (d2_idx.to(torch.int) @ check.to(torch.int)) * check
+        h1 = (d1_idx.to(torch.float) @ check.to(torch.float)) * check
+        h2 = (d2_idx.to(torch.float) @ check.to(torch.float)) * check
         h12 = h1 + h2
         h12c = ((h1 + h2) > 0).sum(dim=1)
         h12p = h12 / h12.sum(dim=1).unsqueeze(1)
@@ -1014,47 +878,43 @@ def filters(err_, pt1, pt2, err_th=15, h_min_size=8, svd_th=0.05, th_in=7, **dum
         check[:, check.sum(dim=0) <= h_min_size] = False 
         
         check_sum = check.sum(dim=0)    
-        print(check_sum)
+        # print(check_sum)
 
     n = check.shape[0]
     l = check.shape[1]
 
     err_ = err_ & check
 
+    if howto == 1: return err_
+    
+    if (err_.sum(dim=0) > 0).sum() < 3: return err_
+
     or_pts = torch.zeros(n, dtype=torch.bool, device=device)
     for i in range(l):
         or_pts = or_pts | (err_[:, i])
 
-    err_mat = torch.full((l, l, n), torch.inf, device= device)    
+    err_mat = torch.full((l, l, n), torch.inf, device= device)  
+    Dq = torch.zeros((l, l), device=device)
     for i in range(l):
         for j in range(i+1, l):
             mask = err_[:, i] | err_[:, j]
-            F, D = compute_fun_matrix(pt1.permute(1,0)[:, mask], pt2.permute(1,0)[:, mask])
             
-            if D[-2] < svd_th:
-                continue
-                
+            if ~mask.any(): continue
+            
+            F, D = compute_fun_matrix(pt1.permute(1,0)[:, mask], pt2.permute(1,0)[:, mask])
+
+            if D[-2] < svd_th: continue
+
+            Dq[i, j] = D[-2:].sum() / D.sum()                
             d1, d2, epi_max_err = fun_error(pt1.permute(1,0), pt2.permute(1,0), F)                     
             err_mat[i, j] = epi_max_err
-            
-    iou = torch.zeros((l, l), device=device)
-    for i in range(l):
-        for j in range(i+1, l):
-            iou[i, j] = 1 - ((err_[:, i] & err_[:, j]).sum() / (err_[:, i] | err_[:, j]).sum())
-
-    # reweight_factor = iou.sum() / (l * (l - 1) / 2) 
-            
-    only_in = torch.zeros(l, device=device)
-    for i in range(l):
-        only_in[i] = (err_[:,i] & ~(err_[:,:i].any(dim=1) | err_[:,i+1:].any(dim=1))).sum()  
-
+                    
+    pt_check = ((err_mat < th_in) & or_pts.reshape(1, 1, -1)).reshape(-1, n).sum(dim=0) > 0
         
-    pt_check = ((err_mat < th_in) & or_pts.reshape(1, 1, -1)).reshape(-1, n).sum(dim=0) > 0 # >= l * reweight_factor
-    
     return check & pt_check.unsqueeze(1)
 
 
-def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, h_min_size=8, **dummy_args):    
+def cluster_assign_new(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, h_min_size=8, **dummy_args):    
     l = len(Hdata)
     n = pt1.shape[0]
 
@@ -1088,15 +948,13 @@ def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, h_mi
     
     check = filters(err_, pt1.permute(1,0), pt2.permute(1,0), err_th, h_min_size) 
     
-    print(((err < err_th ** 2) != check).sum())
-
     vals = err    
     vals[~check] = torch.inf
 
     abs_err, abs_idx = torch.min(vals, dim=1)
     abs_idx[abs_err >= err_th ** 2] = -1
     
-    return abs_idx
+    return abs_idx, check
 
 
 def compute_fun_matrix(pts1, pts2):
@@ -1133,7 +991,7 @@ def compute_fun_matrix(pts1, pts2):
     return F, D
 
 
-def cluster_assign_previous(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **dummy_args):    
+def cluster_assign(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **dummy_args):    
     l = len(Hdata)
     n = pt1.shape[0]
 
@@ -1193,7 +1051,7 @@ def cluster_assign_previous(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th
     err_min_idx[alone_idx] = abs_err_min_idx[alone_idx]
     err_min_idx[really_alone_idx] = -1
 
-    return err_min_idx
+    return err_min_idx, None
 
 
 def cluster_assign_other(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15, **dummy_args):
@@ -1240,7 +1098,7 @@ def cluster_assign_other(Hdata, pt1, pt2, H1_pre, H2_pre, err_th_only=15, **dumm
 
     err_min_idx[(err_min_val > err_th_only**2) | torch.isnan(err_min_val)] = -1
 
-    return err_min_idx
+    return err_min_idx, None
 
 
 def show_fig(im1, im2, pt1, pt2, Hidx, Hdata=None, tosave='miho_buffered_rot_pytorch_gpu.pdf', fig_dpi=300,
@@ -1284,17 +1142,17 @@ def show_fig(im1, im2, pt1, pt2, Hidx, Hdata=None, tosave='miho_buffered_rot_pyt
         cn = len(colors)
         mn = len(markers)
         
-        for i in range(len(Hdata)):        
+        for i in range(Hdata.shape[1]):        
             plt.figure()
             plt.axis('off')
             plt.imshow(im12)
         
-            mask = Hdata[i][-2]
+            mask = Hdata[:, i]
 
             mask_ = torch.zeros_like(mask, device=device)
-            for j in range(len(Hdata)):
+            for j in range(Hdata.shape[1]):
                 if j == i: continue
-                mask_ = mask_ | Hdata[j][-2]
+                mask_ = mask_ | Hdata[:, j]
 
             x = np.vstack((pt1[mask & ~mask_, 0], pt2[mask & ~mask_, 0]+im1.width))
             y = np.vstack((pt1[mask & ~mask_, 1], pt2[mask & ~mask_, 1]))
@@ -1441,14 +1299,11 @@ class miho:
 
         Hdata, H1_pre, H2_pre = get_avg_hom(self.pt1, self.pt2, **self.params['get_avg_hom'])
 
-        if pairwise_filter:
-            Hdata = fun_from_2hom(Hdata, self.pt1, self.pt2, H1_pre=H1_pre, H2_pre=H2_pre, **self.params['get_avg_hom'])            
-
         self.Hs = Hdata
         self.H1_pre = H1_pre
         self.H2_pre = H2_pre
 
-        self.Hidx = go_assign(Hdata, self.pt1, self.pt2, H1_pre, H2_pre, **self.params['go_assign'])
+        self.Hidx, self.mask = go_assign(Hdata, self.pt1, self.pt2, H1_pre, H2_pre, **self.params['go_assign'])
 
         return self.Hs, self.Hidx
 
@@ -1482,7 +1337,7 @@ class miho:
             if not all_clusters:
                 show_fig(self.img1, self.img2, self.pt1.cpu(), self.pt2.cpu(), self.Hidx.cpu(), **self.params['show_clustering'])
             else:
-                show_fig(self.img1, self.img2, self.pt1.cpu(), self.pt2.cpu(), self.Hidx.cpu(), Hdata=self.Hs, **self.params['show_clustering'])
+                show_fig(self.img1, self.img2, self.pt1.cpu(), self.pt2.cpu(), self.Hidx.cpu(), Hdata=self.mask, **self.params['show_clustering'])
         else:
             warnings.warn("planar_clustering must run before!!!")
 
@@ -1504,6 +1359,12 @@ class miho_module:
             params['get_avg_hom']['ransac_middle_args']['check_reflection'] = self.check_reflection
             self.miho.update_params(params)        
         
+        if hasattr(self, 'assign_new'):
+            if self.assign_new:
+                params = self.miho.get_current()
+                params['go_assign']['method'] = cluster_assign_new
+                self.miho.update_params(params)        
+
         
     def get_id(self):
         if not hasattr(self, 'max_iter'):
@@ -1513,6 +1374,10 @@ class miho_module:
             
         if hasattr(self, 'check_reflection'):        
             aux = aux + '_check_reflection_' + str(self.check_reflection)
+
+        if hasattr(self, 'assign_new'):
+            if self.assign_new:
+                aux = aux + '_assign_new'
 
         return aux.lower()
 
