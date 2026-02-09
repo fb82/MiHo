@@ -22,7 +22,7 @@ from .ncc import refinement_laf
 from .lightglue_keypt2subpx import LightGlue as llg_lightglue, SuperPoint as llg_superpoint
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+# device = 'cpu'
 
 # from kornia moons
 def laf_from_opencv_kpts(kpts, mrSize=6.0, device=torch.device('cpu')):
