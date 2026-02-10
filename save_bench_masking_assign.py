@@ -172,7 +172,7 @@ def csv_merger(csv_list, extra_columns=0, csv_aux_list=None):
     return fused_csv, fused_csv_order
 
 
-def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=None, prev_latex_table=None, add_footer=True, caption_string=None, page_align='', remove_nan_column=False, resize_mode='width'):
+def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=None, prev_latex_table=None, add_footer=True, caption_string=None, page_align='', remove_nan_column=False, resize_mode='heigth'):
     header_type = 'nmmmmmmmmmmmssssssssssshhhhhhh'
     header_clr =  '-gbrtopvtopvgbrtopvtopvgbrtovp'
          
@@ -339,18 +339,22 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
                     v = '\\textcolor{' + color_rank + '}{\\contour{' + color_rank + '}{' + v + '}}'
 
             # text data in latex
-            v = v.replace('XNOP','\\textbf{MOP+VSAC}')                  
-            v = v.replace('XMOP+ZNiHo','\\textbf{MOP+MiHo$^\\dagger$}')                  
+            v = v.replace('XPOP','\\textbf{MOP$^\\star$+VSAC}')                  
+            v = v.replace('XOOP','\\textbf{MOP+VSAC}')                  
+            v = v.replace('WOOP+ZOiHo','\\textbf{MOP+MiHo$^\\dagger$}')                  
+            v = v.replace('WNOP+ZNiHo','\\textbf{MOP+MiHo$^\\star$}')                  
+            v = v.replace('WMOP+ZMiHo','\\textbf{MOP+MiHo}')                  
+            v = v.replace('XNOP','\\textbf{MOP$^\\star$}')                  
             v = v.replace('XMOP','\\textbf{MOP}')                  
-            v = v.replace('ZMiHo','\\textbf{MiHo}')                  
             v = v.replace('YNCC','\\textbf{NCC}')                  
             v = v.replace('YOCC','\\textbf{NCC$^\\star$}')                  
             v = v.replace('YPCC','\\textbf{NCC$^{\\star\\dagger}$}')                  
             v = v.replace('YQCC','\\textbf{NCC$^{\\star\\ddagger}$}')                  
+            v = v.replace('YRCC','\\textbf{NCC$^{\\star\\dagger\\ddagger}$}')                  
             v = v.replace('0MAGSAC^','MAGSAC$_\\uparrow$')                  
             v = v.replace('0MAGSACv','MAGSAC$_\\downarrow$') 
             v = v.replace('AffNet+HardNet','$\\scriptsize\\substack{\\text{AffNet}\\\\\\text{HardNet}}$') 
-                        
+
             clean_csv[i][j] = v
 
     # bar data
@@ -908,13 +912,17 @@ if __name__ == '__main__':
     pipes = [
         [     '0MAGSAC^', pipe_base.magsac_module(px_th=1.00)],
         [     '0MAGSACv', pipe_base.magsac_module(px_th=0.75)],
+        [         'YRCC', ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5, covariance_gauss_mask=0.5)],
         [         'YQCC', ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5)],
         [         'YPCC', ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5)],
         [         'YOCC', ncc.ncc_module(also_prev=True, use_covariance=True)],
         [         'YNCC', ncc.ncc_module(also_prev=True)],
-        [   'XMOP+ZNiHo', miho_duplex.miho_module(assign_new=True)],
-        [   'XMOP+ZMiHo', miho_duplex.miho_module()],
-        [         'XNOP', miho_unduplex.miho_module(half=True)],
+        [   'WOOP+ZOiHo', miho_duplex.miho_module(assign_new=True)],
+        [   'WNOP+ZNiHo', miho_duplex.miho_module(check_reflection=True)],
+        [   'WMOP+ZMiHo', miho_duplex.miho_module()],
+        [         'XPOP', miho_unduplex.miho_module(half=True, check_reflection=True)],
+        [         'XOOP', miho_unduplex.miho_module(half=True)],
+        [         'XNOP', miho_unduplex.miho_module(check_reflection=True)],
         [         'XMOP', miho_unduplex.miho_module()],
         [          'GMS', gms.gms_module()],
         [        'OANet', oanet.oanet_module()],

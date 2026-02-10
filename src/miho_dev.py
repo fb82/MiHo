@@ -11,8 +11,8 @@ from .ncc import refinement_miho
 
 # cv2.ocl.setUseOpenCL(False)
 # matplotlib.use('tkagg')
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# device = 'cpu'
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = 'cpu'
 EPS_ = torch.finfo(torch.float32).eps
 sqrt2 = np.sqrt(2)
 
@@ -836,6 +836,43 @@ def fun_error(pt1, pt2, F):
 
 
 def filters(err_, pt1, pt2, howto=2, th_in=7, th_out=15, h_min_size=8, svd_th=0.05, **dummy_args):    
+
+    if howto == 0: return err_
+
+    n = err_.shape[0]
+    l = err_.shape[1]
+    
+    if (err_.sum(dim=0) > 0).sum() < 3: return err_
+
+    or_pts = torch.zeros(n, dtype=torch.bool, device=device)
+    for i in range(l):
+        or_pts = or_pts | (err_[:, i])
+
+    err_mat = torch.full((l, l, n), torch.inf, device= device)  
+    Dq = torch.zeros((l, l), device=device)
+    Iq = torch.zeros((l, l), device=device)
+    for i in range(l):
+        for j in range(i+1, l):
+            mask = err_[:, i] | err_[:, j]
+            
+            if ~mask.any(): continue
+            
+            F, D = compute_fun_matrix(pt1.permute(1,0)[:, mask], pt2.permute(1,0)[:, mask])
+
+            if D[-2] < svd_th: continue
+
+            Dq[i, j] = D[-2:].sum() / D.sum()  
+            Iq[i, j] = mask.sum() / (err_.sum(dim=1) > 0).sum()              
+            d1, d2, epi_max_err = fun_error(pt1.permute(1,0), pt2.permute(1,0), F)                     
+            err_mat[i, j] = epi_max_err
+                    
+    pt_check = ((err_mat < th_in) & or_pts.reshape(1, 1, -1)).reshape(-1, n).sum(dim=0) > 0
+        
+    return err_ & pt_check.unsqueeze(1)
+
+
+
+def filters_bad(err_, pt1, pt2, howto=2, th_in=7, th_out=15, h_min_size=8, svd_th=0.05, **dummy_args):    
 
     if howto == 0: return err_
 

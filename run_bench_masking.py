@@ -15,142 +15,214 @@ if __name__ == '__main__':
     pipe_ransac.placeholder = 'ransac'
 
     pipes = [                
-        [
-            pipe_head,
-            pipe_ransac
-        ],
+        # [
+            # pipe_head,
+            # pipe_ransac
+        # ],
 
-        [
-            pipe_head,
-            ncc.ncc_module(also_prev=True),
-            pipe_ransac
-        ],
+        # [
+            # pipe_head,
+            # ncc.ncc_module(also_prev=True),
+            # pipe_ransac
+        # ],
 
-        [
-            pipe_head,
-            miho_duplex.miho_module(),
-            pipe_ransac
-        ],
+        # [
+            # pipe_head,
+            # miho_duplex.miho_module(),
+            # pipe_ransac
+        # ],
 
-        [
-            pipe_head,
-            miho_duplex.miho_module(),
-            ncc.ncc_module(also_prev=True),
-            pipe_ransac
-        ],
+        # [
+            # pipe_head,
+            # miho_duplex.miho_module(),
+            # ncc.ncc_module(also_prev=True),
+            # pipe_ransac
+        # ],
 
-        [
-            pipe_head,
-            miho_unduplex.miho_module(),
-            pipe_ransac
-        ],
+        # [
+            # pipe_head,
+            # miho_unduplex.miho_module(),
+            # pipe_ransac
+        # ],
 
-        [
-            pipe_head,
-            miho_unduplex.miho_module(),
-            ncc.ncc_module(also_prev=True),            
-            pipe_ransac
-        ],
+        # [
+            # pipe_head,
+            # miho_unduplex.miho_module(),
+            # ncc.ncc_module(also_prev=True),            
+            # pipe_ransac
+        # ],
 
-        [
-            pipe_head,
-            miho_unduplex.miho_module(half=True),
-            pipe_ransac
-        ],
+        # [
+            # pipe_head,
+            # miho_unduplex.miho_module(half=True),
+            # pipe_ransac
+        # ],
 
-        [
-            pipe_head,
-            miho_unduplex.miho_module(half=True),
-            ncc.ncc_module(also_prev=True),            
-            pipe_ransac
-        ],
+        # [
+            # pipe_head,
+            # miho_unduplex.miho_module(half=True),
+            # ncc.ncc_module(also_prev=True),            
+            # pipe_ransac
+        # ],
 
-###
+# ###
 
-        [
-            pipe_head,
-            ncc.ncc_module(also_prev=True, use_covariance=True),
-            pipe_ransac
-        ],
+        # [
+            # pipe_head,
+            # ncc.ncc_module(also_prev=True, use_covariance=True),
+            # pipe_ransac
+        # ],
 
-        [
-            pipe_head,
-            miho_duplex.miho_module(),
-            ncc.ncc_module(also_prev=True, use_covariance=True),
-            pipe_ransac
-        ],
+        # [
+            # pipe_head,
+            # miho_duplex.miho_module(),
+            # ncc.ncc_module(also_prev=True, use_covariance=True),
+            # pipe_ransac
+        # ],
 
-        [
-            pipe_head,
-            miho_unduplex.miho_module(),
-            ncc.ncc_module(also_prev=True, use_covariance=True),          
-            pipe_ransac
-        ],
+        # [
+            # pipe_head,
+            # miho_unduplex.miho_module(),
+            # ncc.ncc_module(also_prev=True, use_covariance=True),          
+            # pipe_ransac
+        # ],
 
-        [
-            pipe_head,
-            miho_unduplex.miho_module(half=True),
-            ncc.ncc_module(also_prev=True, use_covariance=True),           
-            pipe_ransac
-        ],
+        # [
+            # pipe_head,
+            # miho_unduplex.miho_module(half=True),
+            # ncc.ncc_module(also_prev=True, use_covariance=True),           
+            # pipe_ransac
+        # ],
     
-###
+# ###
+
+        # [
+            # pipe_head,
+            # ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5),
+            # pipe_ransac
+        # ],
+
+        # [
+            # pipe_head,
+            # miho_duplex.miho_module(),
+            # ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5),
+            # pipe_ransac
+        # ],
+
+        # [
+            # pipe_head,
+            # miho_unduplex.miho_module(),
+            # ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5),          
+            # pipe_ransac
+        # ],
+
+        # [
+            # pipe_head,
+            # miho_unduplex.miho_module(half=True),
+            # ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5),           
+            # pipe_ransac
+        # ],
+
+# ###
+
+        # [
+            # pipe_head,
+            # ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5),
+            # pipe_ransac
+        # ],
+
+        # [
+            # pipe_head,
+            # miho_duplex.miho_module(),
+            # ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5),
+            # pipe_ransac
+        # ],
+
+        # [
+            # pipe_head,
+            # miho_unduplex.miho_module(),
+            # ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5),          
+            # pipe_ransac
+        # ],
+
+        # [
+            # pipe_head,
+            # miho_unduplex.miho_module(half=True),
+            # ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5),           
+            # pipe_ransac
+        # ],     
+        
+# ###
+
+        # [
+            # pipe_head,
+            # ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5),
+            # pipe_ransac
+        # ],
+
+        # [
+            # pipe_head,
+            # miho_duplex.miho_module(),
+            # ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5),
+            # pipe_ransac
+        # ],
+
+        # [
+            # pipe_head,
+            # miho_unduplex.miho_module(),
+            # ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5),          
+            # pipe_ransac
+        # ],
+
+        # [
+            # pipe_head,
+            # miho_unduplex.miho_module(half=True),
+            # ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5),           
+            # pipe_ransac
+        # ],           
+
+#
 
         [
             pipe_head,
-            ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5),
+            miho_duplex.miho_module(check_reflection=True),
+            ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5),
             pipe_ransac
         ],
 
         [
             pipe_head,
-            miho_duplex.miho_module(),
-            ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5),
+            miho_unduplex.miho_module(check_reflection=True),
+            ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5),          
             pipe_ransac
         ],
 
         [
             pipe_head,
-            miho_unduplex.miho_module(),
-            ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5),          
+            miho_unduplex.miho_module(half=True, check_reflection=True),
+            ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5),           
+            pipe_ransac
+        ],    
+        
+#
+ 
+        [
+            pipe_head,
+            miho_duplex.miho_module(check_reflection=True),
             pipe_ransac
         ],
 
         [
             pipe_head,
-            miho_unduplex.miho_module(half=True),
-            ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5),           
-            pipe_ransac
-        ],
-
-###
-
-        [
-            pipe_head,
-            ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5),
+            miho_unduplex.miho_module(check_reflection=True),
             pipe_ransac
         ],
 
         [
             pipe_head,
-            miho_duplex.miho_module(),
-            ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5),
+            miho_unduplex.miho_module(half=True, check_reflection=True),
             pipe_ransac
-        ],
-
-        [
-            pipe_head,
-            miho_unduplex.miho_module(),
-            ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5),          
-            pipe_ransac
-        ],
-
-        [
-            pipe_head,
-            miho_unduplex.miho_module(half=True),
-            ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5),           
-            pipe_ransac
-        ],        
+        ],           
     ]
 
     pipe_heads = [

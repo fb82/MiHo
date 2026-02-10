@@ -5,8 +5,8 @@ from PIL import Image
 import scipy as sp
 
 
-# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = 'cpu'
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = 'cpu'
 
 def laf2homo(kps):
     c = kps[:, :, 2]
@@ -152,6 +152,15 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
     T[:, 1, 0, 2] = -pt2_[:, 0]
     T[:, 1, 1, 2] = -pt2_[:, 1]
 
+    use_rgb = False
+
+    if (not (im1_disp is None) or (im2_disp is None)) and use_rgb:
+        pim1 = im1_disp
+        pim2 = im2_disp
+    else:
+        pim1 = im1
+        pim2 = im2
+        
     for i in torch.arange(a.shape[0]):
         for j in torch.arange(s.shape[0]):
             R = torch.eye(3, device=device)
@@ -167,8 +176,8 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
             _, _, Hiu, Hi1u, Hi2u = get_inverse(pt1, pt2, Ti @ S @ R @ T @ Hs)    
 
             if ('left' in ref_image) or ('both' in ref_image):
-                patch2 = patchify(im2, pt2_, Hi2, w_big)
-                patch1_small = patchify(im1, pt1_, Hi1u, w)
+                patch2 = patchify(pim2, pt2_, Hi2, w_big)
+                patch1_small = patchify(pim1, pt1_, Hi1u, w)
         
                 patch_offset0, patch_val0 = norm_corr(patch2, patch1_small, subpix=subpix, use_covariance=use_covariance, centered_derivative=centered_derivative, search_gauss_mask=search_gauss_mask, covariance_gauss_mask=covariance_gauss_mask)
 
@@ -178,8 +187,8 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
                 patch_t[mask, 0] = Hi1u[mask]                
         
             if ('right' in ref_image) or ('both' in ref_image):
-                patch1 = patchify(im1, pt1_, Hi1, w_big)
-                patch2_small = patchify(im2, pt2_, Hi2u, w)  
+                patch1 = patchify(pim1, pt1_, Hi1, w_big)
+                patch2_small = patchify(pim2, pt2_, Hi2u, w)  
                 
                 patch_offset1, patch_val1 = norm_corr(patch1, patch2_small, subpix=subpix, use_covariance=use_covariance, centered_derivative=centered_derivative, search_gauss_mask=search_gauss_mask, covariance_gauss_mask=covariance_gauss_mask)
                 
@@ -417,21 +426,20 @@ def go_save_patches(im1, im2, pt1, pt2, Hs, w, save_prefix='patch_', stretch=Fal
     save_patch(patch1, save_prefix=save_prefix, save_suffix='_a.png', stretch=stretch)
     save_patch(patch2, save_prefix=save_prefix, save_suffix='_b.png', stretch=stretch)
 
+    # dx1 = patch1[:, :, 1:-1, :-2] - patch1[:, :, 1:-1, 2:]
+    # dy1 = patch1[:, :, :-2, 1:-1] - patch1[:, :, 2:, 1:-1]
 
-    dx1 = patch1[:, :, 1:-1, :-2] - patch1[:, :, 1:-1, 2:]
-    dy1 = patch1[:, :, :-2, 1:-1] - patch1[:, :, 2:, 1:-1]
+    # dx2 = patch2[:, :, 1:-1, :-2] - patch2[:, :, 1:-1, 2:]
+    # dy2 = patch2[:, :, :-2, 1:-1] - patch2[:, :, 2:, 1:-1]
 
-    dx2 = patch2[:, :, 1:-1, :-2] - patch2[:, :, 1:-1, 2:]
-    dy2 = patch2[:, :, :-2, 1:-1] - patch2[:, :, 2:, 1:-1]
-
-    dm1 = (dx1 ** 2 + dy1 ** 2) ** 0.5
-    dm2 = (dx2 ** 2 + dy2 ** 2) ** 0.5
+    # dm1 = (dx1 ** 2 + dy1 ** 2) ** 0.5
+    # dm2 = (dx2 ** 2 + dy2 ** 2) ** 0.5
     
-    dm1 = torch.nn.functional.pad(dm1, (1, 1, 1, 1))
-    dm2 = torch.nn.functional.pad(dm2, (1, 1, 1, 1))
+    # dm1 = torch.nn.functional.pad(dm1, (1, 1, 1, 1))
+    # dm2 = torch.nn.functional.pad(dm2, (1, 1, 1, 1))
     
-    save_patch(dm1, save_prefix='dm_' + save_prefix, save_suffix='_a.png', stretch=stretch)
-    save_patch(dm2, save_prefix='dm_' + save_prefix, save_suffix='_b.png', stretch=stretch)
+    # save_patch(dm1, save_prefix='dm_' + save_prefix, save_suffix='_a.png', stretch=stretch)
+    # save_patch(dm2, save_prefix='dm_' + save_prefix, save_suffix='_b.png', stretch=stretch)
 
 
 def refinement_miho(im1, im2, pt1, pt2, mihoo=None, Hs_laf=None, remove_bad=True, w=15, img_patches=False, also_laf=False, im1_disp=None, im2_disp=None):
@@ -676,6 +684,23 @@ def norm_corr_old(patch1, patch2, subpix=True, use_covariance=True, centered_der
 ###
 
 def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivative=True, search_gauss_mask=-1, covariance_gauss_mask=-1):     
+
+    orig1_sz = patch1.shape
+    orig2_sz = patch2.shape
+    
+    scramble = True
+    
+    if len(orig1_sz) == 4:
+        if scramble:
+            patch1, patch1_sort_idx = patch1.sort(dim=0)
+            patch2, patch2_sort_idx = patch2.sort(dim=0)
+
+        isrgb = True
+        patch1 = patch1.permute(1, 0, 2, 3).reshape(-1, orig1_sz[-2],  orig1_sz[-1])
+        patch2 = patch2.permute(1, 0, 2, 3).reshape(-1, orig2_sz[-2],  orig2_sz[-1])
+    else:
+        isrgb = False
+
     w = patch2.size()[1]
     ww = w * w
     n = patch1.size()[0]
@@ -726,12 +751,12 @@ def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivat
         mu[:, 1, 1] = (dy ** 2).sum(dim=[1, 2]) / d_sum
         mu[:, 0, 1] = (dx * dy).sum(dim=[1, 2]) / d_sum    
         mu[:, 1, 0] = mu[:, 0, 1]
-
+        
         mu_check = mu.reshape(patch1.shape[0], -1).isfinite().all(dim=1)
-        mu[mu_check, 0, 0] = 1
-        mu[mu_check, 1, 1] = 1
-        mu[mu_check, 0, 1] = 0
-        mu[mu_check, 1, 0] = 0
+        mu[~mu_check, 0, 0] = 1
+        mu[~mu_check, 1, 1] = 1
+        mu[~mu_check, 0, 1] = 0
+        mu[~mu_check, 1, 0] = 0
         
         d, v = torch.linalg.eigh(mu)
         dm , _ = d.max(dim=1)
@@ -748,11 +773,11 @@ def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivat
         mask = (((di.unsqueeze(-1) * (v @ xy)) ** 2).sum(dim=1) <= r ** 2).reshape((v.shape[0], patch2.shape[1], patch2.shape[2]))    
 
     weight = gn.unsqueeze(0)
-    
+ 
     m1 = torch.nn.functional.conv2d(patch1.unsqueeze(1), weight.unsqueeze(0), padding='valid', ).squeeze()
     e1 = torch.nn.functional.conv2d(patch1.unsqueeze(1) ** 2, weight.unsqueeze(0), padding='valid').squeeze()
     s1 = e1 - m1 ** 2
-           
+       
     m2 = (patch2 * weight).sum(dim=[1, 2])
     e2 = (patch2 ** 2 * weight).sum(dim=[1, 2])    
     s2 = e2 - m2 ** 2
@@ -762,9 +787,16 @@ def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivat
     nc = (cc - (m1 * m2.reshape(n, 1, 1))) / torch.sqrt(s1 * s2.reshape(n, 1, 1))   
     nc.flatten()[~torch.isfinite(nc.flatten())] = -torch.inf
 
+    if isrgb:
+        nc = nc.reshape(orig2_sz[1], orig2_sz[0], orig2_sz[2], orig2_sz[3]).permute(1, 0, 2, 3).sum(dim=0)
+        n = n // 3
+        
     if use_covariance:
+        if isrgb:
+            mask = mask.reshape(orig2_sz[1], orig2_sz[0], orig2_sz[2], orig2_sz[3]).permute(1, 0, 2, 3).all(dim=0)
+            
         nc_ = torch.clone(nc)
-        nc_[~mask] = -torch.inf
+        nc_[~mask] = -torch.inf        
     else:
         nc_ = nc
 
@@ -796,7 +828,6 @@ def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivat
     offset[~torch.isfinite(idx[0])] = 0
 
     return offset, idx[0]
-
 
 ###
 
