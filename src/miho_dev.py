@@ -1268,6 +1268,182 @@ def merge_params(dict1, dict2):
     return dict1
 
 
+from shapely import Polygon
+
+def apply_homs(im1, im2, Hs):
+    for j in range(len(Hs)):
+        H1 = Hs[j][0]
+        H2 = Hs[j][1]
+            
+        b1 = torch.tensor([[0, 0, 1.], [0, im1.shape[1], 1.], [im1.shape[2], 0, 1.], [im1.shape[2], im1.shape[1], 1.]], device=device)
+        b2 = torch.tensor([[0, 0, 1.], [0, im2.shape[1], 1.], [im2.shape[2], 0, 1.], [im2.shape[2], im2.shape[1], 1.]], device=device)
+    
+        b1_ = H1 @ b1.T
+        b1_ = b1_ / b1_[-1, :].unsqueeze(0)    
+        
+        b2_ = H2 @ b2.T
+        b2_ = b2_ / b2_[-1, :].unsqueeze(0)    
+        
+        bm1 = b1_.T.min(dim=0)[0][:2].ceil()
+        bM1 = b1_.T.max(dim=0)[0][:2].floor()
+
+        bm2 = b2_.T.min(dim=0)[0][:2].ceil()
+        bM2 = b2_.T.max(dim=0)[0][:2].floor()
+        
+        q1 = Polygon([[bm1[0].item(), bm1[1].item()], [bm1[0].item(), bM1[1].item()], [bM1[0].item(), bM1[1].item()], [bM1[0].item(), bm1[1].item()], [bm1[0].item(), bm1[1].item()]])
+        q2 = Polygon([[bm2[0].item(), bm2[1].item()], [bm2[0].item(), bM2[1].item()], [bM2[0].item(), bM2[1].item()], [bM2[0].item(), bm2[1].item()], [bm2[0].item(), bm2[1].item()]])
+        
+        q12 = q1.intersection(q2)
+        x, y = q12.exterior.coords.xy
+        
+        b = torch.tensor([[np.min(x).item(), np.min(y).item()], [np.max(x).item(), np.max(y).item()]], device=device)
+
+        # q1 = torch.tensor([[bm1[0].item(), bm1[1].item(), 1], [bm1[0].item(), bM1[1].item(), 1], [bM1[0].item(), bM1[1].item(), 1], [bM1[0].item(), bm1[1].item(), 1]], device=device)
+        # q1_ = H2.inverse() @ q1.T
+        # q1_ = q1_ / q1_[-1, :].unsqueeze(0)
+
+        # qm1 = q1_.T.min(dim=0)[0][:2].ceil()
+        # qM1 = q1_.T.max(dim=0)[0][:2].floor()
+
+        # bb2 = torch.cat((torch.maximum(qm1, b2.min(dim=0)[0][:2]).unsqueeze(0), torch.minimum(qM1, b2.max(dim=0)[0][:2]).unsqueeze(0)), dim=0)
+
+        # q2 = torch.tensor([[bm2[0].item(), bm2[1].item(), 1], [bm2[0].item(), bM2[1].item(), 1], [bM2[0].item(), bM2[1].item(), 1], [bM2[0].item(), bm2[1].item(), 1]], device=device)
+        # q2_ = H1.inverse() @ q2.T
+        # q2_ = q2_ / q2_[-1, :].unsqueeze(0)    
+
+        # qm2 = q2_.T.min(dim=0)[0][:2].ceil()
+        # qM2 = q2_.T.max(dim=0)[0][:2].floor()
+
+        # bb1 = torch.cat((torch.maximum(b1.min(dim=0)[0][:2], qm2).unsqueeze(0), torch.minimum(b1.max(dim=0)[0][:2], qM2).unsqueeze(0)), dim=0)
+
+        # z1 = torch.tensor([[bb1[0, 0].item(), bb1[0, 1].item(), 1],
+        #                    [bb1[0, 0].item(), bb1[1, 1].item(), 1],
+        #                    [bb1[1, 0].item(), bb1[1, 1].item(), 1],
+        #                    [bb1[1, 0].item(), bb1[0, 1].item(), 1]], device=device)
+
+        # z2 = torch.tensor([[bb2[0, 0].item(), bb2[0, 1].item(), 1],
+        #                    [bb2[0, 0].item(), bb2[1, 1].item(), 1],
+        #                    [bb2[1, 0].item(), bb2[1, 1].item(), 1],
+        #                    [bb2[1, 0].item(), bb2[0, 1].item(), 1]], device=device)
+
+        # b1_ = H1 @ z1.T
+        # b1_ = b1_ / b1_[-1, :].unsqueeze(0)    
+        
+        # b2_ = H2 @ z2.T
+        # b2_ = b2_ / b2_[-1, :].unsqueeze(0)    
+        
+        # bm1 = b1_.T.min(dim=0)[0][:2].ceil()
+        # bM1 = b1_.T.max(dim=0)[0][:2].floor()
+
+        # bm2 = b2_.T.min(dim=0)[0][:2].ceil()
+        # bM2 = b2_.T.max(dim=0)[0][:2].floor()
+
+        if j == 6:
+            print('doh')
+    
+      # b = torch.cat((bm1.unsqueeze(0), bM1.unsqueeze(0), bm2.unsqueeze(0), bM2.unsqueeze(0)), dim=0).sort(dim=0)[0][[1, 2]]
+      # b = torch.cat((torch.maximum(bm1, bm2).unsqueeze(0), torch.minimum(bM1, bM2).unsqueeze(0)), dim=0)    
+    
+        offset = torch.cat((b[0], torch.ones(1, device=device)))
+        sz = b[1] - b[0]
+        
+        x = torch.arange(sz[0]).unsqueeze(0).repeat((int(sz[1].item()), 1))
+        y = torch.arange(sz[1]).unsqueeze(1).repeat((1, int(sz[0].item())))
+        
+        x_ = x + offset[0]
+        y_ = y + offset[1]
+        
+        c = torch.cat((x_.reshape(1, -1), y_.reshape(1, -1), torch.ones((1, torch.prod(sz).to(torch.int)), device=device)), dim=0)
+    
+        c_ = H1.inverse() @ c
+        c_ = c_[:2] / c_[-1, :].unsqueeze(0)    
+    
+        mask = (c_[0] >= 0) & (c_[0] < im1.shape[2] - 1) & (c_[1] >= 0) & (c_[1] < im1.shape[1] - 1)
+        c_[:, ~mask] = 0
+    
+        c_f = c_.floor()
+        
+        idx0 = (c_f[1] * im1.shape[2] + c_f[0]).to(torch.int) 
+        idx1 = ((c_f[1] + 1) * im1.shape[2] + c_f[0]).to(torch.int) 
+        idx2 = (c_f[1] * im1.shape[2] + c_f[0] + 1).to(torch.int) 
+        idx3 = ((c_f[1] + 1) * im1.shape[2] + c_f[0] + 1).to(torch.int) 
+        
+        w = c_ - c_f
+           
+        w0 = (1 - w[0]) * (1 - w[1])
+        w1 = (1 - w[0]) * w[1]
+        w2 = w[0] * (1 - w[1])
+        w3 = w[0] * w[1]
+    
+        img1 = torch.zeros((im1.shape[0], int(sz[1].item()), int(sz[0].item())), device=device)
+    
+        for i in range(img1.shape[0]):
+            v0 = im1[i].flatten()[idx0]
+            v1 = im1[i].flatten()[idx1]
+            v2 = im1[i].flatten()[idx2]
+            v3 = im1[i].flatten()[idx3]
+        
+            v = v0 * w0 + v1 * w1 + v2 * w2 + v3 * w3
+            v[~mask] = 0
+        
+            img1[i] = v.reshape(img1.shape[1:])
+    
+        img1_ = img1.to(torch.int).permute((1, 2, 0)).detach().to('cpu').numpy()
+        mask1_ = (mask.reshape(img1.shape[1:]) * 255).detach().to('cpu').numpy()
+        
+        pil_im1 = np.concatenate((img1_, np.expand_dims(mask1_, 2)), axis=2)
+        pil_im1 = pil_im1.astype(np.uint8)
+    
+        pil_im1 = Image.fromarray(pil_im1)
+        pil_im1.save(str(j) + 'im1.png')
+    
+###
+
+        c_ = H2.inverse() @ c
+        c_ = c_[:2] / c_[-1, :].unsqueeze(0)    
+    
+        mask = (c_[0] >= 0) & (c_[0] < im2.shape[2] - 1) & (c_[1] >= 0) & (c_[1] < im2.shape[1] - 1)
+        c_[:, ~mask] = 0
+    
+        c_f = c_.floor()
+        
+        idx0 = (c_f[1] * im2.shape[2] + c_f[0]).to(torch.int) 
+        idx1 = ((c_f[1] + 1) * im2.shape[2] + c_f[0]).to(torch.int) 
+        idx2 = (c_f[1] * im2.shape[2] + c_f[0] + 1).to(torch.int) 
+        idx3 = ((c_f[1] + 1) * im2.shape[2] + c_f[0] + 1).to(torch.int) 
+        
+        w = c_ - c_f
+           
+        w0 = (1 - w[0]) * (1 - w[1])
+        w1 = (1 - w[0]) * w[1]
+        w2 = w[0] * (1 - w[1])
+        w3 = w[0] * w[1]
+    
+        img2 = torch.zeros((im2.shape[0], int(sz[1].item()), int(sz[0].item())), device=device)
+    
+        for i in range(img1.shape[0]):
+            v0 = im2[i].flatten()[idx0]
+            v1 = im2[i].flatten()[idx1]
+            v2 = im2[i].flatten()[idx2]
+            v3 = im2[i].flatten()[idx3]
+        
+            v = v0 * w0 + v1 * w1 + v2 * w2 + v3 * w3
+            v[~mask] = 0
+        
+            img2[i] = v.reshape(img2.shape[1:])
+    
+        img2_ = img2.to(torch.int).permute((1, 2, 0)).detach().to('cpu').numpy()
+        mask2_ = (mask.reshape(img2.shape[1:]) * 255).detach().to('cpu').numpy()
+        
+        pil_im2 = np.concatenate((img2_, np.expand_dims(mask2_, 2)), axis=2)
+        pil_im2 = pil_im2.astype(np.uint8)
+    
+        pil_im2 = Image.fromarray(pil_im2)
+        pil_im2.save(str(j) + 'im2''.png')
+
+    return
+    
+
 class miho:
     def __init__(self, params=None):
         """initiate MiHo"""

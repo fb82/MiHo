@@ -2,12 +2,12 @@ from PIL import Image
 import time
 import torch
 import kornia as K
-from src import ncc_dev as ncc
+from src import ncc as ncc
 import scipy.io as sio
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# device = 'cpu'
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = 'cpu'
 
 if __name__ == '__main__':
     # demo code
@@ -20,12 +20,12 @@ if __name__ == '__main__':
     miho_vsac = False          # enable VSAC when unduplex MiHo is used - MOP+VSAC in the paper
 
     if miho_duplex:    
-        from src import miho as miho
+        from src import miho_dev as miho
     else:
         from src import miho_other as miho
       
-    img1 = '../bench_data/non_planar_dataset_and_gt/data/non_planar/dc0.png'
-    img2 = '../bench_data/non_planar_dataset_and_gt/data/non_planar/dc1.png'
+    img1 = '../bench_data/non_planar_dataset_and_gt/data/non_planar/kc0.jpg'
+    img2 = '../bench_data/non_planar_dataset_and_gt/data/non_planar/kc1.jpg'
     # img1 = 'data/demo/im1.png'
     # img2 = 'data/demo/im2_rot.png'
     if load_matches: match_file = 'data/demo/matches_rot.mat'
@@ -114,6 +114,8 @@ if __name__ == '__main__':
     
     mihoo.planar_clustering(pt1, pt2)
 
+    miho.apply_homs(mihoo.img1, mihoo.img2, mihoo.Hs)
+
     end = time.time()
     print("Elapsed = %s (MiHo clustering)" % (end - start))
 
@@ -123,23 +125,23 @@ if __name__ == '__main__':
     ### NCC / NCC+
     start = time.time()
 
-    if ncc_check:        
-    # offset kpt shift, for testing - LAF -> NCC | NCC+
-        pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, use_covariance=ncc_mask, search_gauss_mask=0.5)
-    else:     
-        if no_miho:
-        # LAF -> NCC | NCC+
-            pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, use_covariance=ncc_mask, search_gauss_mask=0.5)
-        else:
-        # LAF -> MiHo -> NCC | NCC+  
-            if miho_duplex:
-                pt1_, pt2_, Hs_miho, inliers = ncc.refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2) 
-            else:
-                pt1_, pt2_, Hs_miho, inliers = ncc.refinement_miho_other(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, patch_ref='right', img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, half=miho_vsac) 
-            pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, use_covariance=ncc_mask, search_gauss_mask=0.5)   
+    # if ncc_check:        
+    # # offset kpt shift, for testing - LAF -> NCC | NCC+
+    #     pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, use_covariance=ncc_mask, search_gauss_mask=0.5, use_rgb=False)
+    # else:     
+    #     if no_miho:
+    #     # LAF -> NCC | NCC+
+    #         pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1, pt2, Hs_laf, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, use_covariance=ncc_mask, search_gauss_mask=0.5, use_rgb=False)
+    #     else:
+    #     # LAF -> MiHo -> NCC | NCC+  
+    #         if miho_duplex:
+    #             pt1_, pt2_, Hs_miho, inliers = ncc.refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2) 
+    #         else:
+    #             pt1_, pt2_, Hs_miho, inliers = ncc.refinement_miho_other(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, patch_ref='right', img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, half=miho_vsac) 
+    #         pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, use_covariance=ncc_mask, search_gauss_mask=0.5, use_rgb=False)   
     
-    end = time.time()
-    print("Elapsed = %s (NCC refinement)" % (end - start))
+    # end = time.time()
+    # print("Elapsed = %s (NCC refinement)" % (end - start))
 
     # display MiHo clusters, outliers are black diamonds    
     if not ncc_check:

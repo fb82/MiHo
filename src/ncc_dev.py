@@ -122,7 +122,7 @@ def refinement_norm_corr(im1, im2, pt1, pt2, Hs, w=15, ref_image=['left', 'right
     return pt1, pt2, Hs, val, T
 
 
-def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=['left', 'right'], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_', im1_disp=None, im2_disp=None, use_covariance=False, centered_derivative=True, search_gauss_mask=-1, covariance_gauss_mask=-1):    
+def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref_image=['left', 'right'], angle=[0, ], scale=[[1, 1], ], subpix=True, img_patches=False,  save_prefix='ncc_alternate_patch_', im1_disp=None, im2_disp=None, use_covariance=False, centered_derivative=True, search_gauss_mask=-1, covariance_gauss_mask=-1, use_rgb=False):    
     l = Hs.size()[0] 
     
     if l==0:
@@ -152,9 +152,7 @@ def refinement_norm_corr_alternate(im1, im2, pt1, pt2, Hs, w=15, w_big=None, ref
     T[:, 1, 0, 2] = -pt2_[:, 0]
     T[:, 1, 1, 2] = -pt2_[:, 1]
 
-    use_rgb = False
-
-    if (not (im1_disp is None) or (im2_disp is None)) and use_rgb:
+    if (not ((im1_disp is None) or (im2_disp is None))) and use_rgb:
         pim1 = im1_disp
         pim2 = im2_disp
     else:
@@ -683,12 +681,12 @@ def norm_corr_old(patch1, patch2, subpix=True, use_covariance=True, centered_der
 
 ###
 
-def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivative=True, search_gauss_mask=-1, covariance_gauss_mask=-1):     
+def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivative=True, search_gauss_mask=-1, covariance_gauss_mask=-1, fix_device='cpu'):     
 
     orig1_sz = patch1.shape
     orig2_sz = patch2.shape
     
-    scramble = True
+    scramble = False
     
     if len(orig1_sz) == 4:
         if scramble:
@@ -758,7 +756,9 @@ def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivat
         mu[~mu_check, 0, 1] = 0
         mu[~mu_check, 1, 0] = 0
         
-        d, v = torch.linalg.eigh(mu)
+        d, v = torch.linalg.eigh(mu.to(fix_device))
+        d = d.to(device)
+        v = v.to(device)
         dm , _ = d.max(dim=1)
         di = d / dm.unsqueeze(-1)
         di = di ** 0.5
@@ -788,7 +788,7 @@ def norm_corr(patch1, patch2, subpix=True, use_covariance=True, centered_derivat
     nc.flatten()[~torch.isfinite(nc.flatten())] = -torch.inf
 
     if isrgb:
-        nc = nc.reshape(orig2_sz[1], orig2_sz[0], orig2_sz[2], orig2_sz[3]).permute(1, 0, 2, 3).sum(dim=0)
+        nc = nc.reshape(orig2_sz[1], orig2_sz[0], orig2_sz[2], orig2_sz[3]).permute(1, 0, 2, 3).prod(dim=0)
         n = n // 3
         
     if use_covariance:
@@ -1047,11 +1047,14 @@ class ncc_module:
         self.centered_derivative = True
         self.search_gauss_mask = -1
         self.covariance_gauss_mask = -1
+        self.use_rgb = False
         
         self.transform = transforms.Compose([
             transforms.Grayscale(),
             transforms.PILToTensor() 
             ]) 
+        
+        self.transform_none = transforms.PILToTensor() 
         
         for k, v in args.items():
            setattr(self, k, v)
@@ -1069,21 +1072,31 @@ class ncc_module:
         if self.covariance_gauss_mask != -1:
             aux = aux + '_covariance_gauss_mask_' + str(self.covariance_gauss_mask)
 
+        if self.use_rgb:
+            aux = aux + '_use_rgb'
+
         return aux
 
     
     def run(self, **args):
-        im1 = Image.open(args['im1'])
-        im2 = Image.open(args['im2'])
+        im1_ = Image.open(args['im1'])
+        im2_ = Image.open(args['im2'])
 
-        im1 = self.transform(im1).type(torch.float16).to(device)
-        im2 = self.transform(im2).type(torch.float16).to(device)        
+        im1 = self.transform(im1_).type(torch.float16).to(device)
+        im2 = self.transform(im2_).type(torch.float16).to(device)    
         
-        pt1, pt2, Hs_ncc, val, T = refinement_norm_corr_alternate(im1, im2, args['pt1'], args['pt2'], args['Hs'], w=self.w, w_big=self.w_big, ref_image=[self.ref_images], angle=self.angle, scale=self.scale, subpix=self.subpix, img_patches=False, use_covariance=self.use_covariance, centered_derivative=self.centered_derivative, search_gauss_mask=self.search_gauss_mask, covariance_gauss_mask=self.covariance_gauss_mask)   
+        if self.use_rgb:
+            im1_disp = self.transform_none(im1_).type(torch.float16).to(device)
+            im2_disp = self.transform_none(im2_).type(torch.float16).to(device)
+        else:
+            im1_disp = None
+            im2_disp = None
+        
+        pt1, pt2, Hs_ncc, val, T = refinement_norm_corr_alternate(im1, im2, args['pt1'], args['pt2'], args['Hs'], w=self.w, w_big=self.w_big, ref_image=[self.ref_images], angle=self.angle, scale=self.scale, subpix=self.subpix, img_patches=False, use_covariance=self.use_covariance, centered_derivative=self.centered_derivative, search_gauss_mask=self.search_gauss_mask, covariance_gauss_mask=self.covariance_gauss_mask, use_rgb=self.use_rgb, im1_disp=im1_disp, im2_disp=im2_disp)   
 
         laf_is_better = np.nan
         if self.also_prev and ('Hs_prev' in args.keys()) and (args['Hs'].size()[0] > 0):
-            pt1_, pt2_, Hs_ncc_, val_, T_ = refinement_norm_corr_alternate(im1, im2, args['pt1'], args['pt2'], args['Hs_prev'], w=self.w, w_big=self.w_big, ref_image=[self.ref_images], angle=[0, ], scale=[[1, 1], ], subpix=self.subpix, img_patches=False, use_covariance=self.use_covariance, centered_derivative=self.centered_derivative, search_gauss_mask=self.search_gauss_mask)   
+            pt1_, pt2_, Hs_ncc_, val_, T_ = refinement_norm_corr_alternate(im1, im2, args['pt1'], args['pt2'], args['Hs_prev'], w=self.w, w_big=self.w_big, ref_image=[self.ref_images], angle=[0, ], scale=[[1, 1], ], subpix=self.subpix, img_patches=False, use_covariance=self.use_covariance, centered_derivative=self.centered_derivative, search_gauss_mask=self.search_gauss_mask, use_rgb=self.use_rgb, im1_disp=im1_disp, im2_disp=im2_disp)   
             replace_idx = torch.argwhere((torch.cat((val.unsqueeze(0),val_.unsqueeze(0)), dim=0)).max(dim=0)[1] == 1)
             pt1[replace_idx] = pt1_[replace_idx]
             pt2[replace_idx] = pt2_[replace_idx]
