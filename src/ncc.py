@@ -5,8 +5,8 @@ from PIL import Image
 import scipy as sp
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# device = 'cpu'
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = 'cpu'
 
 def laf2homo(kps):
     c = kps[:, :, 2]

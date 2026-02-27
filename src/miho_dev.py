@@ -1268,94 +1268,82 @@ def merge_params(dict1, dict2):
     return dict1
 
 
-from shapely import Polygon
+from shapely import Polygon, MultiPoint, convex_hull
 
-def apply_homs(im1, im2, Hs):
+def apply_homs(im1, im2, pt1, pt2, Hs, gn=20, cf_max=2.0):
     for j in range(len(Hs)):
         H1 = Hs[j][0]
         H2 = Hs[j][1]
             
-        b1 = torch.tensor([[0, 0, 1.], [0, im1.shape[1], 1.], [im1.shape[2], 0, 1.], [im1.shape[2], im1.shape[1], 1.]], device=device)
-        b2 = torch.tensor([[0, 0, 1.], [0, im2.shape[1], 1.], [im2.shape[2], 0, 1.], [im2.shape[2], im2.shape[1], 1.]], device=device)
-    
-        b1_ = H1 @ b1.T
-        b1_ = b1_ / b1_[-1, :].unsqueeze(0)    
+        sz1 = im1.shape[-1:0:-1]
         
-        b2_ = H2 @ b2.T
-        b2_ = b2_ / b2_[-1, :].unsqueeze(0)    
+        nx1 = torch.linspace(0,sz1[0],gn)
+        ny1 = torch.linspace(0,sz1[1],gn)
         
-        bm1 = b1_.T.min(dim=0)[0][:2].ceil()
-        bM1 = b1_.T.max(dim=0)[0][:2].floor()
+        x1 = nx1.unsqueeze(0).repeat(ny1.shape[0], 1)
+        y1 = ny1.unsqueeze(1).repeat(1, nx1.shape[0])
+        
+        xy1 = torch.concatenate((torch.stack((x1.flatten(), y1.flatten())), 
+                                 pt1[Hs[j][-2]].permute(1,0),
+                                 pt1[Hs[j][-1]].permute(1,0)), dim=1)        
+        xy1_ = torch.concatenate((xy1, torch.ones(1, xy1.shape[1])), dim=0)        
+        b1_ = H1 @ xy1_        
+        valid = b1_[2].sign() == b1_[2,-1].sign()
+        b1_ = b1_[:2, valid] / b1_[-1, valid].unsqueeze(0)   
 
-        bm2 = b2_.T.min(dim=0)[0][:2].ceil()
-        bM2 = b2_.T.max(dim=0)[0][:2].floor()
+        q1 = convex_hull(MultiPoint(b1_.T.detach().to('cpu').numpy()))
         
-        q1 = Polygon([[bm1[0].item(), bm1[1].item()], [bm1[0].item(), bM1[1].item()], [bM1[0].item(), bM1[1].item()], [bM1[0].item(), bm1[1].item()], [bm1[0].item(), bm1[1].item()]])
-        q2 = Polygon([[bm2[0].item(), bm2[1].item()], [bm2[0].item(), bM2[1].item()], [bM2[0].item(), bM2[1].item()], [bM2[0].item(), bm2[1].item()], [bm2[0].item(), bm2[1].item()]])
+        sz2 = im2.shape[-1:0:-1]
+        nx2 = torch.linspace(0,sz2[0],gn)
+        ny2 = torch.linspace(0,sz2[1],gn)
+        
+        x2 = nx2.unsqueeze(0).repeat(ny2.shape[0], 1)
+        y2 = ny2.unsqueeze(1).repeat(1, nx2.shape[0])
+        
+        xy2 = torch.concatenate((torch.stack((x2.flatten(), y2.flatten())), 
+                                 pt2[Hs[j][-2]].permute(1,0),
+                                 pt2[Hs[j][-1]].permute(1,0)), dim=1)        
+        xy2_ = torch.concatenate((xy2, torch.ones(1, xy2.shape[1])), dim=0)        
+        b2_ = H2 @ xy2_        
+        valid = b2_[2].sign() == b2_[2,-1].sign()
+        b2_ = b2_[:2, valid] / b2_[-1, valid].unsqueeze(0)   
+
+        q2 = convex_hull(MultiPoint(b2_.T.detach().to('cpu').numpy()))
         
         q12 = q1.intersection(q2)
         x, y = q12.exterior.coords.xy
         
-        b = torch.tensor([[np.min(x).item(), np.min(y).item()], [np.max(x).item(), np.max(y).item()]], device=device)
-
-        # q1 = torch.tensor([[bm1[0].item(), bm1[1].item(), 1], [bm1[0].item(), bM1[1].item(), 1], [bM1[0].item(), bM1[1].item(), 1], [bM1[0].item(), bm1[1].item(), 1]], device=device)
-        # q1_ = H2.inverse() @ q1.T
-        # q1_ = q1_ / q1_[-1, :].unsqueeze(0)
-
-        # qm1 = q1_.T.min(dim=0)[0][:2].ceil()
-        # qM1 = q1_.T.max(dim=0)[0][:2].floor()
-
-        # bb2 = torch.cat((torch.maximum(qm1, b2.min(dim=0)[0][:2]).unsqueeze(0), torch.minimum(qM1, b2.max(dim=0)[0][:2]).unsqueeze(0)), dim=0)
-
-        # q2 = torch.tensor([[bm2[0].item(), bm2[1].item(), 1], [bm2[0].item(), bM2[1].item(), 1], [bM2[0].item(), bM2[1].item(), 1], [bM2[0].item(), bm2[1].item(), 1]], device=device)
-        # q2_ = H1.inverse() @ q2.T
-        # q2_ = q2_ / q2_[-1, :].unsqueeze(0)    
-
-        # qm2 = q2_.T.min(dim=0)[0][:2].ceil()
-        # qM2 = q2_.T.max(dim=0)[0][:2].floor()
-
-        # bb1 = torch.cat((torch.maximum(b1.min(dim=0)[0][:2], qm2).unsqueeze(0), torch.minimum(b1.max(dim=0)[0][:2], qM2).unsqueeze(0)), dim=0)
-
-        # z1 = torch.tensor([[bb1[0, 0].item(), bb1[0, 1].item(), 1],
-        #                    [bb1[0, 0].item(), bb1[1, 1].item(), 1],
-        #                    [bb1[1, 0].item(), bb1[1, 1].item(), 1],
-        #                    [bb1[1, 0].item(), bb1[0, 1].item(), 1]], device=device)
-
-        # z2 = torch.tensor([[bb2[0, 0].item(), bb2[0, 1].item(), 1],
-        #                    [bb2[0, 0].item(), bb2[1, 1].item(), 1],
-        #                    [bb2[1, 0].item(), bb2[1, 1].item(), 1],
-        #                    [bb2[1, 0].item(), bb2[0, 1].item(), 1]], device=device)
-
-        # b1_ = H1 @ z1.T
-        # b1_ = b1_ / b1_[-1, :].unsqueeze(0)    
-        
-        # b2_ = H2 @ z2.T
-        # b2_ = b2_ / b2_[-1, :].unsqueeze(0)    
-        
-        # bm1 = b1_.T.min(dim=0)[0][:2].ceil()
-        # bM1 = b1_.T.max(dim=0)[0][:2].floor()
-
-        # bm2 = b2_.T.min(dim=0)[0][:2].ceil()
-        # bM2 = b2_.T.max(dim=0)[0][:2].floor()
-
-        if j == 6:
-            print('doh')
-    
-      # b = torch.cat((bm1.unsqueeze(0), bM1.unsqueeze(0), bm2.unsqueeze(0), bM2.unsqueeze(0)), dim=0).sort(dim=0)[0][[1, 2]]
-      # b = torch.cat((torch.maximum(bm1, bm2).unsqueeze(0), torch.minimum(bM1, bM2).unsqueeze(0)), dim=0)    
-    
+        b = torch.tensor([[np.min(x).item(), np.min(y).item()], [np.max(x).item(), np.max(y).item()]], device=device, dtype=torch.int)
+       
         offset = torch.cat((b[0], torch.ones(1, device=device)))
-        sz = b[1] - b[0]
+        sz = (b[1] - b[0]).type(torch.int)
+        
+        max_sz = max(max(sz1, sz2)) * cf_max
+        b_max = max(sz)
+        if b_max > max_sz:
+            scale_cf = b_max / max_sz
+            sz = (sz / scale_cf).type(torch.int)
+            print(j, scale_cf, max_sz, b_max)
+        else:
+            scale_cf = 1.0
+            
+        S = torch.eye(3, device=device)
+        S[0, 0] = scale_cf
+        S[1, 1] = scale_cf
         
         x = torch.arange(sz[0]).unsqueeze(0).repeat((int(sz[1].item()), 1))
         y = torch.arange(sz[1]).unsqueeze(1).repeat((1, int(sz[0].item())))
         
-        x_ = x + offset[0]
-        y_ = y + offset[1]
-        
+        T = torch.eye(3, device=device)
+        T[0, -1] = offset[0]
+        T[1, -1] = offset[1]
+
+        x_ = x # + offset[0]
+        y_ = y # + offset[1]
+                
         c = torch.cat((x_.reshape(1, -1), y_.reshape(1, -1), torch.ones((1, torch.prod(sz).to(torch.int)), device=device)), dim=0)
     
-        c_ = H1.inverse() @ c
+        c_ = H1.inverse() @ T @ S @ c
         c_ = c_[:2] / c_[-1, :].unsqueeze(0)    
     
         mask = (c_[0] >= 0) & (c_[0] < im1.shape[2] - 1) & (c_[1] >= 0) & (c_[1] < im1.shape[1] - 1)
@@ -1399,7 +1387,7 @@ def apply_homs(im1, im2, Hs):
     
 ###
 
-        c_ = H2.inverse() @ c
+        c_ = H2.inverse() @ T @ S @ c
         c_ = c_[:2] / c_[-1, :].unsqueeze(0)    
     
         mask = (c_[0] >= 0) & (c_[0] < im2.shape[2] - 1) & (c_[1] >= 0) & (c_[1] < im2.shape[1] - 1)
