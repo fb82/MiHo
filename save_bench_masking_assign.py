@@ -2,7 +2,7 @@ import os
 import src.base_modules as pipe_base
 import src.miho_dev as miho_duplex
 import src.miho_other as miho_unduplex
-import src.ncc as ncc
+import src.ncc_dev as ncc
 import src.GMS.gms_custom as gms
 import src.OANet.learnedmatcher_custom as oanet
 import src.ACNe.acne_custom as acne
@@ -351,6 +351,8 @@ def to_latex(csv_data, csv_order, renaming_list, header_hold=None, header_bar=No
             v = v.replace('YPCC','\\textbf{NCC$^{\\star\\dagger}$}')                  
             v = v.replace('YQCC','\\textbf{NCC$^{\\star\\ddagger}$}')                  
             v = v.replace('YRCC','\\textbf{NCC$^{\\star\\dagger\\ddagger}$}')                  
+            v = v.replace('YSCC','\\textbf{NCC$^{\\star\\ddagger\\ast}$}')                  
+            v = v.replace('YTCC','\\textbf{NCC$^{\\star\\dagger\\ddagger\\ast}$}')          
             v = v.replace('0MAGSAC^','MAGSAC$_\\uparrow$')                  
             v = v.replace('0MAGSACv','MAGSAC$_\\downarrow$') 
             v = v.replace('AffNet+HardNet','$\\scriptsize\\substack{\\text{AffNet}\\\\\\text{HardNet}}$') 
@@ -912,6 +914,8 @@ if __name__ == '__main__':
     pipes = [
         [     '0MAGSAC^', pipe_base.magsac_module(px_th=1.00)],
         [     '0MAGSACv', pipe_base.magsac_module(px_th=0.75)],
+        [         'YTCC', ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5, use_rgb=True)],          
+        [         'YSCC', ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5, use_rgb=True)],                  
         [         'YRCC', ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5, covariance_gauss_mask=0.5)],
         [         'YQCC', ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5)],
         [         'YPCC', ncc.ncc_module(also_prev=True, use_covariance=True, search_gauss_mask=0.5)],
