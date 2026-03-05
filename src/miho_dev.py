@@ -11,8 +11,8 @@ from .ncc import refinement_miho
 
 # cv2.ocl.setUseOpenCL(False)
 # matplotlib.use('tkagg')
-# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = 'cpu'
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = 'cpu'
 EPS_ = torch.finfo(torch.float32).eps
 sqrt2 = np.sqrt(2)
 
@@ -1268,6 +1268,32 @@ def merge_params(dict1, dict2):
     return dict1
 
 
+def grow_pts(im1, im2, pt1, pt2, Hs, kpts1, kpts2, kidxs, gn=20, cf_max=2.0, th=15):
+    for j in range(len(Hs)):
+        H1 = Hs[j][0]
+        H2 = Hs[j][1]
+
+        pt1_ = torch.concatenate((torch.concatenate((kpts1[0], pt1[Hs[j][-1]]), dim=0).permute(1, 0), torch.ones(1, kpts1[0].shape[0] + 4, device=device)), dim=0)
+        b1_ = H1 @ pt1_
+        valid1 = b1_[2].sign() == b1_[2, -1].sign()
+        valid1 = valid1[:-4]
+        b1_ = b1_[:2, :-4] / b1_[-1, :-4].unsqueeze(0) 
+
+        pt2_ = torch.concatenate((torch.concatenate((kpts2[0], pt2[Hs[j][-1]]), dim=0).permute(1, 0), torch.ones(1, kpts2[0].shape[0] + 4, device=device)), dim=0)
+        b2_ = H2 @ pt2_        
+        valid2 = b2_[2].sign() == b2_[2, -1].sign()
+        valid2 = valid2[:-4]
+        b2_ = b2_[:2, :-4] / b2_[-1, :-4].unsqueeze(0) 
+        
+        d = torch.cdist(b1_.permute(1, 0), b2_.permute(1, 0))        
+        d[~valid1, :] = torch.inf
+        d[:, ~valid2] = torch.inf
+        
+        c = d < th
+
+    return
+
+
 from shapely import Polygon, MultiPoint, convex_hull
 
 def apply_homs(im1, im2, pt1, pt2, Hs, gn=20, cf_max=2.0):
@@ -1277,8 +1303,8 @@ def apply_homs(im1, im2, pt1, pt2, Hs, gn=20, cf_max=2.0):
             
         sz1 = im1.shape[-1:0:-1]
         
-        nx1 = torch.linspace(0,sz1[0],gn)
-        ny1 = torch.linspace(0,sz1[1],gn)
+        nx1 = torch.linspace(0,sz1[0],gn, device=device)
+        ny1 = torch.linspace(0,sz1[1],gn, device=device)
         
         x1 = nx1.unsqueeze(0).repeat(ny1.shape[0], 1)
         y1 = ny1.unsqueeze(1).repeat(1, nx1.shape[0])
@@ -1286,7 +1312,7 @@ def apply_homs(im1, im2, pt1, pt2, Hs, gn=20, cf_max=2.0):
         xy1 = torch.concatenate((torch.stack((x1.flatten(), y1.flatten())), 
                                  pt1[Hs[j][-2]].permute(1,0),
                                  pt1[Hs[j][-1]].permute(1,0)), dim=1)        
-        xy1_ = torch.concatenate((xy1, torch.ones(1, xy1.shape[1])), dim=0)        
+        xy1_ = torch.concatenate((xy1, torch.ones(1, xy1.shape[1], device=device)), dim=0)        
         b1_ = H1 @ xy1_        
         valid = b1_[2].sign() == b1_[2,-1].sign()
         b1_ = b1_[:2, valid] / b1_[-1, valid].unsqueeze(0)   
@@ -1294,8 +1320,8 @@ def apply_homs(im1, im2, pt1, pt2, Hs, gn=20, cf_max=2.0):
         q1 = convex_hull(MultiPoint(b1_.T.detach().to('cpu').numpy()))
         
         sz2 = im2.shape[-1:0:-1]
-        nx2 = torch.linspace(0,sz2[0],gn)
-        ny2 = torch.linspace(0,sz2[1],gn)
+        nx2 = torch.linspace(0,sz2[0],gn, device=device)
+        ny2 = torch.linspace(0,sz2[1],gn, device=device)
         
         x2 = nx2.unsqueeze(0).repeat(ny2.shape[0], 1)
         y2 = ny2.unsqueeze(1).repeat(1, nx2.shape[0])
@@ -1303,7 +1329,7 @@ def apply_homs(im1, im2, pt1, pt2, Hs, gn=20, cf_max=2.0):
         xy2 = torch.concatenate((torch.stack((x2.flatten(), y2.flatten())), 
                                  pt2[Hs[j][-2]].permute(1,0),
                                  pt2[Hs[j][-1]].permute(1,0)), dim=1)        
-        xy2_ = torch.concatenate((xy2, torch.ones(1, xy2.shape[1])), dim=0)        
+        xy2_ = torch.concatenate((xy2, torch.ones(1, xy2.shape[1], device=device)), dim=0)        
         b2_ = H2 @ xy2_        
         valid = b2_[2].sign() == b2_[2,-1].sign()
         b2_ = b2_[:2, valid] / b2_[-1, valid].unsqueeze(0)   
@@ -1331,8 +1357,8 @@ def apply_homs(im1, im2, pt1, pt2, Hs, gn=20, cf_max=2.0):
         S[0, 0] = scale_cf
         S[1, 1] = scale_cf
         
-        x = torch.arange(sz[0]).unsqueeze(0).repeat((int(sz[1].item()), 1))
-        y = torch.arange(sz[1]).unsqueeze(1).repeat((1, int(sz[0].item())))
+        x = torch.arange(sz[0], device=device).unsqueeze(0).repeat((int(sz[1].item()), 1))
+        y = torch.arange(sz[1], device=device).unsqueeze(1).repeat((1, int(sz[0].item())))
         
         T = torch.eye(3, device=device)
         T[0, -1] = offset[0]

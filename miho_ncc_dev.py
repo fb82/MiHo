@@ -6,8 +6,8 @@ from src import ncc as ncc
 import scipy.io as sio
 
 
-# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = 'cpu'
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = 'cpu'
 
 if __name__ == '__main__':
     # demo code
@@ -24,8 +24,8 @@ if __name__ == '__main__':
     else:
         from src import miho_other as miho
       
-    img1 = '../bench_data/non_planar/kc0.jpg'
-    img2 = '../bench_data/non_planar/kc1.jpg'
+    img1 = '../bench_data/non_planar_dataset_and_gt/data/non_planar/valencia0.png'
+    img2 = '../bench_data/non_planar_dataset_and_gt/data/non_planar/valencia1.png'
     # img1 = 'data/demo/im1.png'
     # img2 = 'data/demo/im2_rot.png'
     if load_matches: match_file = 'data/demo/matches_rot.mat'
@@ -55,6 +55,10 @@ if __name__ == '__main__':
             kps1, _ , descs1 = detector(K.io.load_image(img1, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
             kps2, _ , descs2 = detector(K.io.load_image(img2, K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0))
             dists, idxs = K.feature.match_smnn(descs1.squeeze(), descs2.squeeze(), 0.99)        
+
+        kps1_ = ncc.laf2homo(kps1[0])
+        kps2_ = ncc.laf2homo(kps2[0])
+
         kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
         kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
     else:
@@ -115,6 +119,8 @@ if __name__ == '__main__':
     mihoo.planar_clustering(pt1, pt2)
 
     miho.apply_homs(mihoo.img1, mihoo.img2, mihoo.pt1, mihoo.pt2, mihoo.Hs)
+
+    miho.grow_pts(mihoo.img1, mihoo.img2, mihoo.pt1, mihoo.pt2, mihoo.Hs, kps1_, kps2_, idxs)
 
     end = time.time()
     print("Elapsed = %s (MiHo clustering)" % (end - start))
