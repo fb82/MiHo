@@ -1269,6 +1269,9 @@ def merge_params(dict1, dict2):
 
 
 def grow_pts(im1, im2, pt1, pt2, Hs, kpts1, kpts2, kidxs, gn=20, cf_max=2.0, th=15):
+    cc = torch.zeros((kpts1[0].shape[0], kpts2[0].shape[0]), device=device)
+    dd = torch.full((kpts1[0].shape[0], kpts2[0].shape[0]), torch.inf, device=device)
+
     for j in range(len(Hs)):
         H1 = Hs[j][0]
         H2 = Hs[j][1]
@@ -1291,20 +1294,23 @@ def grow_pts(im1, im2, pt1, pt2, Hs, kpts1, kpts2, kidxs, gn=20, cf_max=2.0, th=
         
         c = d < th
 
+        cc += c
+        dd = torch.minimum(dd, d)
+
     return
 
 
 from shapely import Polygon, MultiPoint, convex_hull
 
 def apply_homs(im1, im2, pt1, pt2, Hs, gn=20, cf_max=2.0):
-    for j in range(len(Hs)):
+    for j in range(len(Hs)):        
         H1 = Hs[j][0]
         H2 = Hs[j][1]
             
         sz1 = im1.shape[-1:0:-1]
         
-        nx1 = torch.linspace(0,sz1[0],gn, device=device)
-        ny1 = torch.linspace(0,sz1[1],gn, device=device)
+        nx1 = torch.linspace(0, sz1[0], gn, device=device)
+        ny1 = torch.linspace(0, sz1[1], gn, device=device)
         
         x1 = nx1.unsqueeze(0).repeat(ny1.shape[0], 1)
         y1 = ny1.unsqueeze(1).repeat(1, nx1.shape[0])
@@ -1320,8 +1326,8 @@ def apply_homs(im1, im2, pt1, pt2, Hs, gn=20, cf_max=2.0):
         q1 = convex_hull(MultiPoint(b1_.T.detach().to('cpu').numpy()))
         
         sz2 = im2.shape[-1:0:-1]
-        nx2 = torch.linspace(0,sz2[0],gn, device=device)
-        ny2 = torch.linspace(0,sz2[1],gn, device=device)
+        nx2 = torch.linspace(0, sz2[0], gn, device=device)
+        ny2 = torch.linspace(0, sz2[1], gn, device=device)
         
         x2 = nx2.unsqueeze(0).repeat(ny2.shape[0], 1)
         y2 = ny2.unsqueeze(1).repeat(1, nx2.shape[0])
@@ -1453,7 +1459,35 @@ def apply_homs(im1, im2, pt1, pt2, Hs, gn=20, cf_max=2.0):
         pil_im2 = pil_im2.astype(np.uint8)
     
         pil_im2 = Image.fromarray(pil_im2)
-        pil_im2.save(str(j) + 'im2''.png')
+        pil_im2.save(str(j) + 'im2.png')
+                
+        w = 10
+        ww = w * w
+        search_gauss_mask = 3
+            
+        if search_gauss_mask > 0:
+            r = (w - 1) / 2    
+            g = torch.arange(-r, r+1, device=device)
+            s = search_gauss_mask * r
+            ge = torch.exp(-((g / s) ** 2))
+            ggn = ge.unsqueeze(1) @ ge.unsqueeze(0)
+            ggn = ggn / ggn.sum()
+        else:
+            ggn = torch.full((w, w), 1.0 / ww, device=device)
+
+        m1 = torch.nn.functional.conv2d(img1.unsqueeze(1), ggn.unsqueeze(0).unsqueeze(0), padding='valid', ).squeeze()
+        m2 = torch.nn.functional.conv2d(img2.unsqueeze(1), ggn.unsqueeze(0).unsqueeze(0), padding='valid', ).squeeze()
+
+
+        q = (m1.mean(dim=0) - m2.mean(dim=0)).abs()
+        q = q / q.max() * 255
+        q = q.to(torch.int).detach().to('cpu').numpy()
+        q = q.astype(np.uint8)
+    
+        q = Image.fromarray(q)
+        q.save(str(j) + 'diff.png')
+
+        print('doh')
 
     return
     

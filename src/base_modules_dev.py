@@ -2,8 +2,12 @@ import numpy as np
 import torch
 import kornia as K
 import kornia.feature as KF
+import kornia as K
+from kornia_moons.feature import opencv_kpts_from_laf, laf_from_opencv_kpts
 import os, sys
 from PIL import Image
+import src.HarrisZ.hz as hz
+import torchvision.transforms as tt
 
 try:
     import pydegensac
@@ -1122,3 +1126,265 @@ class roma_module:
             os.remove('tmp2_gray.png')
 
         return {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_laf}
+
+
+class sift_hardnet_module:
+    def __init__(self, **args):
+        self.upright = False
+        self.th = 0.99
+        self.num_features = 8000
+
+        for k, v in args.items():
+           setattr(self, k, v)
+
+        with torch.inference_mode():
+            self.detector = cv2.SIFT_create(self.num_features, contrastThreshold=-10000, edgeThreshold=10000)
+
+            desc = K.feature.HardNet(pretrained=True).to(device)
+            self.desc = K.feature.LAFDescriptor(patch_descriptor_module=desc)
+
+            if not self.upright:
+                self.ori_module = K.feature.LAFOrienter(angle_detector=K.feature.OriNet(pretrained=True).to(device))
+                self.aff_module =  K.feature.LAFAffNetShapeEstimator(pretrained=True).to(device)
+            else:
+                self.ori_module = K.feature.PassLAF()
+                self.aff_module = K.feature.PassLAF()
+
+
+    def get_id(self):
+        return ('sift_hardnet_upright_' + str(self.upright) + '_th_' + str(self.th) + '_nfeat_' + str(self.num_features)).lower()
+
+
+    def run(self, **args):
+        im1 = cv2.imread(args['im1'], cv2.IMREAD_GRAYSCALE)
+        kps1 = self.detector.detect(im1, None)
+
+        idx = np.unique(np.asarray([[k.pt[0], k.pt[1]] for k in kps1]), axis=0, return_index=True)[1]
+        kps1 = [kps1[ii] for ii in idx]
+        for ii in range(len(kps1)):
+            kps1[ii].angle = 0
+                
+        with torch.inference_mode():
+            im1 = K.io.load_image(args['im1'], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0)
+                   
+            kp1 = laf_from_opencv_kpts(kps1, device=device)
+            laf1 = self.aff_module(kp1, im1)
+            kps1 = self.ori_module(laf1, im1)
+    
+            desc1 = self.desc(im1, kps1).squeeze(0)
+
+        im2 = cv2.imread(args['im2'], cv2.IMREAD_GRAYSCALE)
+        kps2 = self.detector.detect(im2, None)
+
+        idx = np.unique(np.asarray([[k.pt[0], k.pt[1]] for k in kps2]), axis=0, return_index=True)[1]
+        kps2 = [kps2[ii] for ii in idx]
+        for ii in range(len(kps2)):
+            kps2[ii].angle = 0
+                
+        with torch.inference_mode():
+            im2 = K.io.load_image(args['im2'], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0)
+                   
+            kp2 = laf_from_opencv_kpts(kps2, device=device)
+            laf2 = self.aff_module(kp2, im2)
+            kps2 = self.ori_module(laf2, im2)
+    
+            desc2 = self.desc(im2, kps2).squeeze(0)
+
+        with torch.inference_mode():
+            val, idxs = K.feature.match_smnn(desc1, desc2, self.th)
+
+        pt1 = None
+        pt2 = None
+
+        kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
+        kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
+
+        pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)
+
+        return {'pt1': pt1, 'pt2': pt2, 'kp1': kps1, 'kp2': kps2, 'Hs': Hs_laf, 'val': val}
+
+
+def load_to_tensor(image_path, grayscale=False):
+    image = Image.open(image_path)
+
+    what = [tt.PILToTensor()]
+    if grayscale: what.append(tt.Grayscale())    
+    transform = tt.Compose(what)
+
+    return transform(image).to(device)
+
+
+class hz_plus_hardnet_module:
+    def __init__(self, **args):
+        self.upright = False
+        self.th = 0.99
+        self.max_pts = 8000
+        self.block_memory = 16*10**6 
+
+        for k, v in args.items():
+           setattr(self, k, v)
+
+        with torch.inference_mode():
+            desc = K.feature.HardNet(pretrained=True).to(device)
+            self.desc = K.feature.LAFDescriptor(patch_descriptor_module=desc)
+
+            if not self.upright:
+                self.ori_module = K.feature.LAFOrienter(angle_detector=K.feature.OriNet(pretrained=True).to(device))
+                self.aff_module =  K.feature.LAFAffNetShapeEstimator(pretrained=True).to(device)
+            else:
+                self.ori_module = K.feature.PassLAF()
+                self.aff_module = K.feature.PassLAF()
+
+
+    def get_id(self):
+        return ('hz_plus_hardnet_upright_' + str(self.upright) + '_th_' + str(self.th) + '_nfeat_' + str(self.max_pts)).lower()
+
+
+    def run(self, **args):
+
+        with torch.inference_mode():
+            im1 = load_to_tensor(args['im1']).to(torch.float)
+            kpts, responses = hz.hz_plus(im1, output_format='laf', block_mem=self.block_memory, max_max_pts=self.max_pts)
+            kp1 = KF.ellipse_to_laf(kpts[None]).to(torch.float)
+   
+        with torch.inference_mode():
+            im1 = K.io.load_image(args['im1'], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0)
+                   
+            laf1 = self.aff_module(kp1, im1)
+            kps1 = self.ori_module(laf1, im1)
+    
+            desc1 = self.desc(im1, kps1).squeeze(0)
+
+        with torch.inference_mode():
+            im2 = load_to_tensor(args['im2']).to(torch.float)
+            kpts, responses = hz.hz_plus(im2, output_format='laf', block_mem=self.block_memory, max_max_pts=self.max_pts)
+            kp2 = KF.ellipse_to_laf(kpts[None]).to(torch.float) 
+                
+        with torch.inference_mode():
+            im2 = K.io.load_image(args['im2'], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0)
+                   
+            laf2 = self.aff_module(kp2, im2)
+            kps2 = self.ori_module(laf2, im2)
+    
+            desc2 = self.desc(im2, kps2).squeeze(0)
+
+        with torch.inference_mode():
+            val, idxs = K.feature.match_smnn(desc1, desc2, self.th)
+
+        pt1 = None
+        pt2 = None
+
+        kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
+        kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
+
+        pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)
+
+        return {'pt1': pt1, 'pt2': pt2, 'kp1': kps1, 'kp2': kps2, 'Hs': Hs_laf, 'val': val}
+
+
+class hz_hardnet_module:
+    def __init__(self, **args):
+        self.upright = False
+        self.th = 0.99
+        self.max_pts = 8000
+        self.block_memory = 16*10**6 
+
+        for k, v in args.items():
+           setattr(self, k, v)
+
+        with torch.inference_mode():
+            desc = K.feature.HardNet(pretrained=True).to(device)
+            self.desc = K.feature.LAFDescriptor(patch_descriptor_module=desc)
+
+            if not self.upright:
+                self.ori_module = K.feature.LAFOrienter(angle_detector=K.feature.OriNet(pretrained=True).to(device))
+                self.aff_module =  K.feature.LAFAffNetShapeEstimator(pretrained=True).to(device)
+            else:
+                self.ori_module = K.feature.PassLAF()
+                self.aff_module = K.feature.PassLAF()
+
+
+    def get_id(self):
+        return ('hz_hardnet_upright_' + str(self.upright) + '_th_' + str(self.th) + '_nfeat_' + str(self.max_pts)).lower()
+
+
+    def run(self, **args):
+
+        with torch.inference_mode():
+            im1 = load_to_tensor(args['im1'], grayscale=True).to(torch.float)
+            kpts, responses = hz.hz(im1, output_format='laf', block_mem=self.block_memory, max_max_pts=self.max_pts)
+            kp1 = KF.ellipse_to_laf(kpts[None]).to(torch.float)
+   
+        with torch.inference_mode():
+            im1 = K.io.load_image(args['im1'], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0)
+                   
+            laf1 = self.aff_module(kp1, im1)
+            kps1 = self.ori_module(laf1, im1)
+    
+            desc1 = self.desc(im1, kps1).squeeze(0)
+
+        with torch.inference_mode():
+            im2 = load_to_tensor(args['im2'], grayscale=True).to(torch.float)
+            kpts, responses = hz.hz(im2, output_format='laf', block_mem=self.block_memory, max_max_pts=self.max_pts)
+            kp2 = KF.ellipse_to_laf(kpts[None]).to(torch.float) 
+                
+        with torch.inference_mode():
+            im2 = K.io.load_image(args['im2'], K.io.ImageLoadType.GRAY32, device=device).unsqueeze(0)
+                   
+            laf2 = self.aff_module(kp2, im2)
+            kps2 = self.ori_module(laf2, im2)
+    
+            desc2 = self.desc(im2, kps2).squeeze(0)
+
+        with torch.inference_mode():
+            val, idxs = K.feature.match_smnn(desc1, desc2, self.th)
+
+        pt1 = None
+        pt2 = None
+
+        kps1 = kps1.squeeze().detach()[idxs[:, 0]].to(device)
+        kps2 = kps2.squeeze().detach()[idxs[:, 1]].to(device)
+
+        pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)
+
+        return {'pt1': pt1, 'pt2': pt2, 'kp1': kps1, 'kp2': kps2, 'Hs': Hs_laf, 'val': val}
+
+
+class sift_hz_hz_plus_hardnet_module:
+    def __init__(self, **args):
+        self.upright = False
+        self.th = 0.99
+        self.max_pts = 8000
+        self.num_features = 8000
+        self.block_memory = 16*10**6 
+
+        for k, v in args.items():
+           setattr(self, k, v)
+
+        with torch.inference_mode():
+            self.sift = sift_hardnet_module(**args)
+            self.hz = hz_hardnet_module(**args)
+            self.hz_plus = hz_plus_hardnet_module(**args)
+
+
+    def get_id(self):
+        return ('hz_hardnet_upright_' + str(self.upright) + '_th_' + str(self.th)).lower()
+
+
+    def run(self, **args):
+        sift_ = self.sift.run(**args)
+        hz_ = self.hz.run(**args)
+        hz_plus_ = self.hz_plus.run(**args)
+   
+        to_return = {}
+
+        to_return['pt1'] = torch.concatenate((sift_['pt1'], hz_['pt1'], hz_plus_['pt1']), dim=0)
+        to_return['pt2'] = torch.concatenate((sift_['pt2'], hz_['pt2'], hz_plus_['pt2']), dim=0)
+
+        to_return['kp1'] = torch.concatenate((sift_['kp1'], hz_['kp1'], hz_plus_['kp1']), dim=0)
+        to_return['kp2'] = torch.concatenate((sift_['kp2'], hz_['kp2'], hz_plus_['kp2']), dim=0)
+
+        to_return['Hs'] = torch.concatenate((sift_['Hs'], hz_['Hs'], hz_plus_['Hs']), dim=0)
+        to_return['val'] = torch.concatenate((sift_['val'], hz_['val'], hz_plus_['val']), dim=0)
+    
+        return to_return

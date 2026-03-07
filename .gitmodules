@@ -1,3 +1,6 @@
 [submodule "src/mast3r"]
 	path = src/mast3r
 	url = https://github.com/naver/mast3r
+[submodule "src/HarrisZ"]
+	path = src/HarrisZ
+	url = https://github.com/fb82/HarrisZ
