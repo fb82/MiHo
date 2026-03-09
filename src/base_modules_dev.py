@@ -1145,10 +1145,10 @@ class sift_hardnet_module:
 
             if not self.upright:
                 self.ori_module = K.feature.LAFOrienter(angle_detector=K.feature.OriNet(pretrained=True).to(device))
-                self.aff_module =  K.feature.LAFAffNetShapeEstimator(pretrained=True).to(device)
             else:
                 self.ori_module = K.feature.PassLAF()
-                self.aff_module = K.feature.PassLAF()
+
+            self.aff_module =  K.feature.LAFAffNetShapeEstimator(pretrained=True).to(device)
 
 
     def get_id(self):
@@ -1230,10 +1230,10 @@ class hz_plus_hardnet_module:
 
             if not self.upright:
                 self.ori_module = K.feature.LAFOrienter(angle_detector=K.feature.OriNet(pretrained=True).to(device))
-                self.aff_module =  K.feature.LAFAffNetShapeEstimator(pretrained=True).to(device)
             else:
                 self.ori_module = K.feature.PassLAF()
-                self.aff_module = K.feature.PassLAF()
+
+            self.aff_module =  K.feature.LAFAffNetShapeEstimator(pretrained=True).to(device)
 
 
     def get_id(self):
@@ -1298,10 +1298,10 @@ class hz_hardnet_module:
 
             if not self.upright:
                 self.ori_module = K.feature.LAFOrienter(angle_detector=K.feature.OriNet(pretrained=True).to(device))
-                self.aff_module =  K.feature.LAFAffNetShapeEstimator(pretrained=True).to(device)
             else:
                 self.ori_module = K.feature.PassLAF()
-                self.aff_module = K.feature.PassLAF()
+
+            self.aff_module =  K.feature.LAFAffNetShapeEstimator(pretrained=True).to(device)
 
 
     def get_id(self):
@@ -1368,7 +1368,7 @@ class sift_hz_hz_plus_hardnet_module:
 
 
     def get_id(self):
-        return ('hz_hardnet_upright_' + str(self.upright) + '_th_' + str(self.th)).lower()
+        return ('sift_hz_hz_plus_hardnet_upright_' + str(self.upright) + '_th_' + str(self.th)).lower()
 
 
     def run(self, **args):
