@@ -60,10 +60,34 @@ if __name__ == '__main__':
     ]
 
     pipe_heads = [
-        pipe_base.sift_hz_hz_plus_hardnet_module(),        
-        pipe_base.hz_plus_hardnet_module(),        
-        pipe_base.hz_hardnet_module(),        
-        pipe_base.sift_hardnet_module(),        
+#       pipe_base.sift_hz_hz_plus_hardnet_module(upright=True),        
+#       pipe_base.hz_plus_hardnet_module(upright=True),        
+#       pipe_base.hz_hardnet_module(upright=True),        
+#       pipe_base.hz_plus_hardnet_module(upright=True, scale_laf=3.0),        
+#       pipe_base.hz_hardnet_module(upright=True, scale_laf=3.0),        
+#       pipe_base.hz_plus_hardnet_module(upright=True, scale_laf=2.0),        
+#       pipe_base.hz_hardnet_module(upright=True, scale_laf=2.0),        
+#       pipe_base.sift_hardnet_module(upright=True),        
+#       pipe_base.sift_hardnet_module(upright=False),        
+#       pipe_base.hz_plus_hardnet_module(upright=True, scale_laf=6.0),        
+#       pipe_base.hz_plus_hardnet_module(upright=True, scale_laf=9.0),        
+#       pipe_base.hz_hardnet_module(upright=True, scale_laf=9.0),        
+#       pipe_base.hz_hardnet_module(upright=True, scale_laf=6.0),        
+#       pipe_base.sift_hardnet_module(upright=True, scale_laf=3.0),        
+#       pipe_base.sift_hardnet_module(upright=True, scale_laf=2.0),        
+#       pipe_base.hz_plus_hardnet_module(upright=True, scale_laf=2.5),        
+#       pipe_base.hz_plus_hardnet_module(upright=True, scale_laf=4.0),        
+#       pipe_base.sift_hardnet_module(upright=True, scale_laf=1.4),        
+#       pipe_base.sift_hardnet_module(upright=True, scale_laf=0.8),        
+#       pipe_base.hz_hardnet_module(upright=True, scale_laf=2.5),        
+#       pipe_base.hz_hardnet_module(upright=True, scale_laf=4.0),        
+#       pipe_base.hz_plus_hardnet_module(upright=True, affine=True, scale_laf=3.5),        
+#       pipe_base.hz_plus_hardnet_module(upright=True, affine=True, scale_laf=4.5),        
+#       pipe_base.hz_plus_hardnet_module(upright=True, affine=False, scale_laf=4.0),        
+#       pipe_base.sift_hardnet_module(upright=True, affine=False, scale_laf=1.0),        
+#       pipe_base.hz_plus_hardnet_module(upright=True, affine=False, scale_laf=3.5),        
+#       pipe_base.hz_plus_hardnet_module(upright=True, affine=False, scale_laf=4.5),        #
+        pipe_base.sift_hz_plus_hardnet_module(upright=True, affine=False),
         ]
     
     pipe_ransacs = [
