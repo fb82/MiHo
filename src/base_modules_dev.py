@@ -1386,7 +1386,7 @@ class sift_hz_plus_hardnet_module:
         with torch.inference_mode():
             self.sift = sift_hardnet_module(**args)
             self.hz_plus = hz_plus_hardnet_module(**args)
-            self.hz_plus_.scale_laf = 4.0
+            self.hz_plus.scale_laf = 4.0
 
 
     def get_id(self):
