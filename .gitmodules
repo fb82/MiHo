@@ -4,3 +4,6 @@
 [submodule "src/HarrisZ"]
 	path = src/HarrisZ
 	url = https://github.com/fb82/HarrisZ
+[submodule "src/sGLOH"]
+	path = src/sGLOH
+	url = https://github.com/fb82/sGLOH

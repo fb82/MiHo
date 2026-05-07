@@ -2,12 +2,14 @@ import numpy as np
 import torch
 import kornia as K
 import kornia.feature as KF
-import kornia as K
-from kornia_moons.feature import opencv_kpts_from_laf, laf_from_opencv_kpts
 import os, sys
 from PIL import Image
-import src.HarrisZ.hz as hz
 import torchvision.transforms as tt
+import sGLOH.DTM.src.dtm as dtm
+import sGLOH.DTM.hz.hz as hz
+import sGLOH.src.sgloh as sgloh
+import torchvision.transforms as transforms
+
 
 try:
     import pydegensac
@@ -1409,3 +1411,179 @@ class sift_hz_plus_hardnet_module:
         to_return['val'] = torch.concatenate((sift_['val'], hz_plus_['val']), dim=0)
     
         return to_return
+
+
+class sift_hz_plus_sgloh_blob_dtm_module:
+    def __init__(self, **args):
+        self.max_pts = 8000
+        self.block_memory = 16*10**6 
+        self.hz_scale_laf = 1.0
+        self.sift_scale_laf = 1.0
+        self.rot_mode = {'refine around dominant'} 
+        self.matcher = {'Blob Matching'}
+        self.dtm_only_spatial = False
+        self.dtm_st = [1., 0.] 
+        self.dtm_prepare_data = dtm.prepare_data_shaped
+        self.poselib = False
+        self.poselib_params = {            
+            'max_iterations': 100000,
+            'min_iterations': 50,
+            'success_prob': 0.9999,
+            'max_epipolar_error': 3,
+            }
+        self.ii = 0
+
+        for k, v in args.items():
+           setattr(self, k, v)
+
+        self.transform = transforms.Compose([
+                transforms.Grayscale(),
+                transforms.PILToTensor() 
+                ]) 
+
+        self.i01 = sgloh.dist_shift_table()
+
+        self.dog = cv2.SIFT_create(nfeatures=self.max_pts, contrastThreshold=-10000, edgeThreshold=10000)
+
+
+    def get_id(self):
+        return ('sift_hz_plus_sgloh_blob_dtm_' + '_scale_hz_' + str(self.hz_scale_laf) + '_scale_sift_' + str(self.sift_scale_laf)).lower()
+
+
+    def run(self, **args):                
+        with torch.no_grad():        
+            laf0 = torch.zeros((1, 0, 2, 3), device=device, dtype=torch.float)        
+            laf1 = torch.zeros((1, 0, 2, 3), device=device, dtype=torch.float)        
+    
+            if 'Hz+' in self.detectors:
+                hz0, _ = hz.hz_plus(hz.load_to_tensor(args['im1']).to(torch.float), output_format='laf', block_mem=self.block_memory, max_max_pts=self.max_pts)
+                hz0 = KF.ellipse_to_laf(hz0[None]).to(device).to(torch.float)
+                hz0 = KF.scale_laf(hz0, self.hz_scale_laf)   
+                laf0 = torch.concat((laf0, hz0), dim=1)
+    
+                hz1, _ = hz.hz_plus(hz.load_to_tensor(args['im2']).to(torch.float), output_format='laf', block_mem=self.block_memory, max_max_pts=self.max_pts)
+                hz1 = KF.ellipse_to_laf(hz1[None]).to(device).to(torch.float)                
+                hz1 = KF.scale_laf(hz1, self.hz_scale_laf)   
+                laf1 = torch.concat((laf1, hz1), dim=1)
+    
+            if 'DoG' in self.detectors:        
+                dog0 = laf_from_opencv_kpts(self.dog.detect(cv2.imread(args['im1'], cv2.IMREAD_GRAYSCALE), None), device=device).to(torch.float)
+                dog0 = KF.scale_laf(dog0, self.sift_scale_laf)   
+                laf0 = torch.concat((laf0, dog0), dim=1)
+    
+                dog1 = laf_from_opencv_kpts(self.dog.detect(cv2.imread(args['im2'], cv2.IMREAD_GRAYSCALE), None), device=device).to(torch.float)
+                dog1 = KF.scale_laf(dog1, self.sift_scale_laf)   
+                laf1 = torch.concat((laf1, dog1), dim=1)
+                                            
+            im0 = Image.open(args['im1'])
+            timg0 = self.transform(im0).type(torch.float16).to(device)
+    
+            im1 = Image.open(args['im2'])
+            timg1 = self.transform(im1).type(torch.float16).to(device)
+    
+            i0, i1 = self.i01
+    
+            if 'SIFT' in self.rot_mode:
+                desc0_base = sgloh.sift(args['im1'], laf0)
+                desc1_base = sgloh.sift(args['im2'], laf1)
+    
+                kp0, _, _ = sgloh.laf2homo(laf0.squeeze(0))
+                kp1, _, _ = sgloh.laf2homo(laf1.squeeze(0))
+    
+                vtable = None
+            else:
+                laf0 = KF.set_laf_orientation(laf0, torch.zeros((laf0.shape[0], laf0.shape[1], 1), device=device))
+                kp0, H0, s0 = sgloh.laf2homo(laf0.squeeze(0))
+                Hs0 = H0 * s0.unsqueeze(1).unsqueeze(1)
+                patch0 = sgloh.prepare_patch(timg0, kp0, Hs0)
+                desc0 = sgloh.sgloh(patch0)
+       
+                laf1 = KF.set_laf_orientation(laf1, torch.zeros((laf1.shape[0], laf1.shape[1], 1), device=device))        
+                kp1, H1, s1 = sgloh.laf2homo(laf1.squeeze(0))
+                Hs1 = H1 * s1.unsqueeze(1).unsqueeze(1)
+                patch1 = sgloh.prepare_patch(timg1, kp1, Hs1)
+                desc1 = sgloh.sgloh(patch1)
+                
+                if 'refine around dominant' in self.rot_mode:
+                    vtable, itable, rot, h = sgloh.refined_sgloh_dist(desc0, desc1, i0)
+                elif 'best patch match' in self.rot_mode:
+                    vtable, itable = sgloh.sgloh_dist(desc0, desc1)
+                else:
+                    vtable = None
+                    desc0 = sgloh.sgloh(patch0)
+                    desc1 = sgloh.sgloh(patch1)
+                    desc0_base = sgloh.sgloh_rot(desc0, 0, i0, i1)
+                    desc1_base = sgloh.sgloh_rot(desc1, self.rot_mode['fixed'], i0, i1)
+                
+            if 'Blob Matching' in self.matcher:    
+                if ('refine around dominant' in self.rot_mode) or ('best patch match' in self.rot_mode):
+                    desc0_base = None
+                    desc1_base = None
+    
+                m_idx, m_val = dtm.blob_matching(kp0, kp1, desc0_base, desc1_base, device='cpu', m=vtable)
+                m_idx = m_idx.to(device)
+                m_val = m_val.to(device)
+                m_mask = torch.ones(m_val.shape[0], device=device, dtype=torch.bool)
+            else:    
+                if ('refine around dominant' in self.rot_mode) or ('best patch match' in self.rot_mode):
+                    # actually is dummy
+                    desc0 = sgloh.sgloh(patch0)
+                    desc1 = sgloh.sgloh(patch1)
+                    desc0_base = sgloh.sgloh_rot(desc0, 0, i0, i1)
+                    desc1_base = sgloh.sgloh_rot(desc1, 0, i0, i1)
+    
+                th = self.matcher['Mutual Nearest Neighbor (MNN)']
+                m_val, m_idx = K.feature.match_smnn(desc0_base, desc1_base, th, dm=vtable)
+                m_val = m_val.squeeze(1).to(device)
+                m_idx = m_idx.to(device)
+                m_mask = torch.ones(m_val.shape[0], device=device, dtype=torch.bool)
+        
+            match_data = {
+                'img': (args['im1'], args['im2']),
+                'kp': [kp0, kp1],
+                'm_idx': m_idx,
+                'm_val': m_val,
+                'm_mask': m_mask,
+                }
+    
+            if self.dtm_only_spatial: match_data['m_val'][:] = 1.0
+    
+            dtm_mask = dtm.dtm(match_data, show_in_progress=False, prepare_data=self.dtm_prepare_data) <= 0
+    
+            idx = m_idx.to('cpu').detach()
+            pt0 = np.ascontiguousarray(kp0.to('cpu').detach())[idx[:, 0]]
+            pt1 = np.ascontiguousarray(kp1.to('cpu').detach())[idx[:, 1]]   
+            
+            if self.poselib:
+                F, info = poselib.estimate_fundamental(pt0[dtm_mask], pt1[dtm_mask], self.poselib_params, {})
+                poselib_mask = info['inliers']
+                sac_mask = np.copy(dtm_mask)
+                sac_mask[dtm_mask] = poselib_mask
+                             
+                for i in range(self.ii):
+                    match_data['m_val'][sac_mask] = 0
+                    dtm_mask = dtm.dtm(match_data, show_in_progress=False, prepare_data=self.dtm_prepare_data) <= 0
+                
+                    idx = m_idx.to('cpu').detach()
+                    pt0 = np.ascontiguousarray(kp0.to('cpu').detach())[idx[:, 0]]
+                    pt1 = np.ascontiguousarray(kp1.to('cpu').detach())[idx[:, 1]]   
+                    
+                    F, info = poselib.estimate_fundamental(pt0[dtm_mask], pt1[dtm_mask], self.poselib_params, {})
+                    poselib_mask = info['inliers']
+                    sac_mask = np.copy(dtm_mask)
+                    sac_mask[dtm_mask] = poselib_mask
+
+                mask = dtm_mask & poselib_mask
+            else:
+                mask = dtm_mask
+                
+        pt1 = None
+        pt2 = None
+
+        kps1 = laf0[m_idx[:,0]][mask].detach().to(device)
+        kps2 = laf1[m_idx[:,0]][mask].detach().to(device)
+        val = m_val[mask]
+
+        pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)
+
+        return {'pt1': pt1, 'pt2': pt2, 'kp1': kps1, 'kp2': kps2, 'Hs': Hs_laf, 'val': val}
