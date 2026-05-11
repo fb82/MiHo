@@ -5,9 +5,9 @@ import kornia.feature as KF
 import os, sys
 from PIL import Image
 import torchvision.transforms as tt
-import sGLOH.DTM.src.dtm as dtm
-import sGLOH.DTM.hz.hz as hz
-import sGLOH.src.sgloh as sgloh
+import src.sGLOH.DTM.src.dtm as dtm
+import src.sGLOH.DTM.hz.hz as hz
+import src.sGLOH.src.sgloh as sgloh
 import torchvision.transforms as transforms
 
 
