@@ -1432,6 +1432,7 @@ class sift_hz_plus_sgloh_blob_dtm_module:
             'max_epipolar_error': 3,
             }
         self.ii = 0
+        self.detectors = {'Hz+': 3.0, 'DoG': 6.0}
 
         for k, v in args.items():
            setattr(self, k, v)
@@ -1454,27 +1455,33 @@ class sift_hz_plus_sgloh_blob_dtm_module:
         with torch.no_grad():        
             laf0 = torch.zeros((1, 0, 2, 3), device=device, dtype=torch.float)        
             laf1 = torch.zeros((1, 0, 2, 3), device=device, dtype=torch.float)        
+            scale0 = torch.zeros((0), device=device, dtype=torch.float)
+            scale1 = torch.zeros((0), device=device, dtype=torch.float)
     
             if 'Hz+' in self.detectors:
                 hz0, _ = hz.hz_plus(hz.load_to_tensor(args['im1']).to(torch.float), output_format='laf', block_mem=self.block_memory, max_max_pts=self.max_pts)
                 hz0 = KF.ellipse_to_laf(hz0[None]).to(device).to(torch.float)
                 hz0 = KF.scale_laf(hz0, self.hz_scale_laf)   
                 laf0 = torch.concat((laf0, hz0), dim=1)
+                scale0 = torch.concat((scale0, torch.full((hz0.shape[1], ), 1 / self.detectors['Hz+'], device=device)))
     
                 hz1, _ = hz.hz_plus(hz.load_to_tensor(args['im2']).to(torch.float), output_format='laf', block_mem=self.block_memory, max_max_pts=self.max_pts)
                 hz1 = KF.ellipse_to_laf(hz1[None]).to(device).to(torch.float)                
                 hz1 = KF.scale_laf(hz1, self.hz_scale_laf)   
                 laf1 = torch.concat((laf1, hz1), dim=1)
-    
+                scale1 = torch.concat((scale1, torch.full((hz1.shape[1], ), 1 / self.detectors['Hz+'], device=device)))
+
             if 'DoG' in self.detectors:        
                 dog0 = laf_from_opencv_kpts(self.dog.detect(cv2.imread(args['im1'], cv2.IMREAD_GRAYSCALE), None), device=device).to(torch.float)
                 dog0 = KF.scale_laf(dog0, self.sift_scale_laf)   
                 laf0 = torch.concat((laf0, dog0), dim=1)
-    
+                scale0 = torch.concat((scale0, torch.full((dog0.shape[1], ), 1 / self.detectors['DoG'], device=device)))
+
                 dog1 = laf_from_opencv_kpts(self.dog.detect(cv2.imread(args['im2'], cv2.IMREAD_GRAYSCALE), None), device=device).to(torch.float)
                 dog1 = KF.scale_laf(dog1, self.sift_scale_laf)   
                 laf1 = torch.concat((laf1, dog1), dim=1)
-                                            
+                scale1 = torch.concat((scale1, torch.full((dog1.shape[1], ), 1 / self.detectors['DoG'], device=device)))
+                                                            
             im0 = Image.open(args['im1'])
             timg0 = self.transform(im0).type(torch.float16).to(device)
     
@@ -1493,15 +1500,23 @@ class sift_hz_plus_sgloh_blob_dtm_module:
                 vtable = None
             else:
                 laf0 = KF.set_laf_orientation(laf0, torch.zeros((laf0.shape[0], laf0.shape[1], 1), device=device))
-                kp0, H0, s0 = sgloh.laf2homo(laf0.squeeze(0))
-                Hs0 = H0 * s0.unsqueeze(1).unsqueeze(1)
-                patch0 = sgloh.prepare_patch(timg0, kp0, Hs0)
+                kp0, H0, s0 = sgloh.laf2homo(laf0.squeeze(0))               
+                Hs0 = H0.to(device)
+                scale0[scale0.isnan()] = 1 / s0[scale0.isnan()]
+                sscale0 = s0 * scale0
+                sscale0[sscale0 < 1] = 1
+                Hs0[:, :2, :] = Hs0[:, :2, :] * (sscale0**2).unsqueeze(1).unsqueeze(1) 
+                patch0 = sgloh.prepare_patch(timg0, kp0.to(device), Hs0.to(device))
                 desc0 = sgloh.sgloh(patch0)
-       
+                  
                 laf1 = KF.set_laf_orientation(laf1, torch.zeros((laf1.shape[0], laf1.shape[1], 1), device=device))        
                 kp1, H1, s1 = sgloh.laf2homo(laf1.squeeze(0))
-                Hs1 = H1 * s1.unsqueeze(1).unsqueeze(1)
-                patch1 = sgloh.prepare_patch(timg1, kp1, Hs1)
+                Hs1 = H1.to(device)
+                scale1[scale1.isnan()] = 1 / s1[scale1.isnan()]
+                sscale1 = s1 * scale1
+                sscale1[sscale1 < 1] = 1
+                Hs1[:, :2, :] = Hs1[:, :2, :] * (sscale1**2).unsqueeze(1).unsqueeze(1)
+                patch1 = sgloh.prepare_patch(timg1, kp1.to(device), Hs1.to(device))
                 desc1 = sgloh.sgloh(patch1)
                 
                 if 'refine around dominant' in self.rot_mode:
@@ -1573,15 +1588,15 @@ class sift_hz_plus_sgloh_blob_dtm_module:
                     sac_mask = np.copy(dtm_mask)
                     sac_mask[dtm_mask] = poselib_mask
 
-                mask = dtm_mask & poselib_mask
+                mask = dtm_mask & sac_mask
             else:
                 mask = dtm_mask
                 
         pt1 = None
         pt2 = None
 
-        kps1 = laf0[m_idx[:,0]][mask].detach().to(device)
-        kps2 = laf1[m_idx[:,0]][mask].detach().to(device)
+        kps1 = laf0.squeeze(0)[m_idx[:, 0]][mask].detach().to(device)
+        kps2 = laf1.squeeze(0)[m_idx[:, 1]][mask].detach().to(device)
         val = m_val[mask]
 
         pt1, pt2, Hs_laf = refinement_laf(None, None, data1=kps1, data2=kps2, img_patches=False)
