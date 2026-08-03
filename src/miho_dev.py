@@ -871,7 +871,6 @@ def filters(err_, pt1, pt2, howto=2, th_in=7, th_out=15, h_min_size=8, svd_th=0.
     return err_ & pt_check.unsqueeze(1)
 
 
-
 def filters_bad(err_, pt1, pt2, howto=2, th_in=7, th_out=15, h_min_size=8, svd_th=0.05, **dummy_args):    
 
     if howto == 0: return err_
@@ -1191,15 +1190,15 @@ def show_fig(im1, im2, pt1, pt2, Hidx, Hdata=None, tosave='miho_buffered_rot_pyt
                 if j == i: continue
                 mask_ = mask_ | Hdata[:, j]
 
-            x = np.vstack((pt1[mask & ~mask_, 0], pt2[mask & ~mask_, 0]+im1.width))
-            y = np.vstack((pt1[mask & ~mask_, 1], pt2[mask & ~mask_, 1]))
+            x = np.vstack((pt1.to(device)[mask & ~mask_, 0].cpu().numpy(), pt2.to(device)[mask & ~mask_, 0].cpu().numpy()+im1.width))
+            y = np.vstack((pt1.to(device)[mask & ~mask_, 1].cpu().numpy(), pt2.to(device)[mask & ~mask_, 1].cpu().numpy()))
             color = colors[((i-1)%(cn*mn))%cn]
             marker = markers[((i-1)%(cn*mn))//cn]
             plot_opt['markerfacecolor'] = color
             plt.plot(x, y, linestyle='', color=color, marker=marker, **plot_opt)
 
-            x = np.vstack((pt1[mask & mask_, 0], pt2[mask & mask_, 0]+im1.width))
-            y = np.vstack((pt1[mask & mask_, 1], pt2[mask & mask_, 1]))
+            x = np.vstack((pt1.to(device)[mask & mask_, 0].cpu().numpy(), pt2.to(device)[mask & mask_, 0].cpu().numpy()+im1.width))
+            y = np.vstack((pt1.to(device)[mask & mask_, 1].cpu().numpy(), pt2.to(device)[mask & mask_, 1].cpu().numpy()))
             color = colors[((i-1)%(cn*mn))%cn]
             marker = bad_marker
             plot_opt['markerfacecolor'] = color
@@ -1415,7 +1414,7 @@ def apply_homs(im1, im2, pt1, pt2, Hs, gn=20, cf_max=2.0):
         pil_im1 = pil_im1.astype(np.uint8)
     
         pil_im1 = Image.fromarray(pil_im1)
-        pil_im1.save(str(j) + 'im1.png')
+        pil_im1.save(str(j) + '_im1.png')
     
 ###
 
@@ -1459,7 +1458,7 @@ def apply_homs(im1, im2, pt1, pt2, Hs, gn=20, cf_max=2.0):
         pil_im2 = pil_im2.astype(np.uint8)
     
         pil_im2 = Image.fromarray(pil_im2)
-        pil_im2.save(str(j) + 'im2.png')
+        pil_im2.save(str(j) + '_im2.png')
                 
         w = 10
         ww = w * w
@@ -1485,12 +1484,28 @@ def apply_homs(im1, im2, pt1, pt2, Hs, gn=20, cf_max=2.0):
         q = q.astype(np.uint8)
     
         q = Image.fromarray(q)
-        q.save(str(j) + 'diff.png')
-
-        print('doh')
+        q.save(str(j) + '_diff.png')
 
     return
+
+
+def h_jacobian(H, pt):
+    l = pt.shape[0]
+    j = torch.zeros((l, 2, 2), device=device)
+
+    h  = H[2, 0] * pt[:, 0] + H[2, 1] * pt[:, 1] + H[2, 2]
+    g0 = H[0, 0] * pt[:, 0] + H[0, 1] * pt[:, 1] + H[0, 2]
+    g1 = H[1, 0] * pt[:, 0] + H[1, 1] * pt[:, 1] + H[1, 2]
     
+    j[:, 0, 0] = H[0, 0] - (H[2, 0] * g0)
+    j[:, 1, 0] = H[1, 0] - (H[2, 0] * g1)
+
+    j[:, 0, 1] = H[0, 1] - (H[2, 1] * g0)
+    j[:, 1, 1] = H[1, 1] - (H[2, 1] * g1)
+
+    j /= h.unsqueeze(-1).unsqueeze(-1)
+    
+    return j
 
 class miho:
     def __init__(self, params=None):
@@ -1553,6 +1568,7 @@ class miho:
                 'go_assign': go_assign_params,
                 'show_clustering': show_clustering_params}
 
+
     def planar_clustering(self, pt1, pt2, pairwise_filter=False):
         """run MiHo"""
         self.pt1 = pt1
@@ -1598,7 +1614,18 @@ class miho:
             if not all_clusters:
                 show_fig(self.img1, self.img2, self.pt1.cpu(), self.pt2.cpu(), self.Hidx.cpu(), **self.params['show_clustering'])
             else:
-                show_fig(self.img1, self.img2, self.pt1.cpu(), self.pt2.cpu(), self.Hidx.cpu(), Hdata=self.mask, **self.params['show_clustering'])
+                if self.mask is None:                
+                    Hdata=self.Hs
+                    l = len(Hdata)
+                    n = Hdata[0][-2].shape[0]
+    
+                    aux = torch.zeros((n, l), dtype=torch.bool, device=device)
+                    for i in range(l): aux[:, i] = Hdata[i][-2]
+                    mask = aux
+                else:
+                    mask = self.mask
+                
+                show_fig(self.img1, self.img2, self.pt1.cpu(), self.pt2.cpu(), self.Hidx.cpu(), Hdata=mask, **self.params['show_clustering'])
         else:
             warnings.warn("planar_clustering must run before!!!")
 

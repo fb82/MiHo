@@ -25,8 +25,8 @@ if __name__ == '__main__':
     else:
         from src import miho_other as miho
       
-    img1 = '../bench_data/non_planar_dataset_and_gt/data/non_planar/cart0.png'
-    img2 = '../bench_data/non_planar_dataset_and_gt/data/non_planar/cart1.png'
+    img1 = '../bench_data/non_planar/cart0.png'
+    img2 = '../bench_data/non_planar/cart1.png'
     # img1 = 'data/demo/im1.png'
     # img2 = 'data/demo/im2_rot.png'
     if load_matches: match_file = 'data/demo/matches_rot.mat'
@@ -48,11 +48,11 @@ if __name__ == '__main__':
     im1 = Image.open(img1)
     im2 = Image.open(img2)
 
-    pipe = base_mod.sift_hz_hz_plus_hardnet_module(upright=False)
+    pipe = base_mod.sift_hardnet_module(upright=False)
 
     res = pipe.run(im1=img1, im2=img2)
-    kps1 = res['kp1']
-    kps2 = res['kp2']
+    pt1 = res['pt1'].to(torch.float)
+    pt2 = res['pt2'].to(torch.float)
 
     mihoo = miho.miho()
 
@@ -69,6 +69,10 @@ if __name__ == '__main__':
     # params['get_avg_hom']['ransac_middle_args']['max_iter'] = 500
     # mihoo.update_params(params)
     
+    # params = mihoo.get_current()
+    # params['go_assign']['method']=miho.cluster_assign_new
+    # mihoo.update_params(params)
+    
     if miho_no_reflection:
         params = mihoo.get_current()  
         params['get_avg_hom']['ransac_middle_args']['check_reflection'] = True
@@ -76,27 +80,27 @@ if __name__ == '__main__':
 
     mihoo.attach_images(im1, im2)
 
-    if ncc_check:
-    # offset kpt shift, for testing
-        if not load_matches:
-            pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=False, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
-        else:
-              pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im1, pt1=pt1, pt2=pt2, w=w, img_patches=False, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
-        pt1 = pt1.round()
-        if w_big is None:
-            ww_big = w * 2
-        else:
-            ww_big = w_big
-        test_idx = (torch.rand((pt1.shape[0], 2), device=device) * (((ww_big-w) * 2) - 1) - (ww_big-w-1)).round()    
-        pt2 = pt1 + test_idx
-        pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im1, pt1=pt1, pt2=pt2, w=w, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
-        pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, w_big=w_big, ref_image=['both'], subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
-    else:
-    # data formatting for NCC / NCC+
-        if not load_matches:
-            pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
-        else:
-            pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im2, pt1=pt1, pt2=pt2, w=w, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
+    # if ncc_check:
+    # # offset kpt shift, for testing
+    #     if not load_matches:
+    #         pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=False, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
+    #     else:
+    #           pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im1, pt1=pt1, pt2=pt2, w=w, img_patches=False, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
+    #     pt1 = pt1.round()
+    #     if w_big is None:
+    #         ww_big = w * 2
+    #     else:
+    #         ww_big = w_big
+    #     test_idx = (torch.rand((pt1.shape[0], 2), device=device) * (((ww_big-w) * 2) - 1) - (ww_big-w-1)).round()    
+    #     pt2 = pt1 + test_idx
+    #     pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im1, pt1=pt1, pt2=pt2, w=w, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
+    #     pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im1, pt1, pt2, Hs_laf, w=w, w_big=w_big, ref_image=['both'], subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
+    # else:
+    # # data formatting for NCC / NCC+
+    #     if not load_matches:
+    #         pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
+    #     else:
+    #         pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im2, pt1=pt1, pt2=pt2, w=w, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
 
     ### MiHo
     start = time.time()
@@ -137,4 +141,4 @@ if __name__ == '__main__':
     # display MiHo clusters, outliers are black diamonds    
     if not ncc_check:
         mihoo.show_clustering()
-#       mihoo.show_clustering(all_clusters=True)
+        mihoo.show_clustering(all_clusters=True)
