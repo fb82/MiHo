@@ -1561,14 +1561,11 @@ def cluster_assign_jacobian(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th
 
     H12 = torch.zeros((l*2, 3, 3), device=device)
     sidx_par = torch.zeros((l, 4), device=device, dtype=torch.long)
-    inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
 
     for i in range(l):
         H12[i] = Hdata[i][0]
         H12[i+l] = Hdata[i][1]
         sidx_par[i] = Hdata[i][3]
-
-        inl_mask[:, i] = Hdata[i][2]
 
     err = get_error_duplex(H12, pt1, pt2, ptm, sidx_par).permute(1,0) ** 0.5
     

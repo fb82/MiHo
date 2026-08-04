@@ -23,7 +23,7 @@ if __name__ == '__main__':
     if miho_duplex:    
         from src import miho_dev as miho
     else:
-        from src import miho_other as miho
+        from src import miho_other_dev as miho
       
     # img1 = '../bench_data/non_planar/cart0.png'
     # img2 = '../bench_data/non_planar/cart1.png'
