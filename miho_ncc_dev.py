@@ -2,7 +2,7 @@ from PIL import Image
 import time
 import torch
 import kornia as K
-from src import ncc as ncc
+from src import ncc_dev as ncc
 import scipy.io as sio
 import src.base_modules_dev as base_mod
 
@@ -25,10 +25,10 @@ if __name__ == '__main__':
     else:
         from src import miho_other as miho
       
-    img1 = '../bench_data/non_planar/cart0.png'
-    img2 = '../bench_data/non_planar/cart1.png'
-    # img1 = 'data/demo/im1.png'
-    # img2 = 'data/demo/im2_rot.png'
+    # img1 = '../bench_data/non_planar/cart0.png'
+    # img2 = '../bench_data/non_planar/cart1.png'
+    img1 = 'data/demo/im1.png'
+    img2 = 'data/demo/im2_rot.png'
     if load_matches: match_file = 'data/demo/matches_rot.mat'
     # or
     # img2 = 'data/demo/im2.png'
@@ -51,8 +51,11 @@ if __name__ == '__main__':
     pipe = base_mod.sift_hardnet_module(upright=False)
 
     res = pipe.run(im1=img1, im2=img2)
-    pt1 = res['pt1'].to(torch.float)
-    pt2 = res['pt2'].to(torch.float)
+    # pt1 = res['pt1'].to(torch.float)
+    # pt2 = res['pt2'].to(torch.float)
+    kps1 = res['kp1']
+    kps2 = res['kp2']
+
 
     mihoo = miho.miho()
 
@@ -69,9 +72,9 @@ if __name__ == '__main__':
     # params['get_avg_hom']['ransac_middle_args']['max_iter'] = 500
     # mihoo.update_params(params)
     
-    # params = mihoo.get_current()
-    # params['go_assign']['method']=miho.cluster_assign_new
-    # mihoo.update_params(params)
+    params = mihoo.get_current()
+    params['go_assign']['method']=miho.cluster_assign_jacobian
+    mihoo.update_params(params)
     
     if miho_no_reflection:
         params = mihoo.get_current()  
@@ -98,16 +101,16 @@ if __name__ == '__main__':
     # else:
     # # data formatting for NCC / NCC+
     #     if not load_matches:
-    #         pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
+    pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im2, data1=kps1, data2=kps2, w=w, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
     #     else:
-    #         pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im2, pt1=pt1, pt2=pt2, w=w, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
+    #       pt1, pt2, Hs_laf = ncc.refinement_laf(mihoo.im1, mihoo.im2, pt1=pt1, pt2=pt2, w=w, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2)
 
     ### MiHo
     start = time.time()
     
     mihoo.planar_clustering(pt1, pt2)
 
-    miho.apply_homs(mihoo.img1, mihoo.img2, mihoo.pt1, mihoo.pt2, mihoo.Hs)
+#   miho.apply_homs(mihoo.img1, mihoo.img2, mihoo.pt1, mihoo.pt2, mihoo.Hs)
 
 #   miho.grow_pts(mihoo.img1, mihoo.img2, mihoo.pt1, mihoo.pt2, mihoo.Hs, kps1_, kps2_, idxs)
 
@@ -130,10 +133,10 @@ if __name__ == '__main__':
     #     else:
     #     # LAF -> MiHo -> NCC | NCC+  
     #         if miho_duplex:
-    #             pt1_, pt2_, Hs_miho, inliers = ncc.refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2) 
+    pt1_, pt2_, Hs_miho, inliers = ncc.refinement_miho(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2) 
     #         else:
     #             pt1_, pt2_, Hs_miho, inliers = ncc.refinement_miho_other(mihoo.im1, mihoo.im2, pt1, pt2, mihoo, Hs_laf, remove_bad=remove_bad, w=w, patch_ref='right', img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, half=miho_vsac) 
-    #         pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, use_covariance=ncc_mask, search_gauss_mask=0.5, use_rgb=False)   
+    pt1__p, pt2__p, Hs_ncc_p, val_p, T_p = ncc.refinement_norm_corr_alternate(mihoo.im1, mihoo.im2, pt1_, pt2_, Hs_miho, w=w, ref_image=['both'], angle=angle, scale=scale, subpix=True, img_patches=True, im1_disp=mihoo.img1, im2_disp=mihoo.img2, use_covariance=ncc_mask, search_gauss_mask=0.5, use_rgb=False)   
     
     # end = time.time()
     # print("Elapsed = %s (NCC refinement)" % (end - start))
@@ -141,4 +144,4 @@ if __name__ == '__main__':
     # display MiHo clusters, outliers are black diamonds    
     if not ncc_check:
         mihoo.show_clustering()
-        mihoo.show_clustering(all_clusters=True)
+    #   mihoo.show_clustering(all_clusters=True)

@@ -1489,6 +1489,39 @@ def apply_homs(im1, im2, pt1, pt2, Hs, gn=20, cf_max=2.0):
     return
 
 
+def get_h_distortion(Hs, H1_pre, H2_pre, pt1, pt2):
+    l = len(Hs)
+    
+    data = torch.zeros((l, pt1.shape[0], 2), device=device)
+
+    for i in range(l):
+        H1 = Hs[i][0] @ H1_pre
+        H2 = Hs[i][1] @ H2_pre
+
+        j1 = h_jacobian(H1, pt1)
+        j2 = h_jacobian(H2, pt2)
+        
+        a1 = j1.det()
+        a1[a1 < 1] = 1 / a1[a1 < 1]
+
+        a2 = j2.det()
+        a2[a2 < 1] = 1 / a2[a2 < 1]
+
+        d1 = torch.linalg.svd(j1)[1]
+        d1 = d1.max(dim=1)[0] / d1.min(dim=1)[0]
+
+        d2 = torch.linalg.svd(j2)[1]
+        d2 = d2.max(dim=1)[0] / d2.min(dim=1)[0]
+        
+        a = torch.max(a1, a2)
+        d = torch.max(d1, d2)
+
+        data[i, :, 0] = a
+        data[i, :, 1] = d
+
+    return data
+
+
 def h_jacobian(H, pt):
     l = pt.shape[0]
     j = torch.zeros((l, 2, 2), device=device)
@@ -1506,6 +1539,51 @@ def h_jacobian(H, pt):
     j /= h.unsqueeze(-1).unsqueeze(-1)
     
     return j
+
+
+def cluster_assign_jacobian(Hdata, pt1, pt2, H1_pre, H2_pre, median_th=5, err_th=15, **dummy_args):    
+    l = len(Hdata)
+    n = pt1.shape[0]
+
+    if not((l>0) and (n>0)):
+        return torch.full((n, ), -1, dtype=torch.int, device=device), None
+
+    pt1 = torch.vstack((pt1.T, torch.ones((1, n), device=device)))
+    pt2 = torch.vstack((pt2.T, torch.ones((1, n), device=device)))
+
+    pt1_ = torch.matmul(H1_pre, pt1)
+    pt1_ = pt1_ / pt1_[2]
+
+    pt2_ = torch.matmul(H2_pre, pt2)
+    pt2_ = pt2_ / pt2_[2]
+
+    ptm = (pt1_ + pt2_) / 2
+
+    H12 = torch.zeros((l*2, 3, 3), device=device)
+    sidx_par = torch.zeros((l, 4), device=device, dtype=torch.long)
+    inl_mask = torch.zeros((n, l), dtype=torch.bool, device=device)
+
+    for i in range(l):
+        H12[i] = Hdata[i][0]
+        H12[i+l] = Hdata[i][1]
+        sidx_par[i] = Hdata[i][3]
+
+        inl_mask[:, i] = Hdata[i][2]
+
+    err = get_error_duplex(H12, pt1, pt2, ptm, sidx_par).permute(1,0) ** 0.5
+    
+    jerr = get_h_distortion(Hdata, H1_pre, H2_pre, pt1[:2,:].permute((1,0)), pt2[:2,:].permute((1,0))).permute((1,0,2))
+
+    cn = (err < err_th).sum(dim=0).unsqueeze(dim=0).repeat((err.shape[0],1))
+
+    ejr = torch.concat((err.unsqueeze(-1), jerr, cn.unsqueeze(-1)), dim=-1)
+    ejr[ejr[:,:,0] >= err_th] = torch.inf
+
+    idx = (ejr[:,:, 1:3].prod(dim=-1)**0.5).min(dim=-1)[1]
+    idx[(err >= err_th).all(dim=-1)] = -1
+
+    return idx, None
+
 
 class miho:
     def __init__(self, params=None):
