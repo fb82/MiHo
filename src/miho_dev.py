@@ -1728,6 +1728,12 @@ class miho_module:
                 params['go_assign']['method'] = cluster_assign_new
                 self.miho.update_params(params)        
 
+        if hasattr(self, 'assign_jacobian'):
+            if self.assign_new:
+                params = self.miho.get_current()
+                params['go_assign']['method'] = cluster_assign_jacobian
+                self.miho.update_params(params)        
+        
         
     def get_id(self):
         if not hasattr(self, 'max_iter'):
@@ -1742,13 +1748,17 @@ class miho_module:
             if self.assign_new:
                 aux = aux + '_assign_new'
 
+        if hasattr(self, 'assign_jacobian'):
+            if self.assign_new:
+                aux = aux + '_assign_jacobian'
+
         return aux.lower()
 
 
     def run(self, **args):
         self.miho.planar_clustering(args['pt1'], args['pt2'])
         
-        pt1, pt2, Hs_miho, inliers, Hs_laf = refinement_miho(None, None, args['pt1'], args['pt2'], self.miho, args['Hs'], remove_bad=True, img_patches=False, also_laf=True)        
+        pt1, pt2, Hs_miho, inliers, Hs_laf = refinement_miho(None, None, args['pt1'], args['pt2'], self.miho, args['Hs'], remove_bad=True, img_patches=False, also_laf=True)
             
         toreturn = {'pt1': pt1, 'pt2': pt2, 'Hs': Hs_miho, 'mask': inliers}
         if not (Hs_laf is None): toreturn['Hs_prev'] = Hs_laf

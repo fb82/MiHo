@@ -890,6 +890,12 @@ class miho_module:
             params['get_avg_hom']['ransac_middle_args']['check_reflection'] = self.check_reflection
             self.miho.update_params(params)    
 
+        if hasattr(self, 'assign_jacobian'):
+            if self.assign_new:
+                params = self.miho.get_current()
+                params['go_assign']['method'] = cluster_assign_jacobian
+                self.miho.update_params(params)        
+
         
     def get_id(self):
         if not hasattr(self, 'max_iter'):        
@@ -902,7 +908,11 @@ class miho_module:
 
         if self.half:
             aux = aux.replace('miho','miho_half')
-        
+
+        if hasattr(self, 'assign_jacobian'):
+            if self.assign_new:
+                aux = aux + '_assign_jacobian'
+
         return aux    
         
 
