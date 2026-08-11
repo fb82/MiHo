@@ -891,7 +891,7 @@ class miho_module:
             self.miho.update_params(params)    
 
         if hasattr(self, 'assign_jacobian'):
-            if self.assign_new:
+            if self.assign_jacobian:
                 params = self.miho.get_current()
                 params['go_assign']['method'] = cluster_assign_jacobian
                 self.miho.update_params(params)        
@@ -910,7 +910,7 @@ class miho_module:
             aux = aux.replace('miho','miho_half')
 
         if hasattr(self, 'assign_jacobian'):
-            if self.assign_new:
+            if self.assign_jacobian:
                 aux = aux + '_assign_jacobian'
 
         return aux    
