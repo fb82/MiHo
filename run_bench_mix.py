@@ -17,6 +17,11 @@ if __name__ == '__main__':
     pipes = [                
         [
             pipe_head,
+            pipe_ransac
+        ],         
+
+        [
+            pipe_head,
             miho_unduplex.miho_module(half=True, assign_jacobian=True),
             ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5),           
             pipe_ransac

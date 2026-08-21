@@ -642,7 +642,7 @@ def cluster_assign_jacobian(Hdata, pt1, pt2, median_th=5, err_th=15, **dummy_arg
     n = pt1.shape[0]
 
     if not((l>0) and (n>0)):
-        return torch.full((n, ), -1, dtype=torch.int, device=device), None
+        return torch.full((n, ), -1, dtype=torch.int, device=device)
 
     pt1 = torch.vstack((pt1.T, torch.ones((1, n), device=device)))
     pt2 = torch.vstack((pt2.T, torch.ones((1, n), device=device)))
