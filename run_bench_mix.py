@@ -22,28 +22,28 @@ if __name__ == '__main__':
 
         [
             pipe_head,
-            miho_unduplex.miho_module(half=True, assign_jacobian=True),
+            miho_unduplex.miho_module(half=True, assign_jacobian=True, check_reflection=True),
             ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5),           
             pipe_ransac
         ],         
 
         [
             pipe_head,
-            miho_duplex.miho_module(assign_jacobian=True),
+            miho_duplex.miho_module(assign_jacobian=True, check_reflection=True),
             ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5),           
             pipe_ransac
         ],
 
         [
             pipe_head,
-            miho_unduplex.miho_module(half=True, assign_jacobian=True),
+            miho_unduplex.miho_module(half=True, assign_jacobian=True, check_reflection=True),
             ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5, use_rgb=True),           
             pipe_ransac
         ],         
 
         [
             pipe_head,
-            miho_duplex.miho_module(assign_jacobian=True),
+            miho_duplex.miho_module(assign_jacobian=True, check_reflection=True),
             ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5, use_rgb=True),           
             pipe_ransac
         ],
@@ -51,14 +51,14 @@ if __name__ == '__main__':
 
         [
             pipe_head,
-            miho_unduplex.miho_module(half=True, assign_jacobian=True),
+            miho_unduplex.miho_module(half=True, assign_jacobian=True, check_reflection=True),
             ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5, ordstat=True),           
             pipe_ransac
         ],         
 
         [
             pipe_head,
-            miho_duplex.miho_module(assign_jacobian=True),
+            miho_duplex.miho_module(assign_jacobian=True, check_reflection=True),
             ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5, ordstat=True),           
             pipe_ransac
         ],
@@ -66,28 +66,28 @@ if __name__ == '__main__':
 ###
         [
             pipe_head,
-            miho_unduplex.miho_module(half=True),
+            miho_unduplex.miho_module(half=True, check_reflection=True),
             ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5),           
             pipe_ransac
         ],         
 
         [
             pipe_head,
-            miho_duplex.miho_module(),
+            miho_duplex.miho_module(check_reflection=True),
             ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5),           
             pipe_ransac
         ],
 
         [
             pipe_head,
-            miho_unduplex.miho_module(half=True),
+            miho_unduplex.miho_module(half=True, check_reflection=True),
             ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5, use_rgb=True),           
             pipe_ransac
         ],         
 
         [
             pipe_head,
-            miho_duplex.miho_module(),
+            miho_duplex.miho_module(check_reflection=True),
             ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5, use_rgb=True),           
             pipe_ransac
         ],
@@ -95,14 +95,14 @@ if __name__ == '__main__':
 
         [
             pipe_head,
-            miho_unduplex.miho_module(half=True),
+            miho_unduplex.miho_module(half=True, check_reflection=True),
             ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5, ordstat=True),           
             pipe_ransac
         ],         
 
         [
             pipe_head,
-            miho_duplex.miho_module(),
+            miho_duplex.miho_module(check_reflection=True),
             ncc.ncc_module(also_prev=True, use_covariance=True, covariance_gauss_mask=0.5, search_gauss_mask=0.5, ordstat=True),           
             pipe_ransac
         ],
